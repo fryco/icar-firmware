@@ -10,3 +10,8 @@
 3，只有一个任务
 4，每秒打印一次+CPU使用率
 
+22:10 2012/1/7
+开始用 http://code.google.com/p/icar-firmware 管理项目
+
+22:34 2012/1/7
+Merge 测试
