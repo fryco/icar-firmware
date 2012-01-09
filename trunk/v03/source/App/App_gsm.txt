@@ -1,0 +1,54 @@
+App_gsm introduction：
+1，purpose/作用：
+   This is the GSM part, manage all the GSM input/output
+
+2，Logic:
+开Uart2(接GSM模块)接收中断
+判断是否需要power_on 标志
+是==> 开GSM电源，搜网，到设置服务器地址 为止
+否==> 保持不变，暂不处理
+
+判断是否需要在线标志
+是==> 连接TCP
+
+
+3，process/流程：
+void  App_gsm (void *p_arg) {
+
+   	OS_CPU_SysTickInit(); initialize the tick, using STM32 
+                          system tick timer, 1msec
+==> OSTaskCreateExt(App_TaskGsm), Create subtask: gsm
+==> enable uart1 rx interrupt
+==> enable temperature adc DMA
+==> initialize independent watchdog
+    this watchdog is very useful in ucos, Reloads IWDG counter in taskmanger,
+    it can prevent program occupy CPU resource too much, 
+    finding the unreasonable program early.
+
+	while	(1)
+	{
+==>		IWDG_ReloadCounter();
+==>		Check Uart1 rx buffer, just output it
+==>		
+
+2011/12/23 14:05:12
+manger 发给 gsm 数据：
+0, 登录，模块序列号+GSM IP地址+其它
+1, 取时间，校正RTC 用
+2, 取命令，客户从web端发命令给模块
+3, 上报速度、GPS、G-Force 等数据
+
+
+AT^SICI? 查询分配的IP
+^SICI: 0,2,1,"172.16.165.191"
+OK
+AT^SISW=0,10 发送10 个数据
+^SISW: 0,10,10
+输入 QWERTYUIOP，不显示。
+OK
+^SISW: 0,1 发送成功
+^SISR: 0, 1 收到数据
+AT^SISR=0,100 读取数据长度为100
+^SISR: 0,10 收到数据10个
+QWERTYUIOP 收到的内容。
+OK

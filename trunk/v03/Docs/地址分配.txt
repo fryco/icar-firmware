@@ -1,0 +1,14 @@
+MCT: STM32F103R8,64KB Flash, sector:1K, 20KB RAM
+
+Flash 分配：
+Bootloader: 4KB, 0~3 sector
+App: 28KB, 4~31 sector
+system data(系统数据，如SN、版本号等):2KB, 32~33 sector
+temp data index(临时数据索引):2KB, 34~35 sector
+temp data(临时数据，如升级用的FW,GSM缓存数据）：28KB, 36~64 sector
+
+共：4+28+2+2+28=64KB
+
+temp data index说明：
+Write index: 1KB,  对应temp data里，每512字节的CRC结果，如：
+Read  index: 1KB, 
