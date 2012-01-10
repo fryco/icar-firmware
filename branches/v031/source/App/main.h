@@ -40,13 +40,14 @@
 
 #define DEBUG_GSM
 
-#define AT_TIMEOUT		1000
-#define AT_CMD_LENGTH	64 //for GSM command
-//#define TCP_TIMEOUT		30*1000 //30 seconds
+#define AT_TIMEOUT				1000
+#define AT_CMD_LENGTH			64 //for GSM command
+//#define RTC_UPDATE_PERIOD		1*60*60 //1 Hour
+#define RTC_UPDATE_PERIOD		1*1*60 //1 mins
 
 //For GSM <==> Server protocol
-#define GSM_HEAD			0xC9
-#define GSM_CMD_TIME		0x54 //'T'
+#define GSM_HEAD				0xC9
+#define GSM_CMD_TIME			0x54 //'T'
 
 
 #define	prompt(x, args...)	printf("[%d,%02d%%]> ",OSTime/1000,OSCPUUsage);printf(x,	##args);

@@ -136,7 +136,9 @@ int	main(void)
 
 	show_rst_flag( );
 
-	OSInit();	 /*	Initialize "uC/OS-II, The Real-Time	Kernel".		 */
+	/*	Initialize "uC/OS-II, The Real-Time	Kernel".		 */
+	OSInit(); //include: OSTime = 0L;
+	//OSTimeSet(RTC_GetCounter( ));
 
 	os_err = OSTaskCreateExt((void (*)(void *)) App_TaskManager,  /* Create the start task.*/
 						   (void		  *	) 0,

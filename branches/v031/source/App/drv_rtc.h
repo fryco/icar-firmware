@@ -20,13 +20,24 @@
 /* Exported types ------------------------------------------------------------*/
 struct rtc_status {
 	unsigned int update_time ;//record update rtc time, re-update after 1 hour
-	bool updating ;
 	unsigned int prescaler ;  //++ if rtc slow, -- if rtc fast
 
+};
+
+struct DATE_TIME
+{
+    unsigned int year;
+    unsigned int month;
+    unsigned int day;
+    unsigned int hour;
+    unsigned int minute;
+    unsigned int second;
 };
 
 /* Exported constants --------------------------------------------------------*/
 
 /* Exported functions ------------------------------------------------------- */
 void rtc_init(void);
+void RTC_update_calibrate( unsigned char *, unsigned char * ) ;
+//void seconds_to_datetime (unsigned int counts, struct DATE_TIME *datetime);
 #endif /* __DRV_RTC_H */

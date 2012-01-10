@@ -42,7 +42,7 @@ void  App_TaskManager (void *p_arg)
 	unsigned char  respond_len_h=0, respond_len_l=0;
 	unsigned int   respond_len = 0, respond_time=0;
 	//note:从S_PCB开始计时respond_time,如果>5*AT_TIMEOUT,则重置状态为S_HEAD
-	unsigned int i , rtc_update_time=0;
+	unsigned int i ;
 	protocol_status cur_status = S_HEAD;
 	struct protocol_string pro_str[MAX_CMD_QUEUE];
 	unsigned char pro_str_index=0 ;
@@ -60,7 +60,7 @@ void  App_TaskManager (void *p_arg)
 	}
 
 	/* Initialize the SysTick.								*/
-	OS_CPU_SysTickInit();
+	OS_CPU_SysTickInit(); 
 
 	//prompt("\r\n\r\n%s, line:	%d\r\n",__FILE__, __LINE__);
 	prompt("Micrium	uC/OS-II V%d.%d\r\n", OSVersion()/100,OSVersion()%100);
@@ -126,68 +126,61 @@ void  App_TaskManager (void *p_arg)
 			;//mg323_status.ask_online = false ;
 		}
 
-		if ( !stm32_rtc.updating ) {//no in updating process
-			if ( (RTC_GetCounter( ) - stm32_rtc.update_time) > 1*60*60 || \
-					stm32_rtc.update_time == 0 ) {//need update RTC by server time
-				prompt("Need update RTC, mg323_cmd.tx_len= %d\r\n",mg323_cmd.tx_len);
-				rtc_update_time = OSTime ;
+		if ( (RTC_GetCounter( ) - stm32_rtc.update_time) > RTC_UPDATE_PERIOD || \
+				stm32_rtc.update_time == 0 ) {//need update RTC by server time
+			prompt("Need update RTC\t%d, tx_len= %d\r\n",\
+				(RTC_GetCounter( ) - stm32_rtc.update_time),mg323_cmd.tx_len);
+			stm32_rtc.update_time = RTC_GetCounter( ) ;
 
-				//find a no use protocol_string to record the SEQ/CMD
-				for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
-					if ( pro_str[pro_str_index].send_pcb == 0 ) { //no use
-						//prompt("pro_str %d is no use.\r\n",pro_str_index);
-						break ;
-					}//end of pro_str[pro_str_index].send_pcb == 0
-				}
-
-				//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
-				if ( !mg323_cmd.lock \
-					&& mg323_cmd.tx_len < (GSM_BUF_LENGTH-20) \
-					&& pro_str_index < MAX_CMD_QUEUE ) {
-					//no process occupy && have enough buffer
-
-					OS_ENTER_CRITICAL();
-					mg323_cmd.lock = true ;
-					OS_EXIT_CRITICAL();
-
-					//set protocol string value
-					pro_str[pro_str_index].send_time= OSTime ;
-					pro_str[pro_str_index].send_seq = gsm_sequence ;
-					pro_str[pro_str_index].send_pcb = GSM_CMD_TIME ;
-
-					//prepare GSM command
-					mg323_cmd.tx[mg323_cmd.tx_len]   = GSM_HEAD ;
-					mg323_cmd.tx[mg323_cmd.tx_len+1] = gsm_sequence ;//SEQ
-					gsm_sequence++;
-					mg323_cmd.tx[mg323_cmd.tx_len+2] = GSM_CMD_TIME ;//PCB
-					mg323_cmd.tx[mg323_cmd.tx_len+3] = 0  ;//length high
-					mg323_cmd.tx[mg323_cmd.tx_len+4] = 10 ;//length low
-					strncpy((char *)&mg323_cmd.tx[mg323_cmd.tx_len+5], (char *)pro_sn, 10);
-
-					prompt("GSM CMD: %02X ",mg323_cmd.tx[mg323_cmd.tx_len]);
-					chkbyte = GSM_HEAD ;
-					for ( i = 1 ; i < 15 ; i++ ) {//calc chkbyte
-						chkbyte ^= mg323_cmd.tx[mg323_cmd.tx_len+i];
-						printf("%02X ",mg323_cmd.tx[mg323_cmd.tx_len+i]);
-					}
-					mg323_cmd.tx[mg323_cmd.tx_len+15] = chkbyte ;
-					printf("%02X\r\n",mg323_cmd.tx[mg323_cmd.tx_len+15]);
-					//update buf length
-					mg323_cmd.tx_len = mg323_cmd.tx_len + 16 ;
-					stm32_rtc.updating = true ;
-
-					OS_ENTER_CRITICAL();
-					mg323_cmd.lock = false ;
-					OS_EXIT_CRITICAL();
-				}//end of if ( !mg323_cmd.lock && mg323_cmd.tx_len < (GSM_BUF_LENGTH-20))
-			}//end of f ( (RTC_GetCounter( ) ...
-		}//end of if ( !stm32_rtc.updating ) ...
-		else {
-			//if ( OSTime - rtc_update_time > 2*60*1000 ) { //timeout
-			if ( OSTime - rtc_update_time > 10*1000 ) { //short for test
-				stm32_rtc.updating = false ;//restart update process again
+			//find a no use protocol_string to record the SEQ/CMD
+			for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
+				if ( pro_str[pro_str_index].send_pcb == 0 ) { //no use
+					//prompt("pro_str %d is no use.\r\n",pro_str_index);
+					break ;
+				}//end of pro_str[pro_str_index].send_pcb == 0
 			}
-		}
+
+			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
+			if ( !mg323_cmd.lock \
+				&& mg323_cmd.tx_len < (GSM_BUF_LENGTH-20) \
+				&& pro_str_index < MAX_CMD_QUEUE ) {
+				//no process occupy && have enough buffer
+
+				OS_ENTER_CRITICAL();
+				mg323_cmd.lock = true ;
+				OS_EXIT_CRITICAL();
+
+				//set protocol string value
+				pro_str[pro_str_index].send_time= OSTime ;
+				pro_str[pro_str_index].send_seq = gsm_sequence ;
+				pro_str[pro_str_index].send_pcb = GSM_CMD_TIME ;
+
+				//prepare GSM command
+				mg323_cmd.tx[mg323_cmd.tx_len]   = GSM_HEAD ;
+				mg323_cmd.tx[mg323_cmd.tx_len+1] = gsm_sequence ;//SEQ
+				gsm_sequence++;
+				mg323_cmd.tx[mg323_cmd.tx_len+2] = GSM_CMD_TIME ;//PCB
+				mg323_cmd.tx[mg323_cmd.tx_len+3] = 0  ;//length high
+				mg323_cmd.tx[mg323_cmd.tx_len+4] = 10 ;//length low
+				strncpy((char *)&mg323_cmd.tx[mg323_cmd.tx_len+5], (char *)pro_sn, 10);
+
+				prompt("GSM CMD: %02X ",mg323_cmd.tx[mg323_cmd.tx_len]);
+				chkbyte = GSM_HEAD ;
+				for ( i = 1 ; i < 15 ; i++ ) {//calc chkbyte
+					chkbyte ^= mg323_cmd.tx[mg323_cmd.tx_len+i];
+					printf("%02X ",mg323_cmd.tx[mg323_cmd.tx_len+i]);
+				}
+				mg323_cmd.tx[mg323_cmd.tx_len+15] = chkbyte ;
+				printf("%02X\r\n",mg323_cmd.tx[mg323_cmd.tx_len+15]);
+				//update buf length
+				mg323_cmd.tx_len = mg323_cmd.tx_len + 16 ;
+
+				OS_ENTER_CRITICAL();
+				mg323_cmd.lock = false ;
+				OS_EXIT_CRITICAL();
+			}//end of if ( !mg323_cmd.lock && mg323_cmd.tx_len < (GSM_BUF_LENGTH-20))
+		}//end of f ( (RTC_GetCounter( ) ...
+
 
 		//prompt("Sat:%d\trx_empty=%d\t In:%X\r\n",\
 		//cur_status,mg323_cmd.rx_empty,mg323_cmd.rx_in_last);
@@ -358,17 +351,8 @@ void  App_TaskManager (void *p_arg)
 							//C9 08 D4 00 04 4F 0B CD E5 7D
 							prompt("Time respond PCB: 0x%X\r\n",respond_pcb&0x7F);
 
-							stm32_rtc.update_time = 0 ;
-							for ( i = 0 ; i < 4 ; i++ ) {//
-								if ( (respond_start+i+5) < mg323_cmd.rx+GSM_BUF_LENGTH ) {
-									stm32_rtc.update_time |= (*(respond_start+i+5))<<(24-i*8);
-								}
-								else {//data in begin of buffer
-									stm32_rtc.update_time |= (*(respond_start+i+5-GSM_BUF_LENGTH))<<(24-i*8);
-								}
-							}
-							//prompt("stm32_rtc.update_time: %08X ",stm32_rtc.update_time);
-
+							//calibrate RTC
+							RTC_update_calibrate(respond_start,mg323_cmd.rx) ;
 							break;
 
 						default:
@@ -441,7 +425,7 @@ void  App_TaskManager (void *p_arg)
 			adc = 142000 - ((adc*330*1000) >> 12);
 			adc = adc*100/435+2500;
 
-			if ( (OSTime/1000)%3 == 0 ) {
+			if ( (OSTime/1000)%10 == 0 ) {
 				prompt("T: %d.%02d C",adc/100,adc%100);
 				printf("\tRTC:%d\r\n",RTC_GetCounter());
 			}
