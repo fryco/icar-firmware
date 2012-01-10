@@ -1,7 +1,7 @@
 #include "main.h"
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
-static unsigned char mcu_id_eor( void );
+static unsigned char mcu_id_eor( unsigned int );
 
 extern struct icar_rx u1_rx_buf;
 extern struct icar_tx u1_tx_buf;
@@ -10,8 +10,8 @@ extern struct gsm_command mg323_cmd ;
 extern struct rtc_status stm32_rtc;
 extern struct icar_adc_buf adc_temperature;
 
-unsigned char pro_sn[]="02P11AH0xx";
-//Last 2 bytes replace by MCU ID xor result
+unsigned char pro_sn[]="02P1xxxxxx";
+//Last 6 bytes replace by MCU ID xor result
 /* SN, char(10): 0  2  P  1 1  A  H  0 0 0
  *               ① ② ③ ④⑤ ⑥ ⑦ ⑧⑨⑩
  *               ① 0:iCar low end, 1: iCar mid end, 2: iCar high end ...
@@ -41,8 +41,8 @@ void  App_TaskManager (void *p_arg)
 	unsigned char  respond_pcb=0, respond_seq=0, respond_chk=0;
 	unsigned char  respond_len_h=0, respond_len_l=0;
 	unsigned int   respond_len = 0, respond_time=0;
-	//note:从S_PCB开始计时respond_time,如果>TCP_TIMEOUT,则重置状态为S_HEAD
-	unsigned int i , rtc_update_timer=0;
+	//note:从S_PCB开始计时respond_time,如果>5*AT_TIMEOUT,则重置状态为S_HEAD
+	unsigned int i , rtc_update_time=0;
 	protocol_status cur_status = S_HEAD;
 	struct protocol_string pro_str[MAX_CMD_QUEUE];
 	unsigned char pro_str_index=0 ;
@@ -66,11 +66,18 @@ void  App_TaskManager (void *p_arg)
 	prompt("Micrium	uC/OS-II V%d.%d\r\n", OSVersion()/100,OSVersion()%100);
 	prompt("TickRate: %d\t\t", OS_TICKS_PER_SEC);
 	printf("OSCPUUsage: %d\r\n", OSCPUUsage);
-	chkbyte = mcu_id_eor( );
-	prompt("The MCU ID is %X %X %X\tEOR:%02X\r\n",\
-		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),chkbyte);
 
+	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7E8));
+	snprintf((char *)&pro_sn[4],3,"%02X",chkbyte);
+
+	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7EC));
+	snprintf((char *)&pro_sn[6],3,"%02X",chkbyte);
+
+	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7F0));
 	snprintf((char *)&pro_sn[8],3,"%02X",chkbyte);
+
+	prompt("The MCU ID is %X %X %X\tSN:%s\r\n",\
+		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),pro_sn);
 
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();												/* Determine CPU capacity.								*/
@@ -123,7 +130,7 @@ void  App_TaskManager (void *p_arg)
 			if ( (RTC_GetCounter( ) - stm32_rtc.update_time) > 1*60*60 || \
 					stm32_rtc.update_time == 0 ) {//need update RTC by server time
 				prompt("Need update RTC, mg323_cmd.tx_len= %d\r\n",mg323_cmd.tx_len);
-				rtc_update_timer = OSTime ;
+				rtc_update_time = OSTime ;
 
 				//find a no use protocol_string to record the SEQ/CMD
 				for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
@@ -176,8 +183,8 @@ void  App_TaskManager (void *p_arg)
 			}//end of f ( (RTC_GetCounter( ) ...
 		}//end of if ( !stm32_rtc.updating ) ...
 		else {
-			//if ( OSTime - rtc_update_timer > 2*60*1000 ) { //timeout
-			if ( OSTime - rtc_update_timer > 10*1000 ) { //short for test
+			//if ( OSTime - rtc_update_time > 2*60*1000 ) { //timeout
+			if ( OSTime - rtc_update_time > 10*1000 ) { //short for test
 				stm32_rtc.updating = false ;//restart update process again
 			}
 		}
@@ -348,7 +355,19 @@ void  App_TaskManager (void *p_arg)
 							break;
 
 						case GSM_CMD_TIME://0x54,'T'
+							//C9 08 D4 00 04 4F 0B CD E5 7D
 							prompt("Time respond PCB: 0x%X\r\n",respond_pcb&0x7F);
+
+							stm32_rtc.update_time = 0 ;
+							for ( i = 0 ; i < 4 ; i++ ) {//
+								if ( (respond_start+i+5) < mg323_cmd.rx+GSM_BUF_LENGTH ) {
+									stm32_rtc.update_time |= (*(respond_start+i+5))<<(24-i*8);
+								}
+								else {//data in begin of buffer
+									stm32_rtc.update_time |= (*(respond_start+i+5-GSM_BUF_LENGTH))<<(24-i*8);
+								}
+							}
+							//prompt("stm32_rtc.update_time: %08X ",stm32_rtc.update_time);
 
 							break;
 
@@ -446,25 +465,15 @@ void  App_TaskManager (void *p_arg)
 	}
 }
 
-static unsigned char mcu_id_eor( )
+static unsigned char mcu_id_eor( unsigned int id)
 {
 	static unsigned char chkbyte ;
 
 	//Calc. MCU ID eor result as product SN
-	chkbyte =  ((*(vu32*)(0x1FFFF7E8)) >> 24)&0xFF ;
-	chkbyte ^= ((*(vu32*)(0x1FFFF7E8)) >> 16)&0xFF ;
-	chkbyte ^= ((*(vu32*)(0x1FFFF7E8)) >> 8)&0xFF ;
-	chkbyte ^= (*(vu32*)(0x1FFFF7E8))&0xFF ;
-
-	chkbyte ^= ((*(vu32*)(0x1FFFF7EC)) >> 24)&0xFF ;
-	chkbyte ^= ((*(vu32*)(0x1FFFF7EC)) >> 16)&0xFF ;
-	chkbyte ^= ((*(vu32*)(0x1FFFF7EC)) >> 8)&0xFF ;
-	chkbyte ^= (*(vu32*)(0x1FFFF7EC))&0xFF ;
-
-	chkbyte ^= ((*(vu32*)(0x1FFFF7F0)) >> 24)&0xFF ;
-	chkbyte ^= ((*(vu32*)(0x1FFFF7F0)) >> 16)&0xFF ;
-	chkbyte ^= ((*(vu32*)(0x1FFFF7F0)) >> 8)&0xFF ;
-	chkbyte ^= (*(vu32*)(0x1FFFF7F0))&0xFF ;
+	chkbyte =  (id >> 24)&0xFF ;
+	chkbyte ^= (id >> 16)&0xFF ;
+	chkbyte ^= (id >> 8)&0xFF ;
+	chkbyte ^= id&0xFF ;
 
 	return chkbyte ;
 }
