@@ -118,10 +118,11 @@ void  App_TaskGsm (void *p_arg)
 			}//end of if ( mg323_status.ask_online )
 
 			//Send GSM signal and tcp status cmd every 3 sec.
-			if ( (OSTime/1000)%3 == 0 ) {
+			
+			//if ( (OSTime/1000)%3 == 0 ) {//Signal
 				putstring(COM2,"AT+CSQ\r\n");
-			}
-			if ( (OSTime/1000)%3 == 1 ) {
+			//}
+			if ( (OSTime/1000)%3 == 1 ) {//connection status
 				putstring(COM2,"AT^SISI?\r\n");
 			}
 
@@ -183,6 +184,7 @@ void  App_TaskGsm (void *p_arg)
 		                rec_str[7] = rec_str[7] - 0x30;
 		                mg323_status.signal = rec_str[6]*10 + rec_str[7];   
 		            }
+					prompt("Signal:%02d\r\n",mg323_status.signal);
 				}
 
 				//Internet profile status
