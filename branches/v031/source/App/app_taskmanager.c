@@ -36,7 +36,7 @@ void  App_TaskManager (void *p_arg)
 {
 
 	CPU_INT08U	os_err;
-	unsigned char u1_cmd , chkbyte=0, gsm_sequence=0;
+	unsigned char u1_cmd , chkbyte=0, gsm_sequence=0xC0;
 	unsigned char *respond_start=NULL;
 	unsigned char  respond_pcb=0, respond_seq=0, respond_chk=0;
 	unsigned char  respond_len_h=0, respond_len_l=0;
@@ -140,6 +140,10 @@ void  App_TaskManager (void *p_arg)
 				}//end of pro_str[pro_str_index].send_pcb == 0
 			}
 
+			if ( pro_str_index >= MAX_CMD_QUEUE ){
+				prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
+			}
+
 			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
 			if ( !mg323_cmd.lock \
 				&& mg323_cmd.tx_len < (GSM_BUF_LENGTH-20) \
@@ -164,14 +168,14 @@ void  App_TaskManager (void *p_arg)
 				mg323_cmd.tx[mg323_cmd.tx_len+4] = 10 ;//length low
 				strncpy((char *)&mg323_cmd.tx[mg323_cmd.tx_len+5], (char *)pro_sn, 10);
 
-				prompt("GSM CMD: %02X ",mg323_cmd.tx[mg323_cmd.tx_len]);
+				//prompt("GSM CMD: %02X ",mg323_cmd.tx[mg323_cmd.tx_len]);
 				chkbyte = GSM_HEAD ;
 				for ( i = 1 ; i < 15 ; i++ ) {//calc chkbyte
 					chkbyte ^= mg323_cmd.tx[mg323_cmd.tx_len+i];
-					printf("%02X ",mg323_cmd.tx[mg323_cmd.tx_len+i]);
+					//printf("%02X ",mg323_cmd.tx[mg323_cmd.tx_len+i]);
 				}
 				mg323_cmd.tx[mg323_cmd.tx_len+15] = chkbyte ;
-				printf("%02X\r\n",mg323_cmd.tx[mg323_cmd.tx_len+15]);
+				//printf("%02X\r\n",mg323_cmd.tx[mg323_cmd.tx_len+15]);
 				//update buf length
 				mg323_cmd.tx_len = mg323_cmd.tx_len + 16 ;
 
@@ -326,7 +330,6 @@ void  App_TaskManager (void *p_arg)
 							//printf("Data add: %X\r\n",(respond_start+i-GSM_BUF_LENGTH));
 						}
 					}
-					//printf("Calc. CHK: %X\r\n",chkbyte);
 
 					if ( chkbyte == respond_chk ) {//data correct
 						//find the sent record in pro_str by SEQ
@@ -349,9 +352,11 @@ void  App_TaskManager (void *p_arg)
 
 						case GSM_CMD_TIME://0x54,'T'
 							//C9 08 D4 00 04 4F 0B CD E5 7D
-							prompt("Time respond PCB: 0x%X\r\n",respond_pcb&0x7F);
+							prompt("Time respond PCB: 0x%X @ %08X, %08X~%08X\r\n",\
+								respond_pcb&0x7F,respond_start,\
+								mg323_cmd.rx,mg323_cmd.rx+GSM_BUF_LENGTH);
 
-							//calibrate RTC
+							//Update and calibrate RTC
 							RTC_update_calibrate(respond_start,mg323_cmd.rx) ;
 							break;
 
@@ -364,6 +369,18 @@ void  App_TaskManager (void *p_arg)
 					}//end of if ( chkbyte == respond_chk )
 					else {//data no correct
 						prompt("Rec data CHK no correct!\r\n");
+						prompt("Calc. CHK: %02X\t",chkbyte);
+						printf("respond CHK: %02X\r\n",respond_chk);
+					}
+
+					//Clear buffer content
+					for ( i = 0 ; i < respond_len+6 ; i++ ) {
+						if ( (respond_start+i) < mg323_cmd.rx+GSM_BUF_LENGTH ) {
+							*(respond_start+i) = 0x0;
+						}
+						else {//data in begin of buffer
+							*(respond_start+i-GSM_BUF_LENGTH) = 0x0;
+						}
 					}
 
 					//update the buffer point
@@ -373,7 +390,6 @@ void  App_TaskManager (void *p_arg)
 					else { //CHK in the end of buffer
 						mg323_cmd.rx_out_last = respond_start + 6 + respond_len - GSM_BUF_LENGTH ;
 					}
-					//printf("Next add: %X\r\n",mg323_cmd.rx_out_last);
 
 					OS_ENTER_CRITICAL();
 					mg323_cmd.rx_full = false; //reset the full flag
@@ -381,6 +397,10 @@ void  App_TaskManager (void *p_arg)
 						mg323_cmd.rx_empty = true ;//set the empty flag
 					}
 					OS_EXIT_CRITICAL();
+
+					prompt("Next add: %X\t",mg323_cmd.rx_out_last);
+					printf("In last: %X\t",mg323_cmd.rx_in_last);
+					printf("rx_empty: %X\r\n",mg323_cmd.rx_empty);
 
 					//update the next status
 					cur_status = S_HEAD;
@@ -426,8 +446,8 @@ void  App_TaskManager (void *p_arg)
 			adc = adc*100/435+2500;
 
 			if ( (OSTime/1000)%10 == 0 ) {
-				prompt("T: %d.%02d C",adc/100,adc%100);
-				printf("\tRTC:%d\r\n",RTC_GetCounter());
+				prompt("T: %d.%02d C\t",adc/100,adc%100);
+				RTC_show_time();
 			}
 		}
 				 

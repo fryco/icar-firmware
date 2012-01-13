@@ -38,6 +38,7 @@ struct DATE_TIME
 
 /* Exported functions ------------------------------------------------------- */
 void rtc_init(void);
+void RTC_show_time( void );
 void RTC_update_calibrate( unsigned char *, unsigned char * ) ;
 //void seconds_to_datetime (unsigned int counts, struct DATE_TIME *datetime);
 #endif /* __DRV_RTC_H */

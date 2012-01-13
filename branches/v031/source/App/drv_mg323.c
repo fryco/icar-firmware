@@ -873,7 +873,7 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 	unsigned int i ;
 	u8 respond_str[AT_CMD_LENGTH];
 
-	debug_gsm("TCP Send data: ");
+	debug_gsm("TCP Send: ");
 	for ( i = 0 ; i < dat_len ; i++ ) {
 		putbyte(COM2, send_buf[i]) ;
 		#ifdef DEBUG_GSM
@@ -882,7 +882,7 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 	}
 
 	#ifdef DEBUG_GSM
-		printf("\r\n");
+		;//printf("\r\n");
 	#endif
 
 	//wait GSM return: ERROR or OK

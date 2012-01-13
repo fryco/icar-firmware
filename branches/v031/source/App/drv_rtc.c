@@ -158,18 +158,47 @@ void RTC_update_calibrate( unsigned char *p1, unsigned char *p2)
 	//prompt("stm32_rtc.update_time: %08X ",stm32_rtc.update_time);
 
 
-	if ( stm32_rtc.update_time > RTC_GetCounter( )) {
-		stm32_rtc.prescaler--;
-	}
-	else {
-		stm32_rtc.prescaler++;
-	}
-	
-	RTC_SetPrescaler(stm32_rtc.prescaler);
-	/* Wait until last write operation on RTC registers has finished */
-	RTC_WaitForLastTask();
+	if ( stm32_rtc.update_time != RTC_GetCounter( )) {
+		prompt("RTC prescaler %d ==> ",((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL);
+		if ( stm32_rtc.update_time > RTC_GetCounter( )) {
 
-	BKP_WriteBackupRegister(BKP_DR1, stm32_rtc.prescaler);
+			i = stm32_rtc.update_time - RTC_GetCounter( );
+	
+			if ( i < 10 ) {
+				stm32_rtc.prescaler = stm32_rtc.prescaler--;
+			}
+			else {
+				stm32_rtc.prescaler = stm32_rtc.prescaler - i*20;
+			}
+			if ( stm32_rtc.prescaler < 30000 ) {//prevent calc error
+				stm32_rtc.prescaler = 30000 ;
+			}
+
+		}
+		else {
+			i = RTC_GetCounter( ) - stm32_rtc.update_time;
+			if ( i < 10 ) {
+				stm32_rtc.prescaler = stm32_rtc.prescaler++;
+			}
+			else {
+				stm32_rtc.prescaler = stm32_rtc.prescaler + i*20;
+			}
+			if ( stm32_rtc.prescaler > 45000 ) {//prevent calc error
+				stm32_rtc.prescaler = 45000 ;
+			}
+		}
+		
+		RTC_SetPrescaler(stm32_rtc.prescaler);
+		/* Wait until last write operation on RTC registers has finished */
+		RTC_WaitForLastTask();
+	
+		BKP_WriteBackupRegister(BKP_DR1, stm32_rtc.prescaler);
+		printf("%d\r\n",((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL);
+	}//if ==, no need update RTC Prescaler
+
+	seconds_to_datetime(RTC_GetCounter() , &datetime);
+	prompt("UTC: %d-%02d-%02d  ", datetime.year, datetime.month, datetime.day);
+	printf("%02d:%02d:%02d ==> ", datetime.hour, datetime.minute, datetime.second);
 
 	//Update RTC
 	RTC_SetCounter( stm32_rtc.update_time );
@@ -179,7 +208,14 @@ void RTC_update_calibrate( unsigned char *p1, unsigned char *p2)
 	//prompt("RTC_GetCounter:%08X\tupdate_time:%08X\r\n",RTC_GetCounter(),stm32_rtc.update_time);
 
 	seconds_to_datetime(RTC_GetCounter() , &datetime);
-	prompt("UTC: %d-%d-%d  ", datetime.year, datetime.month, datetime.day);
-	printf("%d:%d:%d\r\n", datetime.hour, datetime.minute, datetime.second);
-	prompt("New prescaler = %d\r\n",((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL);
+	printf("%d-%02d-%02d  ", datetime.year, datetime.month, datetime.day);
+	printf("%02d:%02d:%02d\r\n", datetime.hour, datetime.minute, datetime.second);
+
+}
+
+void RTC_show_time( )
+{
+	struct DATE_TIME datetime;
+	seconds_to_datetime(RTC_GetCounter() , &datetime);
+	printf("UTC: %02d:%02d:%02d\r\n", datetime.hour, datetime.minute, datetime.second);
 }
