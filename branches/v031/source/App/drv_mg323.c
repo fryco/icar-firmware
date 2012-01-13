@@ -1053,7 +1053,7 @@ unsigned char gsm_check_gprs( )
 
 	debug_gsm("Current singal is: %d\r\n",mg323_status.signal);
 	if( mg323_status.signal < 12) {
-		debug_gsm("Signal too weak.\r\n");
+		prompt("GSM Signal too weak:%d\r\n",mg323_status.signal);
 		return 18 ;
 	}
 
