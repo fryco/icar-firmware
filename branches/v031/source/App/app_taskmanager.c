@@ -2,6 +2,7 @@
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static unsigned char mcu_id_eor( unsigned int );
+static void record( struct protocol_string * );
 
 extern struct icar_rx u1_rx_buf;
 extern struct icar_tx u1_tx_buf;
@@ -480,4 +481,9 @@ static unsigned char mcu_id_eor( unsigned int id)
 	chkbyte ^= id&0xFF ;
 
 	return chkbyte ;
+}
+
+static void record( struct protocol_string * p)
+{
+;
 }
