@@ -374,10 +374,10 @@ void  App_TaskGsm (void *p_arg)
 					if ( gsm_send_tcp(mg323_cmd.tx,mg323_cmd.tx_len) ) {
 						//send success
 						mg323_cmd.tx_len = 0 ;
-						prompt("GSM send TCP data success.\r\n");
+						printf("\tOK!\r\n");
 					}
 					else {
-						prompt("GSM send TCP data error.\r\n");
+						printf("\r\nGSM send TCP data error.\t");
 						prompt("Check %s, line:	%d\r\n",__FILE__, __LINE__);
 					}
 				}

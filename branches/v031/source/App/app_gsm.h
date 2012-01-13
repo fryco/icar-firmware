@@ -7,8 +7,8 @@
 
 /* Exported macro ------------------------------------------------------------*/
 //HEAD SEQ CMD Length(2 bytes) INF(Max.1024) check
-#define GSM_BUF_LENGTH		1024+8 //for GSM command
-//#define GSM_BUF_LENGTH		50 //for GSM command
+//#define GSM_BUF_LENGTH		1024+8 //for GSM command
+#define GSM_BUF_LENGTH		61 //for GSM command
 
 /* Exported types ------------------------------------------------------------*/
 struct gsm_status {
