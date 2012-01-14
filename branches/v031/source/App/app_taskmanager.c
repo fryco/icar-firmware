@@ -2,7 +2,7 @@
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static unsigned char mcu_id_eor( unsigned int );
-static void gsm_send_time( struct SENT_QUEUE * );
+static unsigned char gsm_send_time( struct SENT_QUEUE *, unsigned char *);
 
 extern struct ICAR_RX u1_rx_buf;
 extern struct ICAR_TX u1_tx_buf;
@@ -45,8 +45,8 @@ void  App_TaskManager (void *p_arg)
 	//note:从S_PCB开始计时respond_time,如果>5*AT_TIMEOUT,则重置状态为S_HEAD
 	unsigned int i ;
 	GSM_RX_STATUS cur_status = S_HEAD;
-	struct SENT_QUEUE pro_str[MAX_CMD_QUEUE];
-	unsigned char pro_str_index=0 ;
+	struct SENT_QUEUE gsm_sent_q[MAX_CMD_QUEUE];
+	unsigned char queue_index=0 ;
 	u16 adc;
 #if OS_CRITICAL_METHOD == 3                      /* Allocate storage for CPU status register           */
     OS_CPU_SR  cpu_sr = 0;
@@ -55,9 +55,9 @@ void  App_TaskManager (void *p_arg)
 	(void)p_arg;
 
 	/* Initialize the protocol string queue.	*/
-	for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
-		pro_str[pro_str_index].send_time= 0 ;//free queue if > 1 hours
-		pro_str[pro_str_index].send_pcb = 1 ;
+	for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
+		gsm_sent_q[queue_index].send_time= 0 ;//free queue if > 1 hours
+		gsm_sent_q[queue_index].send_pcb = 0 ;
 	}
 
 	/* Initialize the SysTick.								*/
@@ -100,6 +100,7 @@ void  App_TaskManager (void *p_arg)
 
 
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+	//USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
 
 	//enable temperature adc DMA
 	//DMA_Cmd(DMA1_Channel1, ENABLE);
@@ -128,79 +129,11 @@ void  App_TaskManager (void *p_arg)
 		}
 
 		//Send command
-		//find a no use SENT_QUEUE to record the SEQ/CMD
-		for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
-			if ( pro_str[pro_str_index].send_pcb == 0 ) { //no use
-				gsm_send_time( &pro_str[pro_str_index] );
-				prompt("pro_str %d is no use.\r\n",pro_str_index);
-				break ;
-			}//end of pro_str[pro_str_index].send_pcb == 0
-
-			if ( pro_str_index >= MAX_CMD_QUEUE ){
-				prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
-			}
-		}
-
-
 		if ( (RTC_GetCounter( ) - stm32_rtc.update_time) > RTC_UPDATE_PERIOD || \
 				stm32_rtc.update_time == 0 ) {//need update RTC by server time
-			prompt("Need update RTC\t%d, tx_len= %d\r\n",\
-				(RTC_GetCounter( ) - stm32_rtc.update_time),mg323_cmd.tx_len);
-			stm32_rtc.update_time = RTC_GetCounter( ) ;
 
-			//find a no use SENT_QUEUE to record the SEQ/CMD
-			for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
-				if ( pro_str[pro_str_index].send_pcb == 0 ) { //no use
-					//prompt("pro_str %d is no use.\r\n",pro_str_index);
-					break ;
-				}//end of pro_str[pro_str_index].send_pcb == 0
-			}
-
-			if ( pro_str_index >= MAX_CMD_QUEUE ){
-				prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
-			}
-
-			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
-			if ( !mg323_cmd.lock \
-				&& mg323_cmd.tx_len < (GSM_BUF_LENGTH-20) \
-				&& pro_str_index < MAX_CMD_QUEUE ) {
-				//no process occupy && have enough buffer
-
-				OS_ENTER_CRITICAL();
-				mg323_cmd.lock = true ;
-				OS_EXIT_CRITICAL();
-
-				//set protocol string value
-				pro_str[pro_str_index].send_time= OSTime ;
-				pro_str[pro_str_index].send_seq = gsm_sequence ;
-				pro_str[pro_str_index].send_pcb = GSM_CMD_TIME ;
-
-				//prepare GSM command
-				mg323_cmd.tx[mg323_cmd.tx_len]   = GSM_HEAD ;
-				mg323_cmd.tx[mg323_cmd.tx_len+1] = gsm_sequence ;//SEQ
-				gsm_sequence++;
-				mg323_cmd.tx[mg323_cmd.tx_len+2] = GSM_CMD_TIME ;//PCB
-				mg323_cmd.tx[mg323_cmd.tx_len+3] = 0  ;//length high
-				mg323_cmd.tx[mg323_cmd.tx_len+4] = 10 ;//length low
-				strncpy((char *)&mg323_cmd.tx[mg323_cmd.tx_len+5], (char *)pro_sn, 10);
-
-				//prompt("GSM CMD: %02X ",mg323_cmd.tx[mg323_cmd.tx_len]);
-				chkbyte = GSM_HEAD ;
-				for ( i = 1 ; i < 15 ; i++ ) {//calc chkbyte
-					chkbyte ^= mg323_cmd.tx[mg323_cmd.tx_len+i];
-					//printf("%02X ",mg323_cmd.tx[mg323_cmd.tx_len+i]);
-				}
-				mg323_cmd.tx[mg323_cmd.tx_len+15] = chkbyte ;
-				//printf("%02X\r\n",mg323_cmd.tx[mg323_cmd.tx_len+15]);
-				//update buf length
-				mg323_cmd.tx_len = mg323_cmd.tx_len + 16 ;
-
-				OS_ENTER_CRITICAL();
-				mg323_cmd.lock = false ;
-				OS_EXIT_CRITICAL();
-			}//end of if ( !mg323_cmd.lock && mg323_cmd.tx_len < (GSM_BUF_LENGTH-20))
-		}//end of f ( (RTC_GetCounter( ) ...
-
+			gsm_send_time( gsm_sent_q, &gsm_sequence );
+		}
 
 		//prompt("Sat:%d\trx_empty=%d\t In:%X\r\n",\
 		//cur_status,mg323_cmd.rx_empty,mg323_cmd.rx_in_last);
@@ -348,16 +281,16 @@ void  App_TaskManager (void *p_arg)
 					}
 
 					if ( chkbyte == respond_chk ) {//data correct
-						//find the sent record in pro_str by SEQ
-						for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
-							if ( pro_str[pro_str_index].send_seq == respond_seq \
-								&& respond_pcb==(pro_str[pro_str_index].send_pcb | 0x80)) { 
+						//find the sent record in gsm_sent_q by SEQ
+						for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
+							if ( gsm_sent_q[queue_index].send_seq == respond_seq \
+								&& respond_pcb==(gsm_sent_q[queue_index].send_pcb | 0x80)) { 
 	
-								//prompt("pro_str %d is correct record.\r\n",pro_str_index);
+								//prompt("gsm_sent_q %d is correct record.\r\n",queue_index);
 								//found, release this record
-								pro_str[pro_str_index].send_pcb = 0 ;
+								gsm_sent_q[queue_index].send_pcb = 0 ;
 								break ;
-							}//end of pro_str[pro_str_index].send_pcb == 0
+							}//end of gsm_sent_q[queue_index].send_pcb == 0
 						}
 
 						//handle the respond
@@ -475,10 +408,10 @@ void  App_TaskManager (void *p_arg)
 		//led_toggle( OBD_KWP ) ;
 
 		if ( (OSTime/1000)%10 == 0 ) {//check every 10 sec
-			for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
-				if ( OSTime - pro_str[pro_str_index].send_time > 60*60*1000 ) {
-					pro_str[pro_str_index].send_time= 0 ;//free queue if > 1 hours
-					pro_str[pro_str_index].send_pcb = 0 ;
+			for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
+				if ( OSTime - gsm_sent_q[queue_index].send_time > 60*60*1000 ) {
+					gsm_sent_q[queue_index].send_time= 0 ;//free queue if > 1 hours
+					gsm_sent_q[queue_index].send_pcb = 0 ;
 				}
 			}
 		}//end of check every 10 sec
@@ -498,12 +431,76 @@ static unsigned char mcu_id_eor( unsigned int id)
 	return chkbyte ;
 }
 
-static void gsm_send_time( struct SENT_QUEUE *p)
+//return 0: ok
+//return 1: no send queue
+//return 2: no free buffer or buffer busy
+static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *sequence)
 {
-	unsigned char i ;
-	i =  p->send_pcb ;
-	//prompt("pro_str PCB is %d.\r\n",i);
+	static unsigned char i, chkbyte, index;
+#if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
+    OS_CPU_SR  cpu_sr = 0;
+#endif
 
-mg323_cmd.tx[mg323_cmd.tx_len]   = i ;
-	//return 0 ;
+
+	prompt("Need update RTC\t%d, tx_len= %d\r\n",\
+		(RTC_GetCounter( ) - stm32_rtc.update_time),mg323_cmd.tx_len);
+
+	stm32_rtc.update_time = RTC_GetCounter( ) ;
+
+	//find a no use SENT_QUEUE to record the SEQ/CMD
+	for ( index = 0 ; index < MAX_CMD_QUEUE ; index++) {
+
+		if ( queue_p[index].send_pcb == 0 ) { //no use
+
+			//prompt("Use queue: %02d\r\n",index);
+
+			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
+			if ( !mg323_cmd.lock \
+				&& mg323_cmd.tx_len < (GSM_BUF_LENGTH-20) ) {
+				//no process occupy && have enough buffer
+	
+				OS_ENTER_CRITICAL();
+				mg323_cmd.lock = true ;
+				OS_EXIT_CRITICAL();
+	
+				//set protocol string value
+				queue_p[index].send_time= OSTime ;
+				queue_p[index].send_seq = *sequence ;
+				queue_p[index].send_pcb = GSM_CMD_TIME ;
+	
+				//prepare GSM command
+				mg323_cmd.tx[mg323_cmd.tx_len]   = GSM_HEAD ;
+				mg323_cmd.tx[mg323_cmd.tx_len+1] = *sequence ;//SEQ
+				*(sequence++);
+				mg323_cmd.tx[mg323_cmd.tx_len+2] = GSM_CMD_TIME ;//PCB
+				mg323_cmd.tx[mg323_cmd.tx_len+3] = 0  ;//length high
+				mg323_cmd.tx[mg323_cmd.tx_len+4] = 10 ;//length low
+				strncpy((char *)&mg323_cmd.tx[mg323_cmd.tx_len+5], (char *)pro_sn, 10);
+	
+				//prompt("GSM CMD: %02X ",mg323_cmd.tx[mg323_cmd.tx_len]);
+				chkbyte = GSM_HEAD ;
+				for ( i = 1 ; i < 15 ; i++ ) {//calc chkbyte
+					chkbyte ^= mg323_cmd.tx[mg323_cmd.tx_len+i];
+					//printf("%02X ",mg323_cmd.tx[mg323_cmd.tx_len+i]);
+				}
+				mg323_cmd.tx[mg323_cmd.tx_len+15] = chkbyte ;
+				//printf("%02X\r\n",mg323_cmd.tx[mg323_cmd.tx_len+15]);
+				//update buf length
+				mg323_cmd.tx_len = mg323_cmd.tx_len + 16 ;
+	
+				OS_ENTER_CRITICAL();
+				mg323_cmd.lock = false ;
+				OS_EXIT_CRITICAL();
+
+				return 0 ;
+			}//end of if ( !mg323_cmd.lock && mg323_cmd.tx_len < (GSM_BUF_LENGTH-20))
+			else {//no buffer
+				prompt("No free buffer or buffer busy! check %s:%d\r\n",__FILE__, __LINE__);	
+				return 2;
+			}
+		}//end of queue_p[index].send_pcb == 0
+	}
+
+	prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
+	return 1;
 }
