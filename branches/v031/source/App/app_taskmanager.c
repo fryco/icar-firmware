@@ -1,17 +1,19 @@
 #include "main.h"
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
+static void calc_sn( void );
 static unsigned char mcu_id_eor( unsigned int );
 static unsigned char gsm_send_time( struct SENT_QUEUE *, unsigned char *);
+static unsigned char gsm_rx_decode( struct GSM_RX *, struct SENT_QUEUE *queue_p);
 
-extern struct ICAR_RX u1_rx_buf;
-extern struct ICAR_TX u1_tx_buf;
+extern struct UART_RX u1_rx_buf;
+extern struct UART_TX u1_tx_buf;
 extern struct GSM_STATUS mg323_status ;
 extern struct GSM_COMMAND mg323_cmd ;
 extern struct RTC_STATUS stm32_rtc;
 extern struct ICAR_ADC adc_temperature;
 
-unsigned char pro_sn[]="02P1xxxxxx";
+static unsigned char pro_sn[]="02P1xxxxxx";
 //Last 6 bytes replace by MCU ID xor result
 /* SN, char(10): 0  2  P  1 1  A  H  0 0 0
  *               ① ② ③ ④⑤ ⑥ ⑦ ⑧⑨⑩
@@ -37,27 +39,19 @@ void  App_TaskManager (void *p_arg)
 {
 
 	CPU_INT08U	os_err;
-	unsigned char u1_cmd , chkbyte=0, gsm_sequence=0xC0;
-	unsigned char *respond_start=NULL;
-	unsigned char  respond_pcb=0, respond_seq=0, respond_chk=0;
-	unsigned char  respond_len_h=0, respond_len_l=0;
-	unsigned int   respond_len = 0, respond_time=0;
-	//note:从S_PCB开始计时respond_time,如果>5*AT_TIMEOUT,则重置状态为S_HEAD
-	unsigned int i ;
-	GSM_RX_STATUS cur_status = S_HEAD;
+	unsigned char var_uchar , gsm_sequence=0xC0;
+
 	struct SENT_QUEUE gsm_sent_q[MAX_CMD_QUEUE];
-	unsigned char queue_index=0 ;
+	struct GSM_RX mg323_rx_buf;
+
 	u16 adc;
-#if OS_CRITICAL_METHOD == 3                      /* Allocate storage for CPU status register           */
-    OS_CPU_SR  cpu_sr = 0;
-#endif
 
 	(void)p_arg;
 
-	/* Initialize the protocol string queue.	*/
-	for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
-		gsm_sent_q[queue_index].send_time= 0 ;//free queue if > 1 hours
-		gsm_sent_q[queue_index].send_pcb = 0 ;
+	/* Initialize the queue.	*/
+	for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
+		gsm_sent_q[var_uchar].send_time= 0 ;//free queue if > 1 hours
+		gsm_sent_q[var_uchar].send_pcb = 0 ;
 	}
 
 	/* Initialize the SysTick.								*/
@@ -68,17 +62,7 @@ void  App_TaskManager (void *p_arg)
 	prompt("TickRate: %d\t\t", OS_TICKS_PER_SEC);
 	printf("OSCPUUsage: %d\r\n", OSCPUUsage);
 
-	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7E8));
-	snprintf((char *)&pro_sn[4],3,"%02X",chkbyte);
-
-	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7EC));
-	snprintf((char *)&pro_sn[6],3,"%02X",chkbyte);
-
-	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7F0));
-	snprintf((char *)&pro_sn[8],3,"%02X",chkbyte);
-
-	prompt("The MCU ID is %X %X %X\tSN:%s\r\n",\
-		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),pro_sn);
+	calc_sn( );//prepare serial number
 
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();												/* Determine CPU capacity.								*/
@@ -113,7 +97,7 @@ void  App_TaskManager (void *p_arg)
 	iwdg_init( );
 
 	mg323_status.ask_power = true ;
-	respond_time = OSTime ;
+	mg323_rx_buf.time = OSTime ;
 
 	while	(1)
 	{
@@ -135,231 +119,9 @@ void  App_TaskManager (void *p_arg)
 			gsm_send_time( gsm_sent_q, &gsm_sequence );
 		}
 
-		//prompt("Sat:%d\trx_empty=%d\t In:%X\r\n",\
-		//cur_status,mg323_cmd.rx_empty,mg323_cmd.rx_in_last);
 		if ( !mg323_cmd.rx_empty ) {//receive some TCP data from GSM
-			//printf("<%02X  ",*mg323_cmd.rx_out_last);
 
-			//status transfer: S_HEAD -> S_PCB -> S_CHK ==> S_HEAD...
-			//1, find HEAD
-			if ( cur_status == S_HEAD ) {
-				while ( !mg323_cmd.rx_empty && cur_status == S_HEAD) {
-
-					if ( *mg323_cmd.rx_out_last == GSM_HEAD ) {//found
-						respond_start = mg323_cmd.rx_out_last ;//mark the start
-						cur_status = S_PCB ;//search protocol control byte
-						respond_time = OSTime ;
-						//prompt("Found HEAD: %X\r\n",respond_start);
-					}
-					else { //no found
-						mg323_cmd.rx_out_last++;//search next byte
-						if (mg323_cmd.rx_out_last==mg323_cmd.rx+GSM_BUF_LENGTH) {
-							mg323_cmd.rx_out_last = mg323_cmd.rx; //地址到顶部,回到底部
-						}
-						OS_ENTER_CRITICAL();
-						mg323_cmd.rx_full = false; //reset the full flag
-						if (mg323_cmd.rx_out_last==mg323_cmd.rx_in_last) {
-							mg323_cmd.rx_empty = true ;//set the empty flag
-						}
-						OS_EXIT_CRITICAL();
-					}
-					//printf(">%02X  ",*mg323_cmd.rx_out_last);
-				}
-			}
-
-			//2, find PCB&SEQ&LEN
-			if ( cur_status == S_PCB ) {
-
-				if ( OSTime - respond_time > 5*AT_TIMEOUT ) {//reset status
-					prompt("In S_PCB timeout, reset to S_HEAD status!!!\r\n");
-					cur_status = S_HEAD ;
-					mg323_cmd.rx_out_last++	 ;
-				}
-
-				if ( ((mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) \
-					&&  (mg323_cmd.rx_in_last - mg323_cmd.rx_out_last > 5))\
-					|| ((mg323_cmd.rx_out_last > mg323_cmd.rx_in_last) \
-					&& (GSM_BUF_LENGTH - \
-					(mg323_cmd.rx_out_last - mg323_cmd.rx_in_last) > 5))) {
-					//HEAD SEQ CMD Length(2 bytes) = 5 bytes
-
-					//get PCB
-					if ( (respond_start + 2)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
-						//PCB no in the end of buffer
-						respond_pcb = *(respond_start + 2);
-					}
-					else { //PCB in the end of buffer
-						respond_pcb = *(respond_start + 2 - GSM_BUF_LENGTH);
-					}//end of (respond_start + 2)  < (mg323_cmd.rx+GSM_BUF_LENGTH)
-					//printf("\r\nrespond PCB is %02X\t",respond_pcb);
-
-					//get sequence
-					if ( (respond_start + 1)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
-						//SEQ no in the end of buffer
-						respond_seq = *(respond_start + 1);
-					}
-					else { //SEQ in the end of buffer
-						respond_seq = *(respond_start + 1 - GSM_BUF_LENGTH);
-					}//end of (respond_start + 1)  < (mg323_cmd.rx+GSM_BUF_LENGTH)
-					//printf("SEQ is %02X\t",respond_seq);
-
-					//get len high
-					if ( (respond_start + 3)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
-						//LEN no in the end of buffer
-						respond_len_h = *(respond_start + 3);
-					}
-					else { //LEN in the end of buffer
-						respond_len_h = *(respond_start + 3 - GSM_BUF_LENGTH);
-					}//end of GSM_BUF_LENGTH - (respond_start - mg323_cmd.rx)
-					//printf("respond LEN H: %02d\t",respond_len_h);
-
-					//get len low
-					if ( (respond_start + 4)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
-						//LEN no in the end of buffer
-						respond_len_l = *(respond_start + 4);
-					}
-					else { //LEN in the end of buffer
-						respond_len_l = *(respond_start + 4 - GSM_BUF_LENGTH);
-					}//end of GSM_BUF_LENGTH - (respond_start - mg323_cmd.rx)
-					//printf("L: %02d ",respond_len_l);
-
-					respond_len = respond_len_h << 8 | respond_len_l ;
-					//printf("respond LEN: %d\r\n",respond_len);
-
-
-					//update the status & timer
-					cur_status = S_CHK ;//search check byte
-					respond_time = OSTime ;
-				}//end of (mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) ...
-			}//end of if ( cur_status == S_PCB )
-
-			//3, find CHK
-			if ( cur_status == S_CHK ) {
-
-				if ( OSTime - respond_time > 10*AT_TIMEOUT ) {//reset status
-					prompt("In S_CHK timeout, reset to S_HEAD status!!!\r\n");
-					cur_status = S_HEAD ;
-					mg323_cmd.rx_out_last++	 ;
-				}
-
-				if ( ((mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) \
-					&&  (mg323_cmd.rx_in_last - mg323_cmd.rx_out_last > (5+respond_len)))\
-					|| ((mg323_cmd.rx_out_last > mg323_cmd.rx_in_last) \
-					&& (GSM_BUF_LENGTH - \
-					(mg323_cmd.rx_out_last - mg323_cmd.rx_in_last) > (5+respond_len)))) {
-					//buffer > HEAD SEQ CMD Length(2 bytes) = 5 bytes + LEN + CHK(1)
-
-					//prompt("Search chk...\r\n");
-					//prompt("mg323_cmd.rx: %X\tEnd:%X\trespond_start: %X\r\n",\
-						//mg323_cmd.rx,mg323_cmd.rx+GSM_BUF_LENGTH,respond_start);
-
-					//get CHK
-					if ( (respond_start + 5+respond_len)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
-						//CHK no in the end of buffer
-						respond_chk = *(respond_start + 5 + respond_len );
-						//printf("CHK add: %X\t",respond_start + 5 + respond_len);
-					}
-					else { //CHK in the end of buffer
-						respond_chk = *(respond_start + 5 + respond_len - GSM_BUF_LENGTH);
-						//printf("CHK add: %X\t",respond_start + 5 + respond_len - GSM_BUF_LENGTH);
-					}//end of GSM_BUF_LENGTH - (respond_start - mg323_cmd.rx)
-					//printf("respond CHK is %02X\n",respond_chk);
-					//2012/1/4 19:54:50 已验证边界情况，正常
-
-					chkbyte = GSM_HEAD ;
-					for ( i = 1 ; i < respond_len+5 ; i++ ) {//calc chkbyte
-						if ( (respond_start+i) < mg323_cmd.rx+GSM_BUF_LENGTH ) {
-							chkbyte ^= *(respond_start+i);
-							//printf("%02X ",*(respond_start+i));
-							//printf("Data add: %X\r\n",(respond_start+i));
-						}
-						else {//data in begin of buffer
-							chkbyte ^= *(respond_start+i-GSM_BUF_LENGTH);
-							//printf("%02X ",*(respond_start+i-GSM_BUF_LENGTH));
-							//printf("Data add: %X\r\n",(respond_start+i-GSM_BUF_LENGTH));
-						}
-					}
-
-					if ( chkbyte == respond_chk ) {//data correct
-						//find the sent record in gsm_sent_q by SEQ
-						for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
-							if ( gsm_sent_q[queue_index].send_seq == respond_seq \
-								&& respond_pcb==(gsm_sent_q[queue_index].send_pcb | 0x80)) { 
-	
-								//prompt("gsm_sent_q %d is correct record.\r\n",queue_index);
-								//found, release this record
-								gsm_sent_q[queue_index].send_pcb = 0 ;
-								break ;
-							}//end of gsm_sent_q[queue_index].send_pcb == 0
-						}
-
-						//handle the respond
-						switch (respond_pcb&0x7F) {
-	
-						case 0x4C://'L':
-							break;
-
-						case GSM_CMD_TIME://0x54,'T'
-							//C9 08 D4 00 04 4F 0B CD E5 7D
-							prompt("Time respond PCB: 0x%X @ %08X, %08X~%08X\r\n",\
-								respond_pcb&0x7F,respond_start,\
-								mg323_cmd.rx,mg323_cmd.rx+GSM_BUF_LENGTH);
-
-							//Update and calibrate RTC
-							RTC_update_calibrate(respond_start,mg323_cmd.rx) ;
-							break;
-
-						default:
-							prompt("Unknow respond PCB: 0x%X\r\n",respond_pcb&0x7F);
-
-							break;
-						}//end of handle the respond
-
-					}//end of if ( chkbyte == respond_chk )
-					else {//data no correct
-						prompt("Rec data CHK no correct!\r\n");
-						prompt("Calc. CHK: %02X\t",chkbyte);
-						printf("respond CHK: %02X\r\n",respond_chk);
-					}
-
-					//Clear buffer content
-					for ( i = 0 ; i < respond_len+6 ; i++ ) {
-						if ( (respond_start+i) < mg323_cmd.rx+GSM_BUF_LENGTH ) {
-							*(respond_start+i) = 0x0;
-						}
-						else {//data in begin of buffer
-							*(respond_start+i-GSM_BUF_LENGTH) = 0x0;
-						}
-					}
-
-					//update the buffer point
-					if ( (respond_start + 6+respond_len)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
-						mg323_cmd.rx_out_last = respond_start + 6 + respond_len ;
-					}
-					else { //CHK in the end of buffer
-						mg323_cmd.rx_out_last = respond_start + 6 + respond_len - GSM_BUF_LENGTH ;
-					}
-
-					OS_ENTER_CRITICAL();
-					mg323_cmd.rx_full = false; //reset the full flag
-					if (mg323_cmd.rx_out_last==mg323_cmd.rx_in_last) {
-						mg323_cmd.rx_empty = true ;//set the empty flag
-					}
-					OS_EXIT_CRITICAL();
-
-					prompt("Next add: %X\t",mg323_cmd.rx_out_last);
-					printf("In last: %X\t",mg323_cmd.rx_in_last);
-					printf("rx_empty: %X\r\n",mg323_cmd.rx_empty);
-
-					//update the next status
-					cur_status = S_HEAD;
-
-				}//end of (mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) ...
-				else { //
-					;//prompt("Buffer no enough.\r\n");
-				}
-			}//end of if ( cur_status == S_CHK )
-
+			gsm_rx_decode( &mg323_rx_buf, gsm_sent_q );
 		}
 
 		if ( u1_rx_buf.lost_data ) {//error! lost data
@@ -368,13 +130,13 @@ void  App_TaskManager (void *p_arg)
 		}
 
 		while ( !u1_rx_buf.empty ) {//receive some data from console...
-			u1_cmd = getbyte( COM1 ) ;
-			putbyte( COM1, u1_cmd );
-			if ( u1_cmd == 'o' || u1_cmd == 'O' ) {//online
+			var_uchar = getbyte( COM1 ) ;
+			putbyte( COM1, var_uchar );
+			if ( var_uchar == 'o' || var_uchar == 'O' ) {//online
 				prompt("Ask GSM online...\r\n");
 				mg323_status.ask_online = true ;
 			}
-			if ( u1_cmd == 'c' || u1_cmd == 'C' ) {//close
+			if ( var_uchar == 'c' || var_uchar == 'C' ) {//close
 				prompt("Ask GSM off line...\r\n");
 				mg323_status.ask_online = false ;
 			}
@@ -408,10 +170,10 @@ void  App_TaskManager (void *p_arg)
 		//led_toggle( OBD_KWP ) ;
 
 		if ( (OSTime/1000)%10 == 0 ) {//check every 10 sec
-			for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
-				if ( OSTime - gsm_sent_q[queue_index].send_time > 60*60*1000 ) {
-					gsm_sent_q[queue_index].send_time= 0 ;//free queue if > 1 hours
-					gsm_sent_q[queue_index].send_pcb = 0 ;
+			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
+				if ( OSTime - gsm_sent_q[var_uchar].send_time > 60*60*1000 ) {
+					gsm_sent_q[var_uchar].send_time= 0 ;//free queue if > 1 hours
+					gsm_sent_q[var_uchar].send_pcb = 0 ;
 				}
 			}
 		}//end of check every 10 sec
@@ -429,6 +191,23 @@ static unsigned char mcu_id_eor( unsigned int id)
 	chkbyte ^= id&0xFF ;
 
 	return chkbyte ;
+}
+
+static void calc_sn( )
+{
+	static unsigned char chkbyte ;
+
+	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7E8));
+	snprintf((char *)&pro_sn[4],3,"%02X",chkbyte);
+
+	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7EC));
+	snprintf((char *)&pro_sn[6],3,"%02X",chkbyte);
+
+	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7F0));
+	snprintf((char *)&pro_sn[8],3,"%02X",chkbyte);
+
+	prompt("The MCU ID is %X %X %X\tSN:%s\r\n",\
+		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),pro_sn);
 }
 
 //return 0: ok
@@ -503,4 +282,234 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 
 	prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
 	return 1;
+}
+
+//return 0: ok
+//return 1: failure
+static unsigned char gsm_rx_decode( struct GSM_RX *buf ,struct SENT_QUEUE *queue_p)
+{
+
+	unsigned char chkbyte, queue_index=0;
+	unsigned int  chk_index;
+	unsigned char  len_high=0, len_low=0;
+#if OS_CRITICAL_METHOD == 3   /* Allocate storage for CPU status register           */
+    OS_CPU_SR  cpu_sr = 0;
+#endif
+
+	//status transfer: S_HEAD -> S_PCB -> S_CHK ==> S_HEAD...
+	//note:从S_PCB开始计时queue_time,如果>5*AT_TIMEOUT,则重置状态为S_HEAD
+	//1, find HEAD
+	if ( buf->status == S_HEAD ) {
+		while ( !mg323_cmd.rx_empty && buf->status == S_HEAD) {
+
+			if ( *mg323_cmd.rx_out_last == GSM_HEAD ) {//found
+				buf->start = mg323_cmd.rx_out_last ;//mark the start
+				buf->status = S_PCB ;//search protocol control byte
+				buf->time = OSTime ;
+				//prompt("Found HEAD: %X\r\n",buf->start);
+			}
+			else { //no found
+				mg323_cmd.rx_out_last++;//search next byte
+				if (mg323_cmd.rx_out_last==mg323_cmd.rx+GSM_BUF_LENGTH) {
+					mg323_cmd.rx_out_last = mg323_cmd.rx; //地址到顶部,回到底部
+				}
+
+				OS_ENTER_CRITICAL();
+				mg323_cmd.rx_full = false; //reset the full flag
+				if (mg323_cmd.rx_out_last==mg323_cmd.rx_in_last) {
+					mg323_cmd.rx_empty = true ;//set the empty flag
+				}
+				OS_EXIT_CRITICAL();
+
+			}
+			//printf(">%02X  ",*mg323_cmd.rx_out_last);
+		}
+	}
+
+	//2, find PCB&SEQ&LEN
+	if ( buf->status == S_PCB ) {
+
+		if ( OSTime - buf->time > 5*AT_TIMEOUT ) {//reset status
+			prompt("In S_PCB timeout, reset to S_HEAD status!!!\r\n");
+			buf->status = S_HEAD ;
+			mg323_cmd.rx_out_last++	 ;
+		}
+
+		if ( ((mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) \
+			&&  (mg323_cmd.rx_in_last - mg323_cmd.rx_out_last > 5))\
+			|| ((mg323_cmd.rx_out_last > mg323_cmd.rx_in_last) \
+			&& (GSM_BUF_LENGTH - \
+			(mg323_cmd.rx_out_last - mg323_cmd.rx_in_last) > 5))) {
+			//HEAD SEQ CMD Length(2 bytes) = 5 bytes
+
+			//get PCB
+			if ( (buf->start + 2)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
+				//PCB no in the end of buffer
+				buf->pcb = *(buf->start + 2);
+			}
+			else { //PCB in the end of buffer
+				buf->pcb = *(buf->start + 2 - GSM_BUF_LENGTH);
+			}//end of (buf->start + 2)  < (mg323_cmd.rx+GSM_BUF_LENGTH)
+			//printf("\r\nrespond PCB is %02X\t",buf->pcb);
+
+			//get sequence
+			if ( (buf->start + 1)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
+				//SEQ no in the end of buffer
+				buf->seq = *(buf->start + 1);
+			}
+			else { //SEQ in the end of buffer
+				buf->seq = *(buf->start + 1 - GSM_BUF_LENGTH);
+			}//end of (buf->start + 1)  < (mg323_cmd.rx+GSM_BUF_LENGTH)
+			//printf("SEQ is %02X\t",buf->seq);
+
+			//get len high
+			if ( (buf->start + 3)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
+				//LEN no in the end of buffer
+				len_high = *(buf->start + 3);
+			}
+			else { //LEN in the end of buffer
+				len_high = *(buf->start + 3 - GSM_BUF_LENGTH);
+			}//end of GSM_BUF_LENGTH - (buf->start - mg323_cmd.rx)
+			//printf("respond LEN H: %02d\t",len_high);
+
+			//get len low
+			if ( (buf->start + 4)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
+				//LEN no in the end of buffer
+				len_low = *(buf->start + 4);
+			}
+			else { //LEN in the end of buffer
+				len_low = *(buf->start + 4 - GSM_BUF_LENGTH);
+			}//end of GSM_BUF_LENGTH - (buf->start - mg323_cmd.rx)
+			//printf("L: %02d ",len_low);
+
+			buf->len = len_high << 8 | len_low ;
+			//printf("respond LEN: %d\r\n",buf->len);
+
+
+			//update the status & timer
+			buf->status = S_CHK ;//search check byte
+			buf->time = OSTime ;
+		}//end of (mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) ...
+	}//end of if ( buf->status == S_PCB )
+
+	//3, find CHK
+	if ( buf->status == S_CHK ) {
+
+		if ( OSTime - buf->time > 10*AT_TIMEOUT ) {//reset status
+			prompt("In S_CHK timeout, reset to S_HEAD status!!!\r\n");
+			buf->status = S_HEAD ;
+			mg323_cmd.rx_out_last++	 ;
+		}
+
+		if ( ((mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) \
+			&&  (mg323_cmd.rx_in_last - mg323_cmd.rx_out_last > (5+buf->len)))\
+			|| ((mg323_cmd.rx_out_last > mg323_cmd.rx_in_last) \
+			&& (GSM_BUF_LENGTH - \
+			(mg323_cmd.rx_out_last - mg323_cmd.rx_in_last) > (5+buf->len)))) {
+			//buffer > HEAD SEQ CMD Length(2 bytes) = 5 bytes + LEN + CHK(1)
+
+			//get CHK
+			if ( (buf->start + 5+buf->len)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
+				//CHK no in the end of buffer
+				buf->chk = *(buf->start + 5 + buf->len );
+				//printf("CHK add: %X\t",buf->start + 5 + buf->len);
+			}
+			else { //CHK in the end of buffer
+				buf->chk = *(buf->start + 5 + buf->len - GSM_BUF_LENGTH);
+				//printf("CHK add: %X\t",buf->start + 5 + buf->len - GSM_BUF_LENGTH);
+			}//end of GSM_BUF_LENGTH - (buf->start - mg323_cmd.rx)
+			//printf("respond CHK is %02X\n",buf->chk);
+			//2012/1/4 19:54:50 已验证边界情况，正常
+
+			chkbyte = GSM_HEAD ;
+			for ( chk_index = 1 ; chk_index < buf->len+5 ; chk_index++ ) {//calc chkbyte
+				if ( (buf->start+chk_index) < mg323_cmd.rx+GSM_BUF_LENGTH ) {
+					chkbyte ^= *(buf->start+chk_index);
+				}
+				else {//data in begin of buffer
+					chkbyte ^= *(buf->start+chk_index-GSM_BUF_LENGTH);
+				}
+			}
+
+			if ( chkbyte == buf->chk ) {//data correct
+				//find the sent record in gsm_sent_q by SEQ
+				for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
+					if ( queue_p[queue_index].send_seq == buf->seq \
+						&& buf->pcb==(queue_p[queue_index].send_pcb | 0x80)) { 
+
+						//prompt("queue_p %d is correct record.\r\n",queue_index);
+						//found, release this record
+						queue_p[queue_index].send_pcb = 0 ;
+						break ;
+					}//end of queue_p[queue_index].send_pcb == 0
+				}
+
+				//handle the respond
+				switch (buf->pcb&0x7F) {
+
+				case 0x4C://'L':
+					break;
+
+				case GSM_CMD_TIME://0x54,'T'
+					//C9 08 D4 00 04 4F 0B CD E5 7D
+					prompt("Time respond PCB: 0x%X @ %08X, %08X~%08X\r\n",\
+						buf->pcb&0x7F,buf->start,\
+						mg323_cmd.rx,mg323_cmd.rx+GSM_BUF_LENGTH);
+
+					//Update and calibrate RTC
+					RTC_update_calibrate(buf->start,mg323_cmd.rx) ;
+					break;
+
+				default:
+					prompt("Unknow respond PCB: 0x%X\r\n",buf->pcb&0x7F);
+
+					break;
+				}//end of handle the respond
+
+			}//end of if ( chkbyte == buf->chk )
+			else {//data no correct
+				prompt("Rec data CHK no correct!\r\n");
+				prompt("Calc. CHK: %02X\t",chkbyte);
+				printf("respond CHK: %02X\r\n",buf->chk);
+			}
+
+			//Clear buffer content
+			for ( chk_index = 0 ; chk_index < buf->len+6 ; chk_index++ ) {
+				if ( (buf->start+chk_index) < mg323_cmd.rx+GSM_BUF_LENGTH ) {
+					*(buf->start+chk_index) = 0x0;
+				}
+				else {//data in begin of buffer
+					*(buf->start+chk_index-GSM_BUF_LENGTH) = 0x0;
+				}
+			}
+
+			//update the buffer point
+			if ( (buf->start + 6+buf->len)  < (mg323_cmd.rx+GSM_BUF_LENGTH) ) {
+				mg323_cmd.rx_out_last = buf->start + 6 + buf->len ;
+			}
+			else { //CHK in the end of buffer
+				mg323_cmd.rx_out_last = buf->start + 6 + buf->len - GSM_BUF_LENGTH ;
+			}
+
+			OS_ENTER_CRITICAL();
+			mg323_cmd.rx_full = false; //reset the full flag
+			if (mg323_cmd.rx_out_last==mg323_cmd.rx_in_last) {
+				mg323_cmd.rx_empty = true ;//set the empty flag
+			}
+			OS_EXIT_CRITICAL();
+
+			prompt("Next add: %X\t",mg323_cmd.rx_out_last);
+			printf("In last: %X\t",mg323_cmd.rx_in_last);
+			printf("rx_empty: %X\r\n",mg323_cmd.rx_empty);
+
+			//update the next status
+			buf->status = S_HEAD;
+
+		}//end of (mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) ...
+		else { //
+			;//prompt("Buffer no enough.\r\n");
+		}
+	}//end of if ( buf->status == S_CHK )
+
+	return 0 ;
 }

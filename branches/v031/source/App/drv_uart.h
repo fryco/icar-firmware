@@ -22,7 +22,7 @@
 /* Includes ------------------------------------------------------------------*/
 /* Exported types ------------------------------------------------------------*/
 /* Using DMA
-struct ICAR_TX {
+struct UART_TX {
 	u8 buf1[TX_BUF_SIZE];
 	u8 buf2[TX_BUF_SIZE];
 
@@ -34,7 +34,7 @@ struct ICAR_TX {
 }; End Using DMA */
 
 //Using interrupt
-struct ICAR_TX {
+struct UART_TX {
 	u8 buf[TX_BUF_SIZE];
 
 	u8 *out_last;
@@ -43,7 +43,7 @@ struct ICAR_TX {
 	bool empty;
 };
 
-struct ICAR_RX {
+struct UART_RX {
 	u8 buf[RX_BUF_SIZE];
 
 	u8 *out_last;

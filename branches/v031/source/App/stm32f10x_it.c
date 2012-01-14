@@ -24,14 +24,14 @@
 #include "stm32f10x_it.h"
 #include "main.h"
 
-extern struct ICAR_TX u1_tx_buf;
-extern struct ICAR_RX u1_rx_buf;
+extern struct UART_TX u1_tx_buf;
+extern struct UART_RX u1_rx_buf;
 
-extern struct ICAR_TX u2_tx_buf;
-extern struct ICAR_RX u2_rx_buf;
+extern struct UART_TX u2_tx_buf;
+extern struct UART_RX u2_rx_buf;
 
-extern struct ICAR_TX u3_tx_buf;
-extern struct ICAR_RX u3_rx_buf;
+extern struct UART_TX u3_tx_buf;
+extern struct UART_RX u3_rx_buf;
 
 extern struct ICAR_ADC adc_temperature;
 /** @addtogroup STM32F10x_StdPeriph_Examples

@@ -6,7 +6,7 @@
 #define debug_gsm(x, args...)  ;
 #endif
 
-extern struct ICAR_RX u2_rx_buf;
+extern struct UART_RX u2_rx_buf;
 extern struct GSM_STATUS mg323_status ;
 
 const unsigned char dest_server[] = "cqt.8866.org:25";

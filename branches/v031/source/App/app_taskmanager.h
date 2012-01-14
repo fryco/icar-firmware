@@ -13,6 +13,16 @@ typedef enum
 	S_CHK  = 2  //search check byte, in the end of buffer
 } GSM_RX_STATUS;
 
+struct GSM_RX {
+	GSM_RX_STATUS status;
+	unsigned char *start;
+	unsigned int   time;
+	unsigned char  pcb;//protocol control byte
+	unsigned char  seq;//sequence
+	unsigned char  chk;
+	unsigned int   len;//data length
+};
+
 struct SENT_QUEUE {
 	unsigned int send_time;//cancel CMD if time > 1 hours
 	unsigned char send_seq;
