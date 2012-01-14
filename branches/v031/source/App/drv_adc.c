@@ -1,6 +1,6 @@
 #include "main.h"
 
-struct icar_adc_buf adc_temperature;
+struct ICAR_ADC adc_temperature;
 
 //ADC,内部温度传感器配置
 void ADCTEMP_Configuration(void)

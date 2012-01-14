@@ -11,7 +11,7 @@
 #define GSM_BUF_LENGTH		61 //for GSM command
 
 /* Exported types ------------------------------------------------------------*/
-struct gsm_status {
+struct GSM_STATUS {
 	bool power_on ;
 	bool ask_power ;
 	bool gprs_ready ;
@@ -31,7 +31,7 @@ struct gsm_status {
 	unsigned int time;
 };
 
-struct gsm_command {
+struct GSM_COMMAND {
 	bool lock ;
 	unsigned char tx[GSM_BUF_LENGTH];
 	unsigned int tx_len;

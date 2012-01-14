@@ -12,10 +12,10 @@ App_gsm introduction：
 是==> 连接TCP
 
 
-gsm_command.tx[GSM_BUF_LENGTH]
+GSM_COMMAND.tx[GSM_BUF_LENGTH]
 发送队列，通过加锁来避免互斥操作
 发送时从头开始
 
-gsm_command.rx[GSM_BUF_LENGTH]
+GSM_COMMAND.rx[GSM_BUF_LENGTH]
 接收队列，环形队列，通过指针来指向有效数据，
 任何一个地方都有可能是数据的开始

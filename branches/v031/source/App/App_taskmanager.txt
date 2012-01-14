@@ -19,7 +19,7 @@ void  App_TaskManager (void *p_arg) {
 	{
 ==>		IWDG_ReloadCounter();
 ==>		if ( mg323_cmd.tx_len > 0 ) 如果GSM发送队列有数据，就online
-==>		是否需要更新RTC? 是：找空闲protocol_string，记录命令，发送取服务器时间命令
+==>		是否需要更新RTC? 是：找空闲SENT_QUEUE，记录命令，发送取服务器时间命令
 ==>		if ( !mg323_cmd.rx_empty ) 如果GSM接收队列有数据，解析提取
 		{
 			状态机：搜 S_HEAD 标志
@@ -32,7 +32,7 @@ void  App_TaskManager (void *p_arg) {
 			状态机：搜S_CHK 标志
 				时间超过10*AT_TIMEOUT，重设状态机为：S_HEAD
 				提取CHK，并根据已接收数据计算CHK，相等，数据有效，处理数据
-				并根据SEQ/PCB释放protocol_string记录
+				并根据SEQ/PCB释放SENT_QUEUE记录
 		}
 ==>		Check Uart1 rx buffer, just output it
 ==>		

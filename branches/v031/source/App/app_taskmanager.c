@@ -2,14 +2,14 @@
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static unsigned char mcu_id_eor( unsigned int );
-static void record( struct protocol_string * );
+static void gsm_send_time( struct SENT_QUEUE * );
 
-extern struct icar_rx u1_rx_buf;
-extern struct icar_tx u1_tx_buf;
-extern struct gsm_status mg323_status ;
-extern struct gsm_command mg323_cmd ;
-extern struct rtc_status stm32_rtc;
-extern struct icar_adc_buf adc_temperature;
+extern struct ICAR_RX u1_rx_buf;
+extern struct ICAR_TX u1_tx_buf;
+extern struct GSM_STATUS mg323_status ;
+extern struct GSM_COMMAND mg323_cmd ;
+extern struct RTC_STATUS stm32_rtc;
+extern struct ICAR_ADC adc_temperature;
 
 unsigned char pro_sn[]="02P1xxxxxx";
 //Last 6 bytes replace by MCU ID xor result
@@ -44,8 +44,8 @@ void  App_TaskManager (void *p_arg)
 	unsigned int   respond_len = 0, respond_time=0;
 	//note:从S_PCB开始计时respond_time,如果>5*AT_TIMEOUT,则重置状态为S_HEAD
 	unsigned int i ;
-	protocol_status cur_status = S_HEAD;
-	struct protocol_string pro_str[MAX_CMD_QUEUE];
+	GSM_RX_STATUS cur_status = S_HEAD;
+	struct SENT_QUEUE pro_str[MAX_CMD_QUEUE];
 	unsigned char pro_str_index=0 ;
 	u16 adc;
 #if OS_CRITICAL_METHOD == 3                      /* Allocate storage for CPU status register           */
@@ -57,7 +57,7 @@ void  App_TaskManager (void *p_arg)
 	/* Initialize the protocol string queue.	*/
 	for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
 		pro_str[pro_str_index].send_time= 0 ;//free queue if > 1 hours
-		pro_str[pro_str_index].send_pcb = 0 ;
+		pro_str[pro_str_index].send_pcb = 1 ;
 	}
 
 	/* Initialize the SysTick.								*/
@@ -127,13 +127,28 @@ void  App_TaskManager (void *p_arg)
 			;//mg323_status.ask_online = false ;
 		}
 
+		//Send command
+		//find a no use SENT_QUEUE to record the SEQ/CMD
+		for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
+			if ( pro_str[pro_str_index].send_pcb == 0 ) { //no use
+				gsm_send_time( &pro_str[pro_str_index] );
+				prompt("pro_str %d is no use.\r\n",pro_str_index);
+				break ;
+			}//end of pro_str[pro_str_index].send_pcb == 0
+
+			if ( pro_str_index >= MAX_CMD_QUEUE ){
+				prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
+			}
+		}
+
+
 		if ( (RTC_GetCounter( ) - stm32_rtc.update_time) > RTC_UPDATE_PERIOD || \
 				stm32_rtc.update_time == 0 ) {//need update RTC by server time
 			prompt("Need update RTC\t%d, tx_len= %d\r\n",\
 				(RTC_GetCounter( ) - stm32_rtc.update_time),mg323_cmd.tx_len);
 			stm32_rtc.update_time = RTC_GetCounter( ) ;
 
-			//find a no use protocol_string to record the SEQ/CMD
+			//find a no use SENT_QUEUE to record the SEQ/CMD
 			for ( pro_str_index = 0 ; pro_str_index < MAX_CMD_QUEUE ; pro_str_index++) {
 				if ( pro_str[pro_str_index].send_pcb == 0 ) { //no use
 					//prompt("pro_str %d is no use.\r\n",pro_str_index);
@@ -483,7 +498,12 @@ static unsigned char mcu_id_eor( unsigned int id)
 	return chkbyte ;
 }
 
-static void record( struct protocol_string * p)
+static void gsm_send_time( struct SENT_QUEUE *p)
 {
-;
+	unsigned char i ;
+	i =  p->send_pcb ;
+	//prompt("pro_str PCB is %d.\r\n",i);
+
+mg323_cmd.tx[mg323_cmd.tx_len]   = i ;
+	//return 0 ;
 }

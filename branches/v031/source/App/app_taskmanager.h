@@ -11,9 +11,9 @@ typedef enum
 	S_HEAD = 0, //search head
 	S_PCB  = 1, //search protocol control byte
 	S_CHK  = 2  //search check byte, in the end of buffer
-} protocol_status;
+} GSM_RX_STATUS;
 
-struct protocol_string {
+struct SENT_QUEUE {
 	unsigned int send_time;//cancel CMD if time > 1 hours
 	unsigned char send_seq;
 	unsigned char send_pcb;

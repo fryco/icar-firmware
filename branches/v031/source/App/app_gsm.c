@@ -1,8 +1,8 @@
 #include "main.h"
 
-struct gsm_status mg323_status ;
-struct gsm_command mg323_cmd ;
-extern struct icar_rx u2_rx_buf;
+struct GSM_STATUS mg323_status ;
+struct GSM_COMMAND mg323_cmd ;
+extern struct ICAR_RX u2_rx_buf;
 extern unsigned char dest_server[];
 
 const unsigned char callback_phone[] = "13828431106";
