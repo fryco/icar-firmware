@@ -18,7 +18,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 /* Exported types ------------------------------------------------------------*/
-struct rtc_status {
+struct RTC_STATUS {
 	unsigned int update_time ;//record update rtc time, re-update after 1 hour
 	unsigned int prescaler ;  //++ if rtc slow, -- if rtc fast
 

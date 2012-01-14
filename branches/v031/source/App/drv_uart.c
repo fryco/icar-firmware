@@ -1,14 +1,14 @@
 #include "main.h"
 
 //gobal var
-struct icar_tx u1_tx_buf;
-struct icar_rx u1_rx_buf;
+struct ICAR_TX u1_tx_buf;
+struct ICAR_RX u1_rx_buf;
 
-struct icar_tx u2_tx_buf;
-struct icar_rx u2_rx_buf;
+struct ICAR_TX u2_tx_buf;
+struct ICAR_RX u2_rx_buf;
 
-struct icar_tx u3_tx_buf;
-struct icar_rx u3_rx_buf;
+struct ICAR_TX u3_tx_buf;
+struct ICAR_RX u3_rx_buf;
 
 /* Private function prototypes -----------------------------------------------*/
 

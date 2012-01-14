@@ -1,6 +1,6 @@
 #include "main.h"
 
-struct rtc_status stm32_rtc;
+struct RTC_STATUS stm32_rtc;
 
 //Backup register list:
 //BKP_DR1, stm32_rtc.prescaler
