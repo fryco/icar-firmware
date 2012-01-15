@@ -215,8 +215,8 @@ void  App_TaskGsm (void *p_arg)
 					prompt("Confirmed.\r\n");
 				}
 
-				//found ^SISW: 0,1,1460
-				if (strstr((char *)rec_str,"^SISW: 0,1,1460")) {
+				//found ^SISW: 0,1,1460 or Rec:^SISW: 0,1,1360
+				if (strstr((char *)rec_str,"^SISW: 0,1,1")) {
 					//need to double check
 					prompt("TCP online: %s\r\n",rec_str);
 					mg323_status.tcp_online = true ;
@@ -231,8 +231,6 @@ void  App_TaskGsm (void *p_arg)
 						mg323_status.local_ip[i] = rec_str[i+14];
 						i++ ;
 					}
-					//prompt("IP: %s\t%s\tline: %d\r\n",\
-						//mg323_status.local_ip,__FILE__, __LINE__);
 				}
 
 				//GSM TCP rec data: ^SISR: 0,0
