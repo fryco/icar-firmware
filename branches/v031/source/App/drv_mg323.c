@@ -9,7 +9,7 @@
 extern struct UART_RX u2_rx_buf;
 extern struct GSM_STATUS mg323_status ;
 
-const unsigned char dest_server[] = "cqt.8866.org:25";
+const unsigned char dest_server[] = "cqt.8866.org:24";
 const unsigned char at_set_channel0_para[] = "AT^SICS=0,";
 
 //²éÑ¯Á¬½Ó×´Ì¬£º AT^SISI?

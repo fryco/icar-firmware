@@ -98,10 +98,11 @@ void  App_TaskManager (void *p_arg)
 
 	mg323_status.ask_power = true ;
 	mg323_rx_buf.time = OSTime ;
+	mg323_rx_buf.start = mg323_cmd.rx;//prevent access unknow address
+	mg323_rx_buf.status = S_HEAD;
 
 	while	(1)
 	{
-
 		/* Reload IWDG counter */
 		IWDG_ReloadCounter();  
 
@@ -220,7 +221,6 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
     OS_CPU_SR  cpu_sr = 0;
 #endif
 
-
 	prompt("Need update RTC\t%d, tx_len= %d\r\n",\
 		(RTC_GetCounter( ) - stm32_rtc.update_time),mg323_cmd.tx_len);
 
@@ -288,7 +288,6 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 //return 1: failure
 static unsigned char gsm_rx_decode( struct GSM_RX *buf ,struct SENT_QUEUE *queue_p)
 {
-
 	unsigned char chkbyte, queue_index=0;
 	unsigned int  chk_index;
 	unsigned char  len_high=0, len_low=0;
@@ -385,7 +384,6 @@ static unsigned char gsm_rx_decode( struct GSM_RX *buf ,struct SENT_QUEUE *queue
 			buf->len = len_high << 8 | len_low ;
 			//printf("respond LEN: %d\r\n",buf->len);
 
-
 			//update the status & timer
 			buf->status = S_CHK ;//search check byte
 			buf->time = OSTime ;
@@ -418,7 +416,6 @@ static unsigned char gsm_rx_decode( struct GSM_RX *buf ,struct SENT_QUEUE *queue
 				buf->chk = *(buf->start + 5 + buf->len - GSM_BUF_LENGTH);
 				//printf("CHK add: %X\t",buf->start + 5 + buf->len - GSM_BUF_LENGTH);
 			}//end of GSM_BUF_LENGTH - (buf->start - mg323_cmd.rx)
-			//printf("respond CHK is %02X\n",buf->chk);
 			//2012/1/4 19:54:50 已验证边界情况，正常
 
 			chkbyte = GSM_HEAD ;
