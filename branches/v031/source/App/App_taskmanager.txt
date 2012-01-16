@@ -3,6 +3,8 @@ App_taskmanager introduction：
    This is the firmware core, manage all the subtask, and the subtask
 can't communicate each other, to keep the logic clear.
 
+需在各任务里更新任务定时器，长时间无更新则认为任务无响应，重启任务
+
 2，process/流程：
 void  App_TaskManager (void *p_arg) {
    	OS_CPU_SysTickInit(); initialize the tick, using STM32 

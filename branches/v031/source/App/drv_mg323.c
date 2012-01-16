@@ -61,8 +61,8 @@ bool get_respond( unsigned char* rec_str)
 		while ( !u2_rx_buf.empty ) {//receive some data...
 
 			//reset timer here
-			mg323_status.time = OSTime ;				
-//prompt("Update T: %s\tline: %d\tT: %X\t",__FILE__, __LINE__,mg323_status.time);
+			mg323_status.at_time = OSTime ;				
+
 			rec_str[i] = getbyte( COM2 );
 	
 #ifdef DEBUG_GSM
