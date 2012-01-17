@@ -4,7 +4,7 @@ static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static void calc_sn( void );
 static unsigned char mcu_id_eor( unsigned int );
 static unsigned char gsm_send_time( struct SENT_QUEUE *, unsigned char *);
-static unsigned char gsm_rx_decode( struct GSM_RX *, struct SENT_QUEUE *queue_p);
+static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *, struct SENT_QUEUE *queue_p);
 
 extern struct UART_RX u1_rx_buf;
 extern struct UART_TX u1_tx_buf;
@@ -42,7 +42,7 @@ void  App_TaskManager (void *p_arg)
 	unsigned char var_uchar , gsm_sequence=0xC0;
 
 	struct SENT_QUEUE gsm_sent_q[MAX_CMD_QUEUE];
-	struct GSM_RX mg323_rx_buf;
+	struct GSM_RX_RESPOND mg323_rx_cmd;
 
 	u16 adc;
 
@@ -50,7 +50,7 @@ void  App_TaskManager (void *p_arg)
 
 	/* Initialize the queue.	*/
 	for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
-		gsm_sent_q[var_uchar].send_time= 0 ;//free queue if > 1 hours
+		gsm_sent_q[var_uchar].send_timer= 0 ;//free queue if > 1 hours
 		gsm_sent_q[var_uchar].send_pcb = 0 ;
 	}
 
@@ -97,9 +97,9 @@ void  App_TaskManager (void *p_arg)
 	iwdg_init( );
 
 	mg323_status.ask_power = true ;
-	mg323_rx_buf.time = OSTime ;
-	mg323_rx_buf.start = mg323_cmd.rx;//prevent access unknow address
-	mg323_rx_buf.status = S_HEAD;
+	mg323_rx_cmd.timer = OSTime ;
+	mg323_rx_cmd.start = mg323_cmd.rx;//prevent access unknow address
+	mg323_rx_cmd.status = S_HEAD;
 
 	while	(1)
 	{
@@ -122,7 +122,7 @@ void  App_TaskManager (void *p_arg)
 
 		if ( !mg323_cmd.rx_empty ) {//receive some TCP data from GSM
 
-			gsm_rx_decode( &mg323_rx_buf, gsm_sent_q );
+			gsm_rx_decode( &mg323_rx_cmd, gsm_sent_q );
 		}
 
 		if ( u1_rx_buf.lost_data ) {//error! lost data
@@ -172,8 +172,8 @@ void  App_TaskManager (void *p_arg)
 
 		if ( (OSTime/1000)%10 == 0 ) {//check every 10 sec
 			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
-				if ( OSTime - gsm_sent_q[var_uchar].send_time > 60*60*1000 ) {
-					gsm_sent_q[var_uchar].send_time= 0 ;//free queue if > 1 hours
+				if ( OSTime - gsm_sent_q[var_uchar].send_timer > 60*60*1000 ) {
+					gsm_sent_q[var_uchar].send_timer= 0 ;//free queue if > 1 hours
 					gsm_sent_q[var_uchar].send_pcb = 0 ;
 				}
 			}
@@ -243,7 +243,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				OS_EXIT_CRITICAL();
 	
 				//set protocol string value
-				queue_p[index].send_time= OSTime ;
+				queue_p[index].send_timer= OSTime ;
 				queue_p[index].send_seq = *sequence ;
 				queue_p[index].send_pcb = GSM_CMD_TIME ;
 	
@@ -286,7 +286,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 
 //return 0: ok
 //return 1: failure
-static unsigned char gsm_rx_decode( struct GSM_RX *buf ,struct SENT_QUEUE *queue_p)
+static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf ,struct SENT_QUEUE *queue_p)
 {
 	unsigned char chkbyte, queue_index=0;
 	unsigned int  chk_index;
@@ -304,7 +304,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX *buf ,struct SENT_QUEUE *queue
 			if ( *mg323_cmd.rx_out_last == GSM_HEAD ) {//found
 				buf->start = mg323_cmd.rx_out_last ;//mark the start
 				buf->status = S_PCB ;//search protocol control byte
-				buf->time = OSTime ;
+				buf->timer = OSTime ;
 				//prompt("Found HEAD: %X\r\n",buf->start);
 			}
 			else { //no found
@@ -328,7 +328,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX *buf ,struct SENT_QUEUE *queue
 	//2, find PCB&SEQ&LEN
 	if ( buf->status == S_PCB ) {
 
-		if ( OSTime - buf->time > 5*AT_TIMEOUT ) {//reset status
+		if ( OSTime - buf->timer > 5*AT_TIMEOUT ) {//reset status
 			prompt("In S_PCB timeout, reset to S_HEAD status!!!\r\n");
 			buf->status = S_HEAD ;
 			mg323_cmd.rx_out_last++	 ;
@@ -386,14 +386,14 @@ static unsigned char gsm_rx_decode( struct GSM_RX *buf ,struct SENT_QUEUE *queue
 
 			//update the status & timer
 			buf->status = S_CHK ;//search check byte
-			buf->time = OSTime ;
+			buf->timer = OSTime ;
 		}//end of (mg323_cmd.rx_in_last > mg323_cmd.rx_out_last) ...
 	}//end of if ( buf->status == S_PCB )
 
 	//3, find CHK
 	if ( buf->status == S_CHK ) {
 
-		if ( OSTime - buf->time > 10*AT_TIMEOUT ) {//reset status
+		if ( OSTime - buf->timer > 10*AT_TIMEOUT ) {//reset status
 			prompt("In S_CHK timeout, reset to S_HEAD status!!!\r\n");
 			buf->status = S_HEAD ;
 			mg323_cmd.rx_out_last++	 ;

@@ -33,7 +33,7 @@ void  App_TaskGsm (void *p_arg)
 	mg323_status.roam = false;
 	mg323_status.cgatt= false;
 	mg323_status.rx_empty = true ;
-	mg323_status.at_time = OSTime ;
+	mg323_status.at_timer = OSTime ;
 	mg323_status.ring_count = 0 ;
 	mg323_status.dial_timer=0 ;
 	mg323_status.need_dial = false ;
@@ -59,7 +59,7 @@ void  App_TaskGsm (void *p_arg)
 				mg323_status.err_no = gsm_power_on() ;
 				if ( mg323_status.err_no == 0 ) {
 					mg323_status.power_on = true;
-					mg323_status.at_time = OSTime ;
+					mg323_status.at_timer = OSTime ;
 
 					//check gprs network also
 					if ( !mg323_status.gprs_ready ) {
@@ -91,7 +91,7 @@ void  App_TaskGsm (void *p_arg)
 		if ( mg323_status.power_on ) {//below action need power on
 
 			//should receive feedback < 10 seconds, because we enquire every 4 sec.
-			if ( OSTime - mg323_status.at_time > 10*AT_TIMEOUT ) {
+			if ( OSTime - mg323_status.at_timer > 10*AT_TIMEOUT ) {
 				//GSM module no respond, reset it
 				prompt("\r\nGSM Module no respond, will be reset...%s\tline: %d\r\n",\
 						__FILE__, __LINE__);
@@ -180,7 +180,7 @@ void  App_TaskGsm (void *p_arg)
 			//Check GSM output string
 			while ( !u2_rx_buf.empty ) {//have data ...
 				//reset timer here
-				mg323_status.at_time = OSTime ;				
+				mg323_status.at_timer = OSTime ;				
 
 				memset(rec_str, 0x0, AT_CMD_LENGTH);
 				if ( get_respond(rec_str) ) {
@@ -252,14 +252,14 @@ static void read_tcp_data( unsigned char *buf )
 	//data will be sent out after ^SISR: 0,xx
 	memset(buf, 0x0, AT_CMD_LENGTH);
 
-	mg323_cmd.rx_time = OSTime ;
+	mg323_cmd.rx_timer = OSTime ;
 
 	while ( !strstr((char *)buf,"^SISR: 0,") \
 			&& !mg323_cmd.rx_full \
-			&& (OSTime - mg323_cmd.rx_time) < 5*AT_TIMEOUT ) {
+			&& (OSTime - mg323_cmd.rx_timer) < 5*AT_TIMEOUT ) {
 
 		while ( u2_rx_buf.empty && \
-			(OSTime - mg323_cmd.rx_time) < AT_TIMEOUT ) {//no data...
+			(OSTime - mg323_cmd.rx_timer) < AT_TIMEOUT ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
@@ -336,7 +336,7 @@ static void read_tcp_data( unsigned char *buf )
 		else {//may GSM module no respond, need to enquire
 			putstring(COM2,"AT^SISI?\r\n");//enquire online?
 			prompt("No return %s\tline: %d.\r\n",__FILE__, __LINE__);
-			mg323_cmd.rx_time = 0 ;//make it timeout and end this while
+			mg323_cmd.rx_timer = 0 ;//make it timeout and end this while
 			putstring(COM2,"AT^SICI?\r\n");//enquire IP
 		}//end of if ( get_respond(buf) ) 
 

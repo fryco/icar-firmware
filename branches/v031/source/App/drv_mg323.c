@@ -61,7 +61,7 @@ bool get_respond( unsigned char* rec_str)
 		while ( !u2_rx_buf.empty ) {//receive some data...
 
 			//reset timer here
-			mg323_status.at_time = OSTime ;				
+			mg323_status.at_timer = OSTime ;				
 
 			rec_str[i] = getbyte( COM2 );
 	

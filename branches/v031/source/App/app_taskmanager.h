@@ -11,12 +11,12 @@ typedef enum
 	S_HEAD = 0, //search head
 	S_PCB  = 1, //search protocol control byte
 	S_CHK  = 2  //search check byte, in the end of buffer
-} GSM_RX_STATUS;
+} GSM_RX_RESPOND_STATUS;
 
-struct GSM_RX {
-	GSM_RX_STATUS status;
+struct GSM_RX_RESPOND {//for decode respond string from server
+	GSM_RX_RESPOND_STATUS status;
 	unsigned char *start;
-	unsigned int   time;
+	unsigned int   timer;
 	unsigned char  pcb;//protocol control byte
 	unsigned char  seq;//sequence
 	unsigned char  chk;
@@ -24,7 +24,7 @@ struct GSM_RX {
 };
 
 struct SENT_QUEUE {
-	unsigned int send_time;//cancel CMD if time > 1 hours
+	unsigned int send_timer;//cancel CMD if time > 1 hours
 	unsigned char send_seq;
 	unsigned char send_pcb;
 };
