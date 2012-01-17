@@ -41,7 +41,7 @@ struct GSM_STATUS {
 };
 
 struct GSM_COMMAND {
-	bool lock ;
+	bool lock ; //如果发现长期加锁情况，则加lock_timer
 	unsigned char tx[GSM_BUF_LENGTH];
 	unsigned int tx_len;
 	unsigned char rx[GSM_BUF_LENGTH];
