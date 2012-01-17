@@ -32,7 +32,7 @@ struct GSM_STATUS {
 	bool roam;
 	bool cgatt;
 	bool rx_empty;//GSM Module rx buffer
-	unsigned int at_time;
+	unsigned int at_timer;
 
 	unsigned char ring_count;
 	unsigned int dial_timer;
@@ -42,14 +42,19 @@ struct GSM_STATUS {
 
 struct GSM_COMMAND {
 	bool lock ; //如果发现长期加锁情况，则加lock_timer
+	//tx buffer for tcp data
 	unsigned char tx[GSM_BUF_LENGTH];
+	unsigned char *tx_out_last;
+	unsigned char *tx_in_last;
 	unsigned int tx_len;
+
+	//rx buffer for tcp data
 	unsigned char rx[GSM_BUF_LENGTH];
 	unsigned char *rx_out_last;
 	unsigned char *rx_in_last;
 	bool rx_empty;
 	bool rx_full;
-	unsigned int rx_time;
+	unsigned int rx_timer;
 };
 
 /* Exported constants --------------------------------------------------------*/
