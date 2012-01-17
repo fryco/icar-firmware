@@ -41,7 +41,7 @@ const unsigned char *apn_list[][4]= {\
 };
 
 /*if match return 1 , else return 0*/
-static unsigned char cmpmem(unsigned char *buffer, unsigned char *cmpbuf,unsigned char count)
+unsigned char cmpmem(unsigned char *buffer, unsigned char *cmpbuf,unsigned char count)
 {
 	static unsigned char equal;    
 
@@ -882,7 +882,7 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 	}
 
 	#ifdef DEBUG_GSM
-		;//printf("\r\n");
+		printf("\r\n");
 	#endif
 
 	//wait GSM return: ERROR or OK

@@ -22,7 +22,7 @@
 /* Exported constants --------------------------------------------------------*/
 
 /* Exported functions ------------------------------------------------------- */
-
+unsigned char cmpmem(unsigned char *, unsigned char *,unsigned char );
 unsigned char gsm_power_on( void ) ;
 unsigned char gsm_check_gprs( void );
 bool gsm_pwr_off(void);
