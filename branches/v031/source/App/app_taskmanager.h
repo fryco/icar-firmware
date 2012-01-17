@@ -5,6 +5,13 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f10x.h"
 
+/* Exported macro ------------------------------------------------------------*/
+#define MAX_CMD_QUEUE		10
+
+//HEAD SEQ CMD Length(2 bytes) INF(Max.1024) check
+//#define GSM_BUF_LENGTH		1024+8 //for GSM command
+#define GSM_BUF_LENGTH		257 //for GSM command
+
 /* Exported types ------------------------------------------------------------*/
 typedef enum
 {
@@ -16,7 +23,7 @@ typedef enum
 struct GSM_RX_RESPOND {//for decode respond string from server
 	GSM_RX_RESPOND_STATUS status;
 	unsigned char *start;
-	unsigned int   timer;
+	unsigned int   timer;//S_PCB ==> S_CHK, < 5*AT_TIMEOUT
 	unsigned char  pcb;//protocol control byte
 	unsigned char  seq;//sequence
 	unsigned char  chk;
@@ -29,9 +36,22 @@ struct SENT_QUEUE {
 	unsigned char send_pcb;
 };
 
+struct CAR2SERVER_COMMUNICATION {
+	bool tx_lock ; //如果发现长期加锁情况，则加lock_timer
+	//tx buffer for tcp data
+	unsigned char tx[GSM_BUF_LENGTH];
+	unsigned int tx_len;//tx_len=0即为 empty;tx_len=GSM_BUF_LENGTH即为full
+
+	//rx buffer for tcp data
+	unsigned char rx[GSM_BUF_LENGTH];
+	unsigned char *rx_out_last;
+	unsigned char *rx_in_last;
+	bool rx_empty;
+	bool rx_full;
+	unsigned int rx_timer;
+};
+
 /* Exported constants --------------------------------------------------------*/
-/* Exported macro ------------------------------------------------------------*/
-#define MAX_CMD_QUEUE		5
 
 /* Exported functions ------------------------------------------------------- */
 

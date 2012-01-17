@@ -1,7 +1,7 @@
 #include "main.h"
 
 struct GSM_STATUS mg323_status ;
-struct GSM_COMMAND mg323_cmd ;// tx 缓冲处理待改进
+extern struct CAR2SERVER_COMMUNICATION c2s_data ;
 extern struct UART_RX u2_rx_buf;
 extern unsigned char dest_server[];
 
@@ -15,10 +15,6 @@ void  App_TaskGsm (void *p_arg)
 {
 	unsigned char rec_str[AT_CMD_LENGTH];
 	unsigned int  relay_timer=0;
-
-#if OS_CRITICAL_METHOD == 3    /* Allocate storage for CPU status register           */
-    OS_CPU_SR  cpu_sr = 0;
-#endif
 
 	(void)p_arg;
 
@@ -38,14 +34,6 @@ void  App_TaskGsm (void *p_arg)
 	mg323_status.dial_timer=0 ;
 	mg323_status.need_dial = false ;
 	mg323_status.voice_confirm = true ;
-
-	OS_ENTER_CRITICAL();
-	mg323_cmd.lock = false ;
-	mg323_cmd.rx_out_last = mg323_cmd.rx;
-	mg323_cmd.rx_in_last  = mg323_cmd.rx;
-	mg323_cmd.rx_empty = true ;
-	mg323_cmd.rx_full = false ;
-	OS_EXIT_CRITICAL();
 
 	uart2_init( );
 
@@ -109,6 +97,7 @@ void  App_TaskGsm (void *p_arg)
 					mg323_status.gprs_count = 0 ;
 
 					if ( !mg323_status.tcp_online ) { //no online
+						prompt("IP %s.\r\n",mg323_status.local_ip);
 						//send online command
 						putstring(COM2,"AT^SISO=0\r\n");
 						//will be return ^SISW: 0,1,1xxx
@@ -132,7 +121,7 @@ void  App_TaskGsm (void *p_arg)
 					putstring(COM2, "AT+CGREG?\r\n");
 					mg323_status.gprs_count++;
 					//wait... timeout => restart
-					if ( mg323_status.gprs_count > 120 ) {//about 120s
+					if ( mg323_status.gprs_count > 180 ) {//about 180s
 							mg323_status.gprs_ready = false;
 							mg323_status.tcp_online = false ;
 							mg323_status.power_on = false;
@@ -148,19 +137,27 @@ void  App_TaskGsm (void *p_arg)
 
 			//Send GSM signal and tcp status cmd every 3 sec.
 			
-			putstring(COM2,"AT+CSQ\r\n");//Signal
-			if ( (OSTime/1000)%3 == 0 ) {// GPRS
-				putstring(COM2, "AT+CGREG?\r\n");
-				putstring(COM2, "AT+CGATT?\r\n");
+
+			if ( (OSTime/1000)%5 == 0 ) {// GPRS
+				putstring(COM2,"AT+CSQ\r\n");//Signal
 			}
-			if ( (OSTime/1000)%3 == 1 ) {//connection status
+			if ( (OSTime/1000)%5 == 1 ) {//connection status
 				putstring(COM2,"AT^SISI?\r\n");
 			}
 
-			if ( (OSTime/1000)%3 == 2 ) {
+			if ( (OSTime/1000)%5 == 2 ) {
 				//ask the IP, return:^SICI: 0,2,1,"10.156.174.147"
 				putstring(COM2,"AT^SICI?\r\n");
 			}
+
+			if ( (OSTime/1000)%5 == 3 ) {
+				putstring(COM2, "AT+CGATT?\r\n");
+			}
+
+			if ( (OSTime/1000)%5 == 4 ) {
+				putstring(COM2, "AT+CGREG?\r\n");
+			}
+
 
 			//waiting GSM respond
 			OSTimeDlyHMSM(0, 0, 0, 10);
@@ -198,10 +195,10 @@ void  App_TaskGsm (void *p_arg)
 
 			}
 
-			//Check mg323_cmd.tx_len, if > 0, then send it
+			//Check c2s_data.tx_len, if > 0, then send it
 			if ( mg323_status.tcp_online \
-				&& mg323_cmd.tx_len > 0 \
-				&& !mg323_cmd.lock ) { //can send data
+				&& c2s_data.tx_len > 0 \
+				&& !c2s_data.tx_lock ) { //can send data
 
 				send_tcp_data( );
 			}
@@ -230,6 +227,8 @@ void  App_TaskGsm (void *p_arg)
 			prompt("!!!  TCP offline  !!!\r\n");
 		}
 
+		//1, release CPU
+		//2, GSM module can't respond if enquire too fast
 		OSTimeDlyHMSM(0, 0, 1, 0);
 	}
 }
@@ -252,14 +251,14 @@ static void read_tcp_data( unsigned char *buf )
 	//data will be sent out after ^SISR: 0,xx
 	memset(buf, 0x0, AT_CMD_LENGTH);
 
-	mg323_cmd.rx_timer = OSTime ;
+	c2s_data.rx_timer = OSTime ;
 
 	while ( !strstr((char *)buf,"^SISR: 0,") \
-			&& !mg323_cmd.rx_full \
-			&& (OSTime - mg323_cmd.rx_timer) < 5*AT_TIMEOUT ) {
+			&& !c2s_data.rx_full \
+			&& (OSTime - c2s_data.rx_timer) < 5*AT_TIMEOUT ) {
 
 		while ( u2_rx_buf.empty && \
-			(OSTime - mg323_cmd.rx_timer) < AT_TIMEOUT ) {//no data...
+			(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
@@ -307,25 +306,25 @@ static void read_tcp_data( unsigned char *buf )
 					//prompt("\r\nGSM TCP no data. %s\tline: %d\r\n",__FILE__, __LINE__);
 				}
 				else {
-					//push data to mg323_cmd.rx
+					//push data to c2s_data.rx
 					//prompt("Push to rx:\t");
 					for ( i = 0 ; i < gsm_tcp_len; i++ ) {
 						while ( u2_rx_buf.empty ) {//no data...
 							OSTimeDlyHMSM(0, 0,	0, 10);
 						}
-						*mg323_cmd.rx_in_last = getbyte( COM2 );
+						*c2s_data.rx_in_last = getbyte( COM2 );
 
-						//printf("%02X ",*mg323_cmd.rx_in_last);
+						//printf("%02X ",*c2s_data.rx_in_last);
 
-						mg323_cmd.rx_in_last++;
-					   	if (mg323_cmd.rx_in_last==mg323_cmd.rx+GSM_BUF_LENGTH) {
-							mg323_cmd.rx_in_last=mg323_cmd.rx;//地址到顶部回到底部
+						c2s_data.rx_in_last++;
+					   	if (c2s_data.rx_in_last==c2s_data.rx+GSM_BUF_LENGTH) {
+							c2s_data.rx_in_last=c2s_data.rx;//地址到顶部回到底部
 						}
 
 						OS_ENTER_CRITICAL();
-						mg323_cmd.rx_empty = false ;
-			    		if (mg323_cmd.rx_in_last==mg323_cmd.rx_out_last)	{
-							mg323_cmd.rx_full = true;  //set buffer full flag
+						c2s_data.rx_empty = false ;
+			    		if (c2s_data.rx_in_last==c2s_data.rx_out_last)	{
+							c2s_data.rx_full = true;  //set buffer full flag
 						}
 						OS_EXIT_CRITICAL();
 
@@ -336,8 +335,8 @@ static void read_tcp_data( unsigned char *buf )
 		else {//may GSM module no respond, need to enquire
 			putstring(COM2,"AT^SISI?\r\n");//enquire online?
 			prompt("No return %s\tline: %d.\r\n",__FILE__, __LINE__);
-			mg323_cmd.rx_timer = 0 ;//make it timeout and end this while
-			putstring(COM2,"AT^SICI?\r\n");//enquire IP
+			c2s_data.rx_timer = 0 ;//make it timeout and end this while
+			//putstring(COM2,"AT^SICI?\r\n");//enquire IP
 		}//end of if ( get_respond(buf) ) 
 
 	}
@@ -352,13 +351,14 @@ static void send_tcp_data( )
 #endif
 	
 	OS_ENTER_CRITICAL();
-	mg323_cmd.lock = true ;
+	c2s_data.tx_lock = true ;
 	OS_EXIT_CRITICAL();
 
-	if ( gsm_ask_tcp(mg323_cmd.tx_len) ) {//GSM buffer ready
-		if ( gsm_send_tcp(mg323_cmd.tx,mg323_cmd.tx_len) ) {
-			;//send ok, but need return ^SISW: 0,1 for confirm
-			//mg323_cmd.tx_len = 0 ;
+	if ( gsm_ask_tcp(c2s_data.tx_len) ) {//GSM buffer ready
+		//prompt("Wil send data %s\tline: %d.\r\n",__FILE__, __LINE__);
+		if ( gsm_send_tcp(c2s_data.tx,c2s_data.tx_len) ) {
+			//Check: ^SISW: 0,1 
+			c2s_data.tx_len = 0 ;
 			//printf("\tOK!\r\n");
 		}
 		else {
@@ -369,13 +369,11 @@ static void send_tcp_data( )
 	else {//may GSM module no respond, need to enquire
 		putstring(COM2,"AT^SISI?\r\n");//enquire online or not
 		prompt("Can not send data %s\tline: %d.\r\n",__FILE__, __LINE__);
-		putstring(COM2,"AT^SICI?\r\n");//enquire IP
 	}
 
-	//unlock when receive ^SISW: 0,1
-	//OS_ENTER_CRITICAL();
-	//mg323_cmd.lock = false ;
-	//OS_EXIT_CRITICAL();
+	OS_ENTER_CRITICAL();
+	c2s_data.tx_lock = false ;
+	OS_EXIT_CRITICAL();
 }
 
 //return 0:	ok
@@ -383,9 +381,6 @@ static void send_tcp_data( )
 static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer )
 {
 	static unsigned char i ;
-#if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
-    OS_CPU_SR  cpu_sr = 0;
-#endif
 
 	//found GSM auto report
 	if (strstr((char *)buf,"network is unavailable")) {
@@ -393,22 +388,29 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		return 0;
 	}
 
-	//found voice call
-	if (strstr((char *)buf,"RING")) {
-		putstring(COM2,"ATH\r\n");
-		*timer = OSTime;
-		mg323_status.ring_count++;
-		mg323_status.need_dial = false ;
-		mg323_status.voice_confirm = false ;
-		putstring(COM2,"ATH\r\n");
-		prompt("Receive %d time call.\r\n",mg323_status.ring_count);
+	//^SIS: 0, 0, 48, Remote Peer has closed the connection
+	if (strstr((char *)buf,"^SIS: 0, 0, 48")) {
+		//prompt("MG323 report: %s, check %s: %d\r\n",\
+							//buf,__FILE__, __LINE__);
+
+		if ( mg323_status.tcp_online  ) {
+			//previous status is online, now is offline, close connect.
+			mg323_status.tcp_online = false ;
+			putstring(COM2,"AT^SISC=0\r\n");//Close connection
+			prompt("Close connection@ %d.\r\n",__LINE__);
+			mg323_status.try_online = 0 ;
+
+			//maybe some problem
+			OSTimeDlyHMSM(0, 0, 1, 0);
+		}
 		return 0;
 	}
 
 	//found GPRS status  respond
-	if (strstr((char *)buf,"CGREG: 0,")) {
+	if (strstr((char *)buf,"+CGREG: 0,")) {
 		prompt("Rec:%s\r\n",buf);
-		switch (buf[9]) {
+
+		switch (buf[10]) {
 
 			case 0x31://CGREG: 0,1\r\n
 				mg323_status.gprs_ready = true ;
@@ -433,10 +435,14 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	//found GPRS att respond
 	if (strstr((char *)buf,"+CGATT")) {
 		prompt("Rec:%s\r\n",buf);
-		if ( buf[8] == '1' )
-			{ mg323_status.cgatt= true; }
-		else
-			{ mg323_status.cgatt= false; }
+		if ( buf[8] == '1' ) {
+			mg323_status.cgatt= true; }
+		else {
+			mg323_status.cgatt= false;
+			prompt("GPRS not attached!\t%s, check %s: %d\r\n",\
+						buf,__FILE__, __LINE__);
+		}
+
 		return 0;
 	}
 
@@ -456,7 +462,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		return 0;
 	}
 
-	//Internet profile status
+	// Found Internet profile status
 	// 2: allocated
 	// 3: connecting
 	// 4: up
@@ -466,43 +472,69 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		//^SISI: 0,5,0,0,0,0
 		if ( buf[9]== 0x34 ) {
 			mg323_status.tcp_online = true ;
-			mg323_status.try_online = 0 ;
 		}
 		else {
-			mg323_status.tcp_online = false ;
-			prompt("!!! TCP off line. !!!\r\n");
-			//maybe some problem
-			OSTimeDlyHMSM(0, 0, 1, 0);
+			//prompt("SISI return: %s, check %s: %d\r\n",\
+							//buf,__FILE__, __LINE__);
+
+			if ( mg323_status.tcp_online  ) {
+				//previous status is online, now is offline, close connect.
+				mg323_status.tcp_online = false ;
+				putstring(COM2,"AT^SISC=0\r\n");//Close connection
+				prompt("Close connection@ %d.\r\n",__LINE__);
+				mg323_status.try_online = 0 ;
+
+				//maybe some problem
+				OSTimeDlyHMSM(0, 0, 1, 0);
+			}
 		}
 		return 0;
 	}
 
-	//found call confirm
-	if (strstr((char *)buf,"BUSY")) {//call success
-		mg323_status.need_dial = false ;
-		mg323_status.voice_confirm = true ;
-		mg323_status.dial_timer = 0 ; //prepare for next call
-		prompt("Confirmed by voice.\r\n");
-		return 0;
-	}
+	//found IP message, i.e ^SICI: 0,2,0,"10.7.60.209"
+	if (strstr((char *)buf,"^SICI: 0,2,")) {
+		prompt("SICI return: %s\r\n",buf);
 
-	//found ^SISW: 0,1,1460 or Rec:^SISW: 0,1,1360
-	if (strstr((char *)buf,"^SISW: 0,1,1")) {
-		//need to double check
-		prompt("TCP online: %s\r\n",buf);
-		mg323_status.tcp_online = true ;
-		//ask the IP, return:^SICI: 0,2,1,"10.156.174.147"
-		putstring(COM2,"AT^SICI?\r\n");
-		return 0;
-	}
+		switch (buf[11]) {
 
-	//found IP message
-	if (strstr((char *)buf,"SICI: 0,2,1,")) {
-		i = 0 ;//222.222.222.222
-		while ( (buf[i+14] != 0x22) && i < 15) { //"
-			mg323_status.local_ip[i] = buf[i+14];
-			i++ ;
-		}
+			case 0x30://0：Down 状态，Internet 连接已经定义但还没连接
+
+				//mg323_status.tcp_online = false ;
+				prompt("!!!Connection is down!!! %d\r\n",__LINE__);
+
+				break;
+
+			case 0x31://1：连接状态，服务已经打开，Internet 连接已经初始化
+				i = 0 ;//222.222.222.222
+				while ( (buf[i+14] != 0x22) && i < 15) { //"
+					mg323_status.local_ip[i] = buf[i+14];
+					i++ ;
+				}
+				break;
+
+			case 0x32://2：Up 状态，Internet 连接已经建立，正使用一种或多种服务
+				i = 0 ;//222.222.222.222
+				while ( (buf[i+14] != 0x22) && i < 15) { //"
+					mg323_status.local_ip[i] = buf[i+14];
+					i++ ;
+				}
+				break;
+
+			case 0x33://3：限制状态，Internet 连接已经建立，但暂时没有网络覆盖
+				prompt("!!!Connection is limit!!! %d\r\n",__LINE__);
+				break;
+
+			case 0x34://4：关闭状态，Internet 连接已经断开
+				prompt("!!!Connection is close!!! %d\r\n",__LINE__);
+				break;
+
+			default:
+				mg323_status.gprs_ready = false ;
+				prompt("Unknow SICI return: %s, check %s: %d\r\n",\
+							buf,__FILE__, __LINE__);
+				break;
+
+		}//end of switch
 		return 0;
 	}
 
@@ -520,21 +552,34 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		return 0;
 	}
 
-	//Send TCP data by gprs success
-	if ( cmpmem(buf,"^SISW: 0,1\r\n",12 )) {
-		prompt("Rec:%s\r\n",buf);
-		if ( mg323_cmd.lock ) {
-			mg323_cmd.tx_len = 0 ;
-			printf("\t...Send OK!\r\n");
-	
-			OS_ENTER_CRITICAL();
-			mg323_cmd.lock = false ;
-			OS_EXIT_CRITICAL();
-		}
-		else {
-			prompt("Logic error, mg323_cmd.lock should lock, but now is unlock! ");
-			printf("check %s: %d\r\n",__FILE__, __LINE__);
-		}
+	//found ^SISW: 0,1,1460 or Rec:^SISW: 0,1,1360
+	if (strstr((char *)buf,"^SISW: 0,1,1")) {
+		//need to double check
+		prompt("TCP online: %s\r\n",buf);
+		mg323_status.tcp_online = true ;
+		//ask the IP, return:^SICI: 0,2,1,"10.156.174.147"
+		putstring(COM2,"AT^SICI?\r\n");
+		return 0;
+	}
+
+	//found voice call
+	if (strstr((char *)buf,"RING")) {
+		putstring(COM2,"ATH\r\n");
+		*timer = OSTime;
+		mg323_status.ring_count++;
+		mg323_status.need_dial = false ;
+		mg323_status.voice_confirm = false ;
+		putstring(COM2,"ATH\r\n");
+		prompt("Receive %d time call.\r\n",mg323_status.ring_count);
+		return 0;
+	}
+
+	//found call confirm
+	if (strstr((char *)buf,"BUSY")) {//call success
+		mg323_status.need_dial = false ;
+		mg323_status.voice_confirm = true ;
+		mg323_status.dial_timer = 0 ; //prepare for next call
+		prompt("Confirmed by voice.\r\n");
 		return 0;
 	}
 
@@ -546,7 +591,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		return 0;
 	}
 
-	prompt("Unknow respond:%s\r\n",buf);
+	prompt("Unknow report:%s\r\n",buf);
 	return 1;
 	//add others respond string here
 }

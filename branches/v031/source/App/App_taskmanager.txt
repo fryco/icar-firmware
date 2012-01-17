@@ -20,9 +20,9 @@ void  App_TaskManager (void *p_arg) {
 	while	(1)
 	{
 ==>		IWDG_ReloadCounter();
-==>		if ( mg323_cmd.tx_len > 0 ) 如果GSM发送队列有数据，就online
+==>		if ( c2s_data.tx_len > 0 ) 如果GSM发送队列有数据，就online
 ==>		是否需要更新RTC? 是：找空闲SENT_QUEUE，记录命令，发送取服务器时间命令
-==>		if ( !mg323_cmd.rx_empty ) 如果GSM接收队列有数据，解析提取
+==>		if ( !c2s_data.rx_empty ) 如果GSM接收队列有数据，解析提取
 		{
 			状态机：搜 S_HEAD 标志
 				找到0xC9，设状态机为：搜S_PCB；否则丢弃当前数据

@@ -43,7 +43,8 @@
 #define AT_TIMEOUT				1000
 #define AT_CMD_LENGTH			64 //for GSM command
 //#define RTC_UPDATE_PERIOD		1*60*60 //1 Hour
-#define RTC_UPDATE_PERIOD		1*1*5 //1 mins
+#define RTC_UPDATE_PERIOD		1*10*60 //10 mins
+//#define RTC_UPDATE_PERIOD		1*1*2 //2 secs
 
 //For GSM <==> Server protocol
 #define GSM_HEAD				0xC9
