@@ -261,15 +261,15 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 	switch( COM ){
 		case COM1:
 
-		    while ( (((u1_tx_buf.out_last-u1_tx_buf.in_last)==2) \
+		    while ( (((u1_tx_buf.out_last-u1_tx_buf.in_last) < 2) \
 					&& (u1_tx_buf.out_last > u1_tx_buf.in_last ))\
 					|| ((u1_tx_buf.out_last < u1_tx_buf.in_last) \
-					&& (TX_BUF_SIZE-(u1_tx_buf.in_last-u1_tx_buf.out_last)==2))) {
+					&& (TX_BUF_SIZE-(u1_tx_buf.in_last-u1_tx_buf.out_last) < 2))) {
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
 				OSTimeDlyHMSM(0, 0,	0, 1); //wait 1 msecond, send ~10Bytes@115200
-				USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
+				//USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
 			}                     
 
 			USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
@@ -287,15 +287,15 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 			return true;
 
 		case COM2:
-		    while ( (((u2_tx_buf.out_last-u2_tx_buf.in_last)==2) \
+		    while ( (((u2_tx_buf.out_last-u2_tx_buf.in_last) < 2) \
 					&& (u2_tx_buf.out_last > u2_tx_buf.in_last ))\
 					|| ((u2_tx_buf.out_last < u2_tx_buf.in_last) \
-					&& (TX_BUF_SIZE-(u2_tx_buf.in_last-u2_tx_buf.out_last)==2))) {
+					&& (TX_BUF_SIZE-(u2_tx_buf.in_last-u2_tx_buf.out_last) < 2))) {
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
 				OSTimeDlyHMSM(0, 0,	0, 1); //wait 1 msecond, send ~10Bytes@115200
-				USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
+				//USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
 			}                     
 
 			USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
@@ -314,15 +314,15 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 
 		case COM3:
 
-		    while ( (((u3_tx_buf.out_last-u3_tx_buf.in_last)==2) \
+		    while ( (((u3_tx_buf.out_last-u3_tx_buf.in_last) < 2) \
 					&& (u3_tx_buf.out_last > u3_tx_buf.in_last ))\
 					|| ((u3_tx_buf.out_last < u3_tx_buf.in_last) \
-					&& (TX_BUF_SIZE-(u3_tx_buf.in_last-u3_tx_buf.out_last)==2))) {
+					&& (TX_BUF_SIZE-(u3_tx_buf.in_last-u3_tx_buf.out_last) < 2))) {
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART3, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
 				OSTimeDlyHMSM(0, 0,	0, 1); //wait 1 msecond, send ~10Bytes@115200
-				USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
+				//USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
 			}                     
 
 			USART_ITConfig(USART3, USART_IT_TXE, DISABLE);

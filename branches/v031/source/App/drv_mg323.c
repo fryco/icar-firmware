@@ -873,16 +873,16 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 	unsigned int i ;
 	u8 respond_str[AT_CMD_LENGTH];
 
-	debug_gsm("TCP Send: ");
+	//debug_gsm("TCP Send: ");
 	for ( i = 0 ; i < dat_len ; i++ ) {
 		putbyte(COM2, send_buf[i]) ;
 		#ifdef DEBUG_GSM
-			printf("%02X ",send_buf[i]);
+			;//printf("%02X ",send_buf[i]);
 		#endif
 	}
 
 	#ifdef DEBUG_GSM
-		printf("\r\n");
+		;//printf("\r\n");
 	#endif
 
 	//wait GSM return: ERROR or OK
@@ -902,15 +902,20 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 				return false;
 			}
 			if (strstr((char *)respond_str,"OK")) {
+				OSTimeDlyHMSM(0, 0,	0, 50);//wait ^SISW: 0,1
+			}
+
+			if (strstr((char *)respond_str,"^SISW: 0,1")) {
 				return true;
 			}
 		}
 		else {
 			debug_gsm("CMD:Send TCP data timeout!\r\n");
+			return false ;
 		}
 	}
 
-	return false ;      
+	return false ;
 }
 
 bool gsm_dial( unsigned char * phone_number )

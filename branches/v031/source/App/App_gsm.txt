@@ -81,10 +81,10 @@ while ( 1 ) {
 			}
 
 			如果 !rx_empty (GSM 有TCP数据) 并 在线 {
-				读取TCP数据，保存到 mg323_cmd.rx 缓冲里，并设各指针及标志位
+				读取TCP数据，保存到 c2s_data.rx 缓冲里，并设各指针及标志位
 			}
 
-			如果发送缓冲有数据 mg323_cmd.tx_len 并在线 并 缓冲是 unlock {
+			如果发送缓冲有数据 c2s_data.tx_len 并在线 并 缓冲是 unlock {
 				发送数据
 			}
 
@@ -101,10 +101,10 @@ while ( 1 ) {
 	延时1秒，释放CPU资源，让其它任务跑
 }
 
-GSM_COMMAND.tx[GSM_BUF_LENGTH]
+CAR2SERVER_COMMUNICATION.tx[GSM_BUF_LENGTH]
 发送队列，通过加锁来避免互斥操作
 发送时从头开始
 
-GSM_COMMAND.rx[GSM_BUF_LENGTH]
+CAR2SERVER_COMMUNICATION.rx[GSM_BUF_LENGTH]
 接收队列，环形队列，通过指针来指向有效数据，
 任何一个地方都有可能是数据的开始
