@@ -41,7 +41,7 @@ void  App_TaskManager (void *p_arg)
 {
 
 	CPU_INT08U	os_err;
-	unsigned char var_uchar , gsm_sequence=0xC0;
+	unsigned char var_uchar , gsm_sequence=0;
 
 	struct SENT_QUEUE gsm_sent_q[MAX_CMD_QUEUE];
 	struct GSM_RX_RESPOND mg323_rx_cmd;
@@ -182,7 +182,8 @@ void  App_TaskManager (void *p_arg)
 			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
 				if ( (OSTime - gsm_sent_q[var_uchar].send_timer > 60*1000) \
 					&& (gsm_sent_q[var_uchar].send_pcb !=0)) {
-					prompt("queue %d timeout, reset!\r\n",var_uchar);//60 secs.
+					prompt("queue %d, CMD: 0x%02X timeout, reset!\r\n",\
+						var_uchar,gsm_sent_q[var_uchar].send_pcb);//60 secs.
 					gsm_sent_q[var_uchar].send_timer= 0 ;//free queue if > 1 min
 					gsm_sent_q[var_uchar].send_pcb = 0 ;
 				}
@@ -478,6 +479,8 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 			prompt("Update RTC, tx_len: %d, tx_lock: %d, ",\
 				c2s_data.tx_len,c2s_data.tx_lock);
 			printf("queue: %02d\r\n",index);
+	
+			stm32_rtc.update_time = RTC_GetCounter( ) ;
 
 			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
 
@@ -488,8 +491,6 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				OS_ENTER_CRITICAL();
 				c2s_data.tx_lock = true ;
 				OS_EXIT_CRITICAL();
-	
-				stm32_rtc.update_time = RTC_GetCounter( ) ;
 
 				//set protocol string value
 				queue_p[index].send_timer= OSTime ;
@@ -499,7 +500,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				//prepare GSM command
 				c2s_data.tx[c2s_data.tx_len]   = GSM_HEAD ;
 				c2s_data.tx[c2s_data.tx_len+1] = *sequence ;//SEQ
-				*(sequence++);
+				*sequence = c2s_data.tx[c2s_data.tx_len+1]+1;//increase seq
 				c2s_data.tx[c2s_data.tx_len+2] = GSM_CMD_TIME ;//PCB
 				c2s_data.tx[c2s_data.tx_len+3] = 0  ;//length high
 				c2s_data.tx[c2s_data.tx_len+4] = 10 ;//length low

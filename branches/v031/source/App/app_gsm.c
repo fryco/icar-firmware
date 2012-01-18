@@ -138,24 +138,22 @@ void  App_TaskGsm (void *p_arg)
 			//Send GSM signal and tcp status cmd every 3 sec.
 			
 
-			if ( (OSTime/1000)%5 == 0 ) {// GPRS
+			if ( (OSTime/1000)%2 == 0 ) {// GPRS
 				putstring(COM2,"AT+CSQ\r\n");//Signal
 			}
-			if ( (OSTime/1000)%5 == 1 ) {//connection status
+			if ( (OSTime/1000)%2 == 1 ) {//connection status
 				putstring(COM2,"AT^SISI?\r\n");
 			}
 
 			if ( (OSTime/1000)%5 == 2 ) {
 				//ask the IP, return:^SICI: 0,2,1,"10.156.174.147"
-				putstring(COM2,"AT^SICI?\r\n");
-			}
-
-			if ( (OSTime/1000)%5 == 3 ) {
-				putstring(COM2, "AT+CGATT?\r\n");
+				//send when SISI return error
+				//putstring(COM2,"AT^SICI?\r\n");
 			}
 
 			if ( (OSTime/1000)%5 == 4 ) {
-				putstring(COM2, "AT+CGREG?\r\n");
+				//send when SISI return error
+				//putstring(COM2, "AT+CGREG?\r\n");
 			}
 
 
@@ -390,18 +388,22 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 	//^SIS: 0, 0, 48, Remote Peer has closed the connection
 	if (strstr((char *)buf,"^SIS: 0, 0, 48")) {
-		//prompt("MG323 report: %s, check %s: %d\r\n",\
-							//buf,__FILE__, __LINE__);
+
+		putstring(COM2,"AT^SICI?\r\n");//enquire for further info
+		prompt("MG323 report: %s\r\n",buf);
+		OSTimeDlyHMSM(0, 0, 0, 500);
+		putstring(COM2, "AT+CGREG?\r\n");
 
 		if ( mg323_status.tcp_online  ) {
 			//previous status is online, now is offline, close connect.
-			mg323_status.tcp_online = false ;
-			putstring(COM2,"AT^SISC=0\r\n");//Close connection
 			prompt("Close connection@ %d.\r\n",__LINE__);
+			mg323_status.tcp_online = false ;
+			OSTimeDlyHMSM(0, 0, 0, 500);
+			putstring(COM2,"AT^SISC=0\r\n");
 			mg323_status.try_online = 0 ;
 
 			//maybe some problem
-			OSTimeDlyHMSM(0, 0, 1, 0);
+			OSTimeDlyHMSM(0, 0, 0, 500);
 		}
 		return 0;
 	}
@@ -424,6 +426,8 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 			default:
 				mg323_status.gprs_ready = false ;
+				//enquire GPRS attach status:
+				putstring(COM2, "AT+CGATT?\r\n");
 				prompt("Unknow GPRS status: %s, check %s: %d\r\n",\
 							buf,__FILE__, __LINE__);
 				break;
@@ -474,18 +478,22 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 			mg323_status.tcp_online = true ;
 		}
 		else {
-			//prompt("SISI return: %s, check %s: %d\r\n",\
-							//buf,__FILE__, __LINE__);
+			putstring(COM2,"AT^SICI?\r\n");//enquire for further info
+			prompt("SISI return: %s, check %s: %d\r\n",\
+							buf,__FILE__, __LINE__);
+			OSTimeDlyHMSM(0, 0, 0, 500);
+			putstring(COM2, "AT+CGREG?\r\n");
 
 			if ( mg323_status.tcp_online  ) {
 				//previous status is online, now is offline, close connect.
 				mg323_status.tcp_online = false ;
-				putstring(COM2,"AT^SISC=0\r\n");//Close connection
 				prompt("Close connection@ %d.\r\n",__LINE__);
+				OSTimeDlyHMSM(0, 0, 0, 500);
+				putstring(COM2,"AT^SISC=0\r\n");//close channel 0
 				mg323_status.try_online = 0 ;
 
 				//maybe some problem
-				OSTimeDlyHMSM(0, 0, 1, 0);
+				OSTimeDlyHMSM(0, 0, 0, 500);
 			}
 		}
 		return 0;
@@ -521,7 +529,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 				break;
 
 			case 0x33://3：限制状态，Internet 连接已经建立，但暂时没有网络覆盖
-				prompt("!!!Connection is limit!!! %d\r\n",__LINE__);
+				prompt("!!!Connection is limit, no GSM network!!! %d\r\n",__LINE__);
 				break;
 
 			case 0x34://4：关闭状态，Internet 连接已经断开
