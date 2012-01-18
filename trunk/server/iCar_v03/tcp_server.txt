@@ -1,0 +1,25 @@
+Send command: 0x54 //'T', get time on server, SEQ:sequence
+
+HEAD SEQ CMD Length(2 bytes) SN(char 10) check
+C9   00  54    00 0A         02P11AH000   FC
+
+C9 00 54 00 0A 30 32 50 31 31 41 48 30 30 30 FC
+
+
+Send command: 0x51 //'Q', disconnect server, SEQ:sequence
+
+HEAD SEQ CMD Length(2 bytes)  check
+C9   00  51    00 00         
+
+CMD: 0x52 //R record GSM signal
+C9 00 54 00 0A 30 32 50 31 31 41 48 30 30 30 FC
+C9 01 52 00 14 FF FF 1C 0F FF 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33 4C
+
+
+[2662,01%]> Need update RTC, mg323_cmd.len= 0
+[2662,01%]> GSM CMD: C9 16 54 00 0A 30 32 50 31 31 41 48 30 30 32 E8
+
+^SISW: 0,16,16
+[2663,01%]> TCP data: C9 16 54 00 0A 30 32 50 31 31 41 48 30 30 32 E8 
+
+[2663,01%]> GSM send TCP data success.
