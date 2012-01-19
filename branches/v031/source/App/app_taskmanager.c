@@ -5,6 +5,7 @@ static void calc_sn( void );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
 static unsigned char mcu_id_eor( unsigned int );
 static unsigned char gsm_send_time( struct SENT_QUEUE *, unsigned char *);
+static unsigned char gsm_send_signal( struct SENT_QUEUE *, unsigned char *);
 static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *, struct SENT_QUEUE *queue_p);
 
 struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
@@ -126,6 +127,10 @@ void  App_TaskManager (void *p_arg)
 				stm32_rtc.update_time == 0 ) {//need update RTC by server time
 
 			gsm_send_time( gsm_sent_q, &gsm_sequence );
+		}
+
+		if ( (OSTime/1000)%3 == 0 ) {//record GSM signal, for testing
+			gsm_send_signal( gsm_sent_q, &gsm_sequence );
 		}
 
 		if ( !c2s_data.rx_empty ) {//receive some TCP data from GSM
@@ -532,4 +537,10 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 
 	prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
 	return 1;
+}
+
+
+static unsigned char gsm_send_signal( struct SENT_QUEUE *queue_p, unsigned char *sequence)
+{
+;
 }

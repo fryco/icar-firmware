@@ -137,7 +137,6 @@ void  App_TaskGsm (void *p_arg)
 
 			//Send GSM signal and tcp status cmd every 3 sec.
 			
-
 			if ( (OSTime/1000)%2 == 0 ) {// GPRS
 				putstring(COM2,"AT+CSQ\r\n");//Signal
 			}
@@ -260,32 +259,34 @@ static void read_tcp_data( unsigned char *buf )
 			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
+		memset(buf, 0x0, AT_CMD_LENGTH);
 		if ( get_respond(buf) ) {
-			buf_len = strlen((char*)buf);
-			//prompt("buf:%s, len: %d\r\n",buf,buf_len);
+			gsm_tcp_len = 0 ;//set default value
 			if ( strstr((char *)buf,"^SISR: 0,") ) {//found
 				//^SISR: 0,10 收到数据10个 or 
 				//^SISR: 0,0  no data, update mg323_status.rx_empty
-
+				//search first \r\n
+				buf_len=(strstr((char *)buf,"\r\n")-(char *)buf);
+				//prompt("buf:%s, len: %d\r\n",buf,buf_len);
 				//提取 buffer 长度
 				switch (buf_len) {
 
-				case 12://^SISR: 0,1
+				case 10://^SISR: 0,1
 					gsm_tcp_len = buf[9] - 0x30 ;
 					break;
 
-				case 13://^SISR: 0,12
+				case 11://^SISR: 0,12
 					gsm_tcp_len = (buf[10] - 0x30)+\
 									 ((buf[9] - 0x30)*10) ;
 					break;
 
-				case 14://^SISR: 0,123
+				case 12://^SISR: 0,123
 					gsm_tcp_len = (buf[11] - 0x30)+\
 									((buf[10] - 0x30)*10)+\
 									((buf[9]  - 0x30)*100) ;
 					break;
 
-				case 15://^SISR: 0,1234
+				case 13://^SISR: 0,1234
 					gsm_tcp_len = (buf[12] - 0x30)+\
 									((buf[11] - 0x30)*10)+\
 									((buf[10] - 0x30)*100)+\
@@ -293,8 +294,8 @@ static void read_tcp_data( unsigned char *buf )
 					break;
 
 				default:
-					prompt("Illegal length %d, check %s, line:	%d\r\n",\
-							buf_len,__FILE__, __LINE__);
+					prompt("Buf: %s Illegal length %d, check %s: %d\r\n",\
+							buf,buf_len,__FILE__, __LINE__);
 					break;
 
 				}//end of switch
@@ -306,26 +307,38 @@ static void read_tcp_data( unsigned char *buf )
 				else {
 					//push data to c2s_data.rx
 					//prompt("Push to rx:\t");
+
 					for ( i = 0 ; i < gsm_tcp_len; i++ ) {
-						while ( u2_rx_buf.empty ) {//no data...
-							OSTimeDlyHMSM(0, 0,	0, 10);
-						}
-						*c2s_data.rx_in_last = getbyte( COM2 );
-
-						//printf("%02X ",*c2s_data.rx_in_last);
-
-						c2s_data.rx_in_last++;
-					   	if (c2s_data.rx_in_last==c2s_data.rx+GSM_BUF_LENGTH) {
-							c2s_data.rx_in_last=c2s_data.rx;//地址到顶部回到底部
+						while ( u2_rx_buf.empty && \
+							(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
+							OSTimeDlyHMSM(0, 0,	0, 100);
+							prompt("Line: %d, gsm_tcp_len: %d, i: %d\r\n",\
+								__LINE__,gsm_tcp_len,i);
 						}
 
-						OS_ENTER_CRITICAL();
-						c2s_data.rx_empty = false ;
-			    		if (c2s_data.rx_in_last==c2s_data.rx_out_last)	{
-							c2s_data.rx_full = true;  //set buffer full flag
+						if ( u2_rx_buf.empty ) {//
+							prompt("Rec buf: %s\r\n",buf);
+							prompt("Wait TCP data timeout! check %s: %d\r\n",\
+								__FILE__,__LINE__);
+							i =  gsm_tcp_len; //end this loop
 						}
-						OS_EXIT_CRITICAL();
-
+						else {
+							*c2s_data.rx_in_last = getbyte( COM2 );
+	
+							//printf("%02X ",*c2s_data.rx_in_last);
+	
+							c2s_data.rx_in_last++;
+						   	if (c2s_data.rx_in_last==c2s_data.rx+GSM_BUF_LENGTH) {
+								c2s_data.rx_in_last=c2s_data.rx;//地址到顶部回到底部
+							}
+	
+							OS_ENTER_CRITICAL();
+							c2s_data.rx_empty = false ;
+				    		if (c2s_data.rx_in_last==c2s_data.rx_out_last)	{
+								c2s_data.rx_full = true;  //set buffer full flag
+							}
+							OS_EXIT_CRITICAL();
+						}	
 					}
 				}
 			}
