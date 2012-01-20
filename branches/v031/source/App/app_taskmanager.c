@@ -10,10 +10,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *, struct SENT_QUEUE *
 
 struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
 
-extern struct UART_RX u1_rx_buf;
-extern struct UART_TX u1_tx_buf;
 extern struct ICAR_DEVICE my_icar;
-//extern struct ICAR_ADC adc_temperature;
 
 static unsigned char pro_sn[]="02P1xxxxxx";
 //Last 6 bytes replace by MCU ID xor result
@@ -91,7 +88,9 @@ void  App_TaskManager (void *p_arg)
 	//wait power stable and others task init
 	OSTimeDlyHMSM(0, 0,	1, 0);
 
+	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
 	my_icar.mg323.ask_power = true ;
+
 	mg323_rx_cmd.timer = OSTime ;
 	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
 	mg323_rx_cmd.status = S_HEAD;
@@ -122,14 +121,16 @@ void  App_TaskManager (void *p_arg)
 		}
 
 		//Send command
-		if ( (RTC_GetCounter( ) - my_icar.stm32_rtc.update_time) > RTC_UPDATE_PERIOD || \
-				my_icar.stm32_rtc.update_time == 0 ) {//need update RTC by server time
+		if ( (RTC_GetCounter( ) - my_icar.stm32_rtc.update_timer) > RTC_UPDATE_PERIOD || \
+				my_icar.stm32_rtc.update_timer == 0 ) {//need update RTC by server time
 
-			gsm_send_time( gsm_sent_q, &gsm_sequence );
+			gsm_send_time( gsm_sent_q, &gsm_sequence );//will be sent SN also
 		}
 
-		if ( (OSTime/1000)%3 == 0 ) {//record GSM signal, for testing
-			gsm_send_record( gsm_sent_q, &gsm_sequence, &record_sequence );
+		if ( my_icar.login_timer ) {//send others CMD after login
+			if ( (OSTime/1000)%3 == 0 ) {//record GSM signal, for testing
+				gsm_send_record( gsm_sent_q, &gsm_sequence, &record_sequence );
+			}
 		}
 
 		if ( !c2s_data.rx_empty ) {//receive some TCP data from GSM
@@ -137,12 +138,12 @@ void  App_TaskManager (void *p_arg)
 			gsm_rx_decode( &mg323_rx_cmd, gsm_sent_q );
 		}
 
-		if ( u1_rx_buf.lost_data ) {//error! lost data
+		if ( my_icar.stm32_u1_rx.lost_data ) {//error! lost data
 			prompt("Uart1 lost data, check: %s: %d\r\n",__FILE__, __LINE__);
-			u1_rx_buf.lost_data = false ;
+			my_icar.stm32_u1_rx.lost_data = false ;
 		}
 
-		while ( !u1_rx_buf.empty ) {//receive some data from console...
+		while ( !my_icar.stm32_u1_rx.empty ) {//receive some data from console...
 			var_uchar = getbyte( COM1 ) ;
 			putbyte( COM1, var_uchar );
 			if ( var_uchar == 'o' || var_uchar == 'O' ) {//online
@@ -222,8 +223,10 @@ static void calc_sn( )
 	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7F0));
 	snprintf((char *)&pro_sn[8],3,"%02X",chkbyte);
 
+	my_icar.sn = pro_sn ;
+
 	prompt("The MCU ID is %X %X %X\tSN:%s\r\n",\
-		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),pro_sn);
+		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
 }
 
 
@@ -366,13 +369,15 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf ,struct SENT_QUEU
 			}
 
 			if ( chkbyte == buf->chk ) {//data correct
+
+				//prompt("buf->pcb: %02X\r\n",buf->pcb);
 				//find the sent record in gsm_sent_q by SEQ
 				for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
 					if ( queue_p[queue_index].send_seq == buf->seq \
 						&& buf->pcb==(queue_p[queue_index].send_pcb | 0x80)) { 
 
-						//prompt("queue_p %d is correct record.\r\n",queue_index);
-						//found, release this record
+						//prompt("queue %d is correct record.\r\n",queue_index);
+						//found, free this record
 						queue_p[queue_index].send_pcb = 0 ;
 						break ;
 					}//end of queue_p[queue_index].send_pcb == 0
@@ -382,6 +387,34 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf ,struct SENT_QUEU
 				switch (buf->pcb&0x7F) {
 
 				case 0x4C://'L':
+					break;
+
+				case GSM_CMD_RECORD://0x52,'R'
+					//C9 06 D2 00 01 01 1D
+					//prompt("Record respond PCB @ %08X, %08X~%08X\r\n",\
+						//buf->start,c2s_data.rx,c2s_data.rx+GSM_BUF_LENGTH);
+
+					switch (*((buf->start)+5)) {
+
+					case 0x0://record success
+						prompt("Record CMD success.\r\n");
+						break;
+
+					case 0x1://need upload SN first
+						my_icar.stm32_rtc.update_timer = 0 ;//will run gsm_send_time
+						prompt("Record CMD failure, need product SN first!\r\n");
+						break;
+
+					case 0x2://need upload SN first
+						prompt("Record CMD failure, insert into database error!\r\n");
+						break;
+
+					default:
+						prompt("Record CMD failure, unknow error code: %d  ",\
+								*((buf->start)+5));
+						printf("check %s: %d\r\n",__FILE__,__LINE__);
+						break;
+					}
 					break;
 
 				case GSM_CMD_TIME://0x54,'T'
@@ -484,7 +517,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				c2s_data.tx_len,c2s_data.tx_lock);
 			printf("queue: %02d\r\n",index);
 	
-			my_icar.stm32_rtc.update_time = RTC_GetCounter( ) ;
+			my_icar.stm32_rtc.update_timer = RTC_GetCounter( ) ;
 
 			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
 
@@ -508,7 +541,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				c2s_data.tx[c2s_data.tx_len+2] = GSM_CMD_TIME ;//PCB
 				c2s_data.tx[c2s_data.tx_len+3] = 0  ;//length high
 				c2s_data.tx[c2s_data.tx_len+4] = 10 ;//length low
-				strncpy((char *)&c2s_data.tx[c2s_data.tx_len+5], (char *)pro_sn, 10);
+				strncpy((char *)&c2s_data.tx[c2s_data.tx_len+5], (char *)my_icar.sn, 10);
 	
 				//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 				chkbyte = GSM_HEAD ;
@@ -606,17 +639,17 @@ static unsigned char gsm_send_record( struct SENT_QUEUE *queue_p, \
 					(char *)my_icar.mg323.local_ip, IP_LEN-1);
 
 	
-				prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+				//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 				chkbyte = GSM_HEAD ;
 				for ( i = 1 ; i < (ip_length+10) ; i++ ) {//calc chkbyte
 					chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
-					printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+					//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
 				}
 				c2s_data.tx[c2s_data.tx_len+ip_length+10] = chkbyte ;
-				printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+ip_length+10]);
+				//printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+ip_length+10]);
 				//update buf length
 				c2s_data.tx_len = c2s_data.tx_len + ip_length+11 ;
-	//need check
+
 				OS_ENTER_CRITICAL();
 				c2s_data.tx_lock = false ;
 				OS_EXIT_CRITICAL();

@@ -6,7 +6,6 @@
 #define debug_gsm(x, args...)  ;
 #endif
 
-extern struct UART_RX u2_rx_buf;
 extern struct ICAR_DEVICE my_icar;
 
 const unsigned char dest_server[] = "cqt.8866.org:24";
@@ -58,7 +57,7 @@ bool get_respond( unsigned char* rec_str)
 	respond_time = OSTime ;
 	while( OSTime - respond_time < AT_TIMEOUT ) {
 		OSTimeDlyHMSM(0, 0, 0, 10);
-		while ( !u2_rx_buf.empty ) {//receive some data...
+		while ( !my_icar.stm32_u2_rx.empty ) {//receive some data...
 
 			//reset timer here
 			my_icar.mg323.at_timer = OSTime ;				
@@ -91,11 +90,11 @@ bool test_at_uart(void)
 		//uart2_buf_clean( );
 		putstring(COM2, "AT\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
 
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"OK\r\n")) {//found
@@ -137,11 +136,11 @@ bool check_sim_state(void)
 	for ( retry = 0 ;retry < 10 ; retry++) {
 		putstring(COM2, "AT+CPIN?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
 
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				if (strstr((char *)respond_str,"ERROR")) {
 					return false;
@@ -174,11 +173,11 @@ bool close_ifc(void)
 	for ( retry = 0 ;retry < 10 ; retry++) {
 		putstring(COM2, "AT+IFC=0,0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
 
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"OK\r\n")) {//found
@@ -201,11 +200,11 @@ bool factory_setting(void)
 	for ( retry = 0 ;retry < 10 ; retry++) {
 		putstring(COM2, "AT&F\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
 
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				if (strstr((char *)respond_str,"ERROR")) {
 					return false;
@@ -231,11 +230,11 @@ bool show_income_number(void)
 	for ( retry = 0 ;retry < 10 ; retry++) {
 		putstring(COM2, "AT+CLIP=1\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
 
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"OK\r\n")) {//found
@@ -258,11 +257,11 @@ unsigned char check_gsm_CSQ( )
 	for ( retry = 0 ;retry < 10 ; retry++) {
 		putstring(COM2,"AT+CSQ\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
 
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"+CSQ:")) {//found
@@ -311,10 +310,10 @@ bool check_gsm_net(void)
 	for ( retry = 0 ;retry < 100 ; retry++) {
 		putstring(COM2, "AT+CREG?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"CREG: 0,1\r\n")) {//normal
@@ -343,10 +342,10 @@ bool check_gsm_cops( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2, "AT+COPS?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"+COPS: ")) {//normal
@@ -382,10 +381,10 @@ bool check_gprs_net(void)
 	for ( retry = 0 ;retry < 100 ; retry++) {
 		putstring(COM2, "AT+CGREG?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"CGREG: 0,1\r\n")) {
@@ -412,10 +411,10 @@ bool check_gprs_att( )
 	for ( retry = 0 ;retry < 20 ; retry++) {
 		putstring(COM2, "AT+CGATT?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"+CGATT:")) {
@@ -447,10 +446,10 @@ bool get_apn_by_imsi( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2, "AT+CIMI\r\n");//get imsi
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				
 				if ( (respond_str[0] >= 0x30) && (respond_str[0] <= 0x39) ){
@@ -481,10 +480,10 @@ bool set_conn_type( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SICS=0,conType, GPRS0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -514,10 +513,10 @@ bool set_gprs_apn( )
 		putstring(COM2, (unsigned char *)apn_list[my_icar.mg323.apn_index][1]);
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -547,10 +546,10 @@ bool set_gprs_user( )
 		putstring(COM2, (unsigned char *)apn_list[my_icar.mg323.apn_index][2]);
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -581,10 +580,10 @@ bool set_gprs_passwd( )
 		putstring(COM2, (unsigned char *)apn_list[my_icar.mg323.apn_index][3]);
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -611,10 +610,10 @@ bool set_conn_id( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SISS=0,conId,0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -641,10 +640,10 @@ bool set_svr_type( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SISS=0,srvType, Socket\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -673,10 +672,10 @@ bool set_dest_ip( )
 		putstring(COM2,my_icar.mg323.server_ip_port);
 		putstring(COM2,"\"\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -703,10 +702,10 @@ bool start_tcp_conn( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SISO=0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -733,10 +732,10 @@ bool close_tcp_conn( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SISC=0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -763,10 +762,10 @@ u8 check_tcp_status( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SISI?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -794,10 +793,10 @@ bool get_local_ip( )
 	for ( retry = 0 ;retry < 10 ; retry++) {
 		putstring(COM2,"AT^SICI?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -838,10 +837,10 @@ bool gsm_ask_tcp( unsigned int dat_len )
 
 		//wait GSM return: ^SISW: 0,xx,xx
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 
 				if (strstr((char *)respond_str,"^SISR: 0,") \
@@ -887,10 +886,10 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 
 	//wait GSM return: ERROR or OK
 	memset(respond_str, 0x0, AT_CMD_LENGTH);
-	if ( u2_rx_buf.empty ) {//no data...
+	if ( my_icar.stm32_u2_rx.empty ) {//no data...
 		OSTimeDlyHMSM(0, 0,	0, 500);
 	}
-	while ( !u2_rx_buf.empty ) {//have data ...
+	while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 		if ( get_respond(respond_str) ) {
 
 			if (strstr((char *)respond_str,"^SISR: 0,") \
@@ -928,10 +927,10 @@ bool gsm_dial( unsigned char * phone_number )
 		putstring(COM2,phone_number);
 		putstring(COM2,";\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -959,10 +958,10 @@ bool shutdown_mg323( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SMSO\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
-		if ( u2_rx_buf.empty ) {//no data...
+		if ( my_icar.stm32_u2_rx.empty ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 500);
 		}
-		while ( !u2_rx_buf.empty ) {//have data ...
+		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"ERROR")) {
