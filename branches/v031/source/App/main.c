@@ -128,7 +128,7 @@ int	main(void)
 	ADCTEMP_Configuration( );
 
 	led_init_all( );
-	led_on(OBD_UNKNOW);
+	led_on(POWER_LED);
 
 	//GSM_PM_ON;
 	//while ( 1 ) ;//for upgrade GSM fw

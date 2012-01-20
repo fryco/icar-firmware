@@ -78,6 +78,10 @@ typedef enum
 #define SD_PM_OFF                        led_off(SD_PM)
 #define SD_PM_ON                         led_on(SD_PM)
 
+#define POWER_LED                        OBD_UNKNOW
+#define ONLINE_LED                       OBD_CAN10
+#define RELAY_LED              	         OBD_CAN20
+
 /* Exported functions ------------------------------------------------------- */
 
 void led_init_all( void );
