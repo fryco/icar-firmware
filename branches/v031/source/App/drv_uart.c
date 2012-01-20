@@ -1,14 +1,6 @@
 #include "main.h"
 
-//gobal var
-struct UART_TX u1_tx_buf;
-struct UART_RX u1_rx_buf;
-
-struct UART_TX u2_tx_buf;
-struct UART_RX u2_rx_buf;
-
-struct UART_TX u3_tx_buf;
-struct UART_RX u3_rx_buf;
+extern struct ICAR_DEVICE my_icar;
 
 /* Private function prototypes -----------------------------------------------*/
 
@@ -28,22 +20,22 @@ void uart1_init( void )
 
 	//Init Global vars
 	/* Using DMA 
-	u1_tx_buf.buf1_cnt = 0;
-	u1_tx_buf.buf2_cnt = 0;
-	u1_tx_buf.use_buf1 = false;
-	u1_tx_buf.use_buf2 = false;
+	my_icar.stm32_u1_tx.buf1_cnt = 0;
+	my_icar.stm32_u1_tx.buf2_cnt = 0;
+	my_icar.stm32_u1_tx.use_buf1 = false;
+	my_icar.stm32_u1_tx.use_buf2 = false;
 	*/
 
 	/* Using interrupt */
-	u1_tx_buf.out_last = u1_tx_buf.buf;
-	u1_tx_buf.in_last  = u1_tx_buf.buf;
-	u1_tx_buf.empty = true;
+	my_icar.stm32_u1_tx.out_last = my_icar.stm32_u1_tx.buf;
+	my_icar.stm32_u1_tx.in_last  = my_icar.stm32_u1_tx.buf;
+	my_icar.stm32_u1_tx.empty = true;
 
-	u1_rx_buf.out_last = u1_rx_buf.buf;
-	u1_rx_buf.in_last  = u1_rx_buf.buf;
-	u1_rx_buf.full  = false;
-	u1_rx_buf.empty = true;
-	u1_rx_buf.lost_data= false;
+	my_icar.stm32_u1_rx.out_last = my_icar.stm32_u1_rx.buf;
+	my_icar.stm32_u1_rx.in_last  = my_icar.stm32_u1_rx.buf;
+	my_icar.stm32_u1_rx.full  = false;
+	my_icar.stm32_u1_rx.empty = true;
+	my_icar.stm32_u1_rx.lost_data= false;
 
 	/* USARTx configured as follow:
 	      - BaudRate = 115200 baud  
@@ -74,7 +66,7 @@ void uart1_init( void )
     //DMA Init for USART1.Tx --> DMA.CH4
     DMA_DeInit(DMA1_Channel4);
     DMA_InitStructure.DMA_PeripheralBaseAddr = (u32)USART1+4;
-    DMA_InitStructure.DMA_MemoryBaseAddr = (u32)u1_tx_buf.buf1;
+    DMA_InitStructure.DMA_MemoryBaseAddr = (u32)my_icar.stm32_u1_tx.buf1;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
     DMA_InitStructure.DMA_BufferSize = 0;
     DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
@@ -117,22 +109,22 @@ void uart2_init( void )
 
 	//Init Global vars
 	/* Using DMA
-	u2_tx_buf.buf1_cnt = 0;
-	u2_tx_buf.buf2_cnt = 0;
-	u2_tx_buf.use_buf1 = false;
-	u2_tx_buf.use_buf2 = false;
+	my_icar.stm32_u2_tx.buf1_cnt = 0;
+	my_icar.stm32_u2_tx.buf2_cnt = 0;
+	my_icar.stm32_u2_tx.use_buf1 = false;
+	my_icar.stm32_u2_tx.use_buf2 = false;
 	*/
 
 	/* Using interrupt */
-	u2_tx_buf.out_last = u2_tx_buf.buf;
-	u2_tx_buf.in_last  = u2_tx_buf.buf;
-	u2_tx_buf.empty = true;
+	my_icar.stm32_u2_tx.out_last = my_icar.stm32_u2_tx.buf;
+	my_icar.stm32_u2_tx.in_last  = my_icar.stm32_u2_tx.buf;
+	my_icar.stm32_u2_tx.empty = true;
 
-	u2_rx_buf.out_last = u2_rx_buf.buf;
-	u2_rx_buf.in_last  = u2_rx_buf.buf;
-	u2_rx_buf.full  = false;
-	u2_rx_buf.empty = true;
-	u2_rx_buf.lost_data= false;
+	my_icar.stm32_u2_rx.out_last = my_icar.stm32_u2_rx.buf;
+	my_icar.stm32_u2_rx.in_last  = my_icar.stm32_u2_rx.buf;
+	my_icar.stm32_u2_rx.full  = false;
+	my_icar.stm32_u2_rx.empty = true;
+	my_icar.stm32_u2_rx.lost_data= false;
 
 	/* USARTx configured as follow:
 	      - BaudRate = 115200 baud  
@@ -161,7 +153,7 @@ void uart2_init( void )
     //DMA Init for USART2.Tx --> DMA.CH7
     DMA_DeInit(DMA1_Channel7);
     DMA_InitStructure.DMA_PeripheralBaseAddr = (u32)USART2+4;
-    DMA_InitStructure.DMA_MemoryBaseAddr = (u32)u2_tx_buf.buf1;
+    DMA_InitStructure.DMA_MemoryBaseAddr = (u32)my_icar.stm32_u2_tx.buf1;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
     DMA_InitStructure.DMA_BufferSize = 0;
     DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
@@ -202,15 +194,15 @@ void uart3_init( void )
 	GPIO_InitTypeDef GPIO_InitStructure;
 
 	//Init Global vars
-	u3_tx_buf.out_last = u3_tx_buf.buf;
-	u3_tx_buf.in_last  = u3_tx_buf.buf;
-	u3_tx_buf.empty = true;
+	my_icar.stm32_u3_tx.out_last = my_icar.stm32_u3_tx.buf;
+	my_icar.stm32_u3_tx.in_last  = my_icar.stm32_u3_tx.buf;
+	my_icar.stm32_u3_tx.empty = true;
 
-	u3_rx_buf.out_last = u3_rx_buf.buf;
-	u3_rx_buf.in_last  = u3_rx_buf.buf;
-	u3_rx_buf.full  = false;
-	u3_rx_buf.empty = true;
-	u3_rx_buf.lost_data= false;
+	my_icar.stm32_u3_rx.out_last = my_icar.stm32_u3_rx.buf;
+	my_icar.stm32_u3_rx.in_last  = my_icar.stm32_u3_rx.buf;
+	my_icar.stm32_u3_rx.full  = false;
+	my_icar.stm32_u3_rx.empty = true;
+	my_icar.stm32_u3_rx.lost_data= false;
 
 	/* USARTx configured as follow:
 	      - BaudRate = 115200 baud  
@@ -261,10 +253,10 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 	switch( COM ){
 		case COM1:
 
-		    while ( (((u1_tx_buf.out_last-u1_tx_buf.in_last) < 2) \
-					&& (u1_tx_buf.out_last > u1_tx_buf.in_last ))\
-					|| ((u1_tx_buf.out_last < u1_tx_buf.in_last) \
-					&& (TX_BUF_SIZE-(u1_tx_buf.in_last-u1_tx_buf.out_last) < 2))) {
+		    while ( (((my_icar.stm32_u1_tx.out_last-my_icar.stm32_u1_tx.in_last) < 2) \
+					&& (my_icar.stm32_u1_tx.out_last > my_icar.stm32_u1_tx.in_last ))\
+					|| ((my_icar.stm32_u1_tx.out_last < my_icar.stm32_u1_tx.in_last) \
+					&& (TX_BUF_SIZE-(my_icar.stm32_u1_tx.in_last-my_icar.stm32_u1_tx.out_last) < 2))) {
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
@@ -273,24 +265,24 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 			}                     
 
 			USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
-			*(u1_tx_buf.in_last) = ch ; //put to send buffer
-			u1_tx_buf.in_last++;
-			if ( u1_tx_buf.in_last == u1_tx_buf.buf + TX_BUF_SIZE) {
+			*(my_icar.stm32_u1_tx.in_last) = ch ; //put to send buffer
+			my_icar.stm32_u1_tx.in_last++;
+			if ( my_icar.stm32_u1_tx.in_last == my_icar.stm32_u1_tx.buf + TX_BUF_SIZE) {
 				//指针到了顶部换到底部
-				u1_tx_buf.in_last  = u1_tx_buf.buf;
+				my_icar.stm32_u1_tx.in_last  = my_icar.stm32_u1_tx.buf;
 			}
 
-			u1_tx_buf.empty = false;
+			my_icar.stm32_u1_tx.empty = false;
 			//start transmit
 			USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
 
 			return true;
 
 		case COM2:
-		    while ( (((u2_tx_buf.out_last-u2_tx_buf.in_last) < 2) \
-					&& (u2_tx_buf.out_last > u2_tx_buf.in_last ))\
-					|| ((u2_tx_buf.out_last < u2_tx_buf.in_last) \
-					&& (TX_BUF_SIZE-(u2_tx_buf.in_last-u2_tx_buf.out_last) < 2))) {
+		    while ( (((my_icar.stm32_u2_tx.out_last-my_icar.stm32_u2_tx.in_last) < 2) \
+					&& (my_icar.stm32_u2_tx.out_last > my_icar.stm32_u2_tx.in_last ))\
+					|| ((my_icar.stm32_u2_tx.out_last < my_icar.stm32_u2_tx.in_last) \
+					&& (TX_BUF_SIZE-(my_icar.stm32_u2_tx.in_last-my_icar.stm32_u2_tx.out_last) < 2))) {
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
@@ -299,14 +291,14 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 			}                     
 
 			USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
-			*(u2_tx_buf.in_last) = ch ; //put to send buffer
-			u2_tx_buf.in_last++;
-			if ( u2_tx_buf.in_last == u2_tx_buf.buf + TX_BUF_SIZE) {
+			*(my_icar.stm32_u2_tx.in_last) = ch ; //put to send buffer
+			my_icar.stm32_u2_tx.in_last++;
+			if ( my_icar.stm32_u2_tx.in_last == my_icar.stm32_u2_tx.buf + TX_BUF_SIZE) {
 				//指针到了顶部换到底部
-				u2_tx_buf.in_last  = u2_tx_buf.buf;
+				my_icar.stm32_u2_tx.in_last  = my_icar.stm32_u2_tx.buf;
 			}
 
-			u2_tx_buf.empty = false;
+			my_icar.stm32_u2_tx.empty = false;
 			//start transmit
 			USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
 
@@ -314,10 +306,10 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 
 		case COM3:
 
-		    while ( (((u3_tx_buf.out_last-u3_tx_buf.in_last) < 2) \
-					&& (u3_tx_buf.out_last > u3_tx_buf.in_last ))\
-					|| ((u3_tx_buf.out_last < u3_tx_buf.in_last) \
-					&& (TX_BUF_SIZE-(u3_tx_buf.in_last-u3_tx_buf.out_last) < 2))) {
+		    while ( (((my_icar.stm32_u3_tx.out_last-my_icar.stm32_u3_tx.in_last) < 2) \
+					&& (my_icar.stm32_u3_tx.out_last > my_icar.stm32_u3_tx.in_last ))\
+					|| ((my_icar.stm32_u3_tx.out_last < my_icar.stm32_u3_tx.in_last) \
+					&& (TX_BUF_SIZE-(my_icar.stm32_u3_tx.in_last-my_icar.stm32_u3_tx.out_last) < 2))) {
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART3, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
@@ -326,14 +318,14 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 			}                     
 
 			USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
-			*(u3_tx_buf.in_last) = ch ; //put to send buffer
-			u3_tx_buf.in_last++;
-			if ( u3_tx_buf.in_last == u3_tx_buf.buf + TX_BUF_SIZE) {
+			*(my_icar.stm32_u3_tx.in_last) = ch ; //put to send buffer
+			my_icar.stm32_u3_tx.in_last++;
+			if ( my_icar.stm32_u3_tx.in_last == my_icar.stm32_u3_tx.buf + TX_BUF_SIZE) {
 				//指针到了顶部换到底部
-				u3_tx_buf.in_last  = u3_tx_buf.buf;
+				my_icar.stm32_u3_tx.in_last  = my_icar.stm32_u3_tx.buf;
 			}
 
-			u3_tx_buf.empty = false;
+			my_icar.stm32_u3_tx.empty = false;
 			//start transmit
 			USART_ITConfig(USART3, USART_IT_TXE, ENABLE);
 
@@ -347,50 +339,50 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 	switch( COM ){
 		case COM1:
 
-			if ( !u1_tx_buf.use_buf1 ) {//buf1 free, add to buf1
+			if ( !my_icar.stm32_u1_tx.use_buf1 ) {//buf1 free, add to buf1
 		
-				u1_tx_buf.buf1[u1_tx_buf.buf1_cnt] = ch;
-				u1_tx_buf.buf1_cnt++;
+				my_icar.stm32_u1_tx.buf1[my_icar.stm32_u1_tx.buf1_cnt] = ch;
+				my_icar.stm32_u1_tx.buf1_cnt++;
 				//If DMA is Disabled
 				if(!(DMA1_Channel4->CCR & 0x01)){
 					//start DMA with buf1
-					u1_tx_buf.use_buf1 = true;
+					my_icar.stm32_u1_tx.use_buf1 = true;
 		
 					//write DMA Channelx CMAR to configure BaseAddr
-					DMA1_Channel4->CMAR = (u32)u1_tx_buf.buf1;
+					DMA1_Channel4->CMAR = (u32)my_icar.stm32_u1_tx.buf1;
 					//Write to DMA Channelx CNDTR to configure buffer size
-					DMA1_Channel4->CNDTR = u1_tx_buf.buf1_cnt;
+					DMA1_Channel4->CNDTR = my_icar.stm32_u1_tx.buf1_cnt;
 					//DMA_Cmd(DMA1_Channel4, ENABLE);
 				    DMA1_Channel4->CCR |= DMA_CCR1_EN;
 				}
 				else {		
-					if ( u1_tx_buf.buf1_cnt > TX_BUF_SIZE -2 ) {//overflow
-						u1_tx_buf.buf1_cnt--;
+					if ( my_icar.stm32_u1_tx.buf1_cnt > TX_BUF_SIZE -2 ) {//overflow
+						my_icar.stm32_u1_tx.buf1_cnt--;
 						return false;
 					}
 				}
 			return true;
 			}
 		
-			if ( !u1_tx_buf.use_buf2 ) {//buf2 free, add to buf2
+			if ( !my_icar.stm32_u1_tx.use_buf2 ) {//buf2 free, add to buf2
 		
-				u1_tx_buf.buf2[u1_tx_buf.buf2_cnt] = ch;
-				u1_tx_buf.buf2_cnt++;
+				my_icar.stm32_u1_tx.buf2[my_icar.stm32_u1_tx.buf2_cnt] = ch;
+				my_icar.stm32_u1_tx.buf2_cnt++;
 				//If DMA is Disabled
 				if(!(DMA1_Channel4->CCR & 0x01)){
 					//start DMA with buf2
-					u1_tx_buf.use_buf2 = true;
+					my_icar.stm32_u1_tx.use_buf2 = true;
 		
 					//write DMA Channelx CMAR to configure BaseAddr
-					DMA1_Channel4->CMAR = (u32)u1_tx_buf.buf2;
+					DMA1_Channel4->CMAR = (u32)my_icar.stm32_u1_tx.buf2;
 					//Write to DMA Channelx CNDTR to configure buffer size
-					DMA1_Channel4->CNDTR = u1_tx_buf.buf2_cnt;
+					DMA1_Channel4->CNDTR = my_icar.stm32_u1_tx.buf2_cnt;
 					//DMA_Cmd(DMA1_Channel4, ENABLE);
 				    DMA1_Channel4->CCR |= DMA_CCR1_EN;
 				}
 				else {	
-					if ( u1_tx_buf.buf2_cnt > TX_BUF_SIZE -2 ) {//overflow
-						u1_tx_buf.buf2_cnt--;
+					if ( my_icar.stm32_u1_tx.buf2_cnt > TX_BUF_SIZE -2 ) {//overflow
+						my_icar.stm32_u1_tx.buf2_cnt--;
 						return false;
 					}
 				}
@@ -403,50 +395,50 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 
 		case COM2:
 
-			if ( !u2_tx_buf.use_buf1 ) {//buf1 free, add to buf1
+			if ( !my_icar.stm32_u2_tx.use_buf1 ) {//buf1 free, add to buf1
 		
-				u2_tx_buf.buf1[u2_tx_buf.buf1_cnt] = ch;
-				u2_tx_buf.buf1_cnt++;
+				my_icar.stm32_u2_tx.buf1[my_icar.stm32_u2_tx.buf1_cnt] = ch;
+				my_icar.stm32_u2_tx.buf1_cnt++;
 				//If DMA is Disabled
 				if(!(DMA1_Channel7->CCR & 0x01)){
 					//start DMA with buf1
-					u2_tx_buf.use_buf1 = true;
+					my_icar.stm32_u2_tx.use_buf1 = true;
 		
 					//write DMA Channelx CMAR to configure BaseAddr
-					DMA1_Channel7->CMAR = (u32)u2_tx_buf.buf1;
+					DMA1_Channel7->CMAR = (u32)my_icar.stm32_u2_tx.buf1;
 					//Write to DMA Channelx CNDTR to configure buffer size
-					DMA1_Channel7->CNDTR = u2_tx_buf.buf1_cnt;
+					DMA1_Channel7->CNDTR = my_icar.stm32_u2_tx.buf1_cnt;
 					//DMA_Cmd(DMA1_Channel5, ENABLE);
 				    DMA1_Channel7->CCR |= DMA_CCR1_EN;
 				}
 				else {
-					if ( u2_tx_buf.buf1_cnt > TX_BUF_SIZE -2 ) {//overflow
-						u2_tx_buf.buf1_cnt--;
+					if ( my_icar.stm32_u2_tx.buf1_cnt > TX_BUF_SIZE -2 ) {//overflow
+						my_icar.stm32_u2_tx.buf1_cnt--;
 						return false;
 					}
 				}
 			return true;
 			}
 		
-			if ( !u2_tx_buf.use_buf2 ) {//buf2 free, add to buf2
+			if ( !my_icar.stm32_u2_tx.use_buf2 ) {//buf2 free, add to buf2
 		
-				u2_tx_buf.buf2[u2_tx_buf.buf2_cnt] = ch;
-				u2_tx_buf.buf2_cnt++;
+				my_icar.stm32_u2_tx.buf2[my_icar.stm32_u2_tx.buf2_cnt] = ch;
+				my_icar.stm32_u2_tx.buf2_cnt++;
 				//If DMA is Disabled
 				if(!(DMA1_Channel7->CCR & 0x01)){
 					//start DMA with buf2
-					u2_tx_buf.use_buf2 = true;
+					my_icar.stm32_u2_tx.use_buf2 = true;
 		
 					//write DMA Channelx CMAR to configure BaseAddr
-					DMA1_Channel7->CMAR = (u32)u2_tx_buf.buf2;
+					DMA1_Channel7->CMAR = (u32)my_icar.stm32_u2_tx.buf2;
 					//Write to DMA Channelx CNDTR to configure buffer size
-					DMA1_Channel7->CNDTR = u2_tx_buf.buf2_cnt;
+					DMA1_Channel7->CNDTR = my_icar.stm32_u2_tx.buf2_cnt;
 					//DMA_Cmd(DMA1_Channel5, ENABLE);
 				    DMA1_Channel7->CCR |= DMA_CCR1_EN;
 				}
 				else {
-					if ( u2_tx_buf.buf2_cnt > TX_BUF_SIZE -2 ) {//overflow
-						u2_tx_buf.buf2_cnt--;
+					if ( my_icar.stm32_u2_tx.buf2_cnt > TX_BUF_SIZE -2 ) {//overflow
+						my_icar.stm32_u2_tx.buf2_cnt--;
 						return false;
 					}
 				}
@@ -493,22 +485,22 @@ unsigned char getbyte ( COM_TypeDef COM )
 
 	switch( COM ){
 		case COM1:
-			while ( u1_rx_buf.empty ) {//buffer empty, wait...
+			while ( my_icar.stm32_u1_rx.empty ) {//buffer empty, wait...
 				OSTimeDlyHMSM(0, 0,	0, 100); //wait 100 msec.
 			}
 		     
 			USART_ITConfig(USART1, USART_IT_RXNE, DISABLE);
 		
-			c1= *(u1_rx_buf.out_last); //get the data
-			u1_rx_buf.out_last++;
-			u1_rx_buf.full = false; //reset the full flag
+			c1= *(my_icar.stm32_u1_rx.out_last); //get the data
+			my_icar.stm32_u1_rx.out_last++;
+			my_icar.stm32_u1_rx.full = false; //reset the full flag
 		
-			if (u1_rx_buf.out_last==u1_rx_buf.buf+RX_BUF_SIZE) {
-				u1_rx_buf.out_last = u1_rx_buf.buf; //地址到顶部,回到底部
+			if (my_icar.stm32_u1_rx.out_last==my_icar.stm32_u1_rx.buf+RX_BUF_SIZE) {
+				my_icar.stm32_u1_rx.out_last = my_icar.stm32_u1_rx.buf; //地址到顶部,回到底部
 			}
 		
-			if (u1_rx_buf.out_last==u1_rx_buf.in_last) {
-				u1_rx_buf.empty = true ;//set the empty flag
+			if (my_icar.stm32_u1_rx.out_last==my_icar.stm32_u1_rx.in_last) {
+				my_icar.stm32_u1_rx.empty = true ;//set the empty flag
 			}
 		
 			USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
@@ -517,22 +509,22 @@ unsigned char getbyte ( COM_TypeDef COM )
 			//break;
 
 		case COM2:		
-			while ( u2_rx_buf.empty ) {//buffer empty, wait...
+			while ( my_icar.stm32_u2_rx.empty ) {//buffer empty, wait...
 				OSTimeDlyHMSM(0, 0,	0, 100); //wait 100 msec.
 			}
 		     
 			USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
 		
-			c2= *(u2_rx_buf.out_last); //get the data
-			u2_rx_buf.out_last++;
-			u2_rx_buf.full = false; //reset the full flag
+			c2= *(my_icar.stm32_u2_rx.out_last); //get the data
+			my_icar.stm32_u2_rx.out_last++;
+			my_icar.stm32_u2_rx.full = false; //reset the full flag
 		
-			if (u2_rx_buf.out_last==u2_rx_buf.buf+RX_BUF_SIZE) {
-				u2_rx_buf.out_last = u2_rx_buf.buf; //地址到顶部,回到底部
+			if (my_icar.stm32_u2_rx.out_last==my_icar.stm32_u2_rx.buf+RX_BUF_SIZE) {
+				my_icar.stm32_u2_rx.out_last = my_icar.stm32_u2_rx.buf; //地址到顶部,回到底部
 			}
 		
-			if (u2_rx_buf.out_last==u2_rx_buf.in_last) {
-				u2_rx_buf.empty = true ;//set the empty flag
+			if (my_icar.stm32_u2_rx.out_last==my_icar.stm32_u2_rx.in_last) {
+				my_icar.stm32_u2_rx.empty = true ;//set the empty flag
 			}
 		
 			USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
@@ -541,22 +533,22 @@ unsigned char getbyte ( COM_TypeDef COM )
 			//break;
 
 		case COM3:
-			while ( u3_rx_buf.empty ) {//buffer empty, wait...
+			while ( my_icar.stm32_u3_rx.empty ) {//buffer empty, wait...
 				OSTimeDlyHMSM(0, 0,	0, 100); //wait 100 msec.
 			}
 		     
 			USART_ITConfig(USART3, USART_IT_RXNE, DISABLE);
 		
-			c3= *(u3_rx_buf.out_last); //get the data
-			u3_rx_buf.out_last++;
-			u3_rx_buf.full = false; //reset the full flag
+			c3= *(my_icar.stm32_u3_rx.out_last); //get the data
+			my_icar.stm32_u3_rx.out_last++;
+			my_icar.stm32_u3_rx.full = false; //reset the full flag
 		
-			if (u3_rx_buf.out_last==u3_rx_buf.buf+RX_BUF_SIZE) {
-				u3_rx_buf.out_last = u3_rx_buf.buf; //地址到顶部,回到底部
+			if (my_icar.stm32_u3_rx.out_last==my_icar.stm32_u3_rx.buf+RX_BUF_SIZE) {
+				my_icar.stm32_u3_rx.out_last = my_icar.stm32_u3_rx.buf; //地址到顶部,回到底部
 			}
 		
-			if (u3_rx_buf.out_last==u3_rx_buf.in_last) {
-				u3_rx_buf.empty = true ;//set the empty flag
+			if (my_icar.stm32_u3_rx.out_last==my_icar.stm32_u3_rx.in_last) {
+				my_icar.stm32_u3_rx.empty = true ;//set the empty flag
 			}
 		
 			USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);

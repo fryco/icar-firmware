@@ -2,7 +2,7 @@
 
 extern struct ICAR_DEVICE my_icar;
 extern struct CAR2SERVER_COMMUNICATION c2s_data ;
-extern struct UART_RX u2_rx_buf;
+
 extern unsigned char dest_server[];
 
 const unsigned char callback_phone[] = "13828431106";
@@ -201,7 +201,7 @@ void  App_TaskGsm (void *p_arg)
 			}
 
 			//Check GSM output string
-			while ( !u2_rx_buf.empty ) {//have data ...
+			while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 				//reset timer here
 				my_icar.mg323.at_timer = OSTime ;				
 
@@ -283,7 +283,7 @@ static void read_tcp_data( unsigned char *buf )
 			&& !c2s_data.rx_full \
 			&& (OSTime - c2s_data.rx_timer) < 5*AT_TIMEOUT ) {
 
-		while ( u2_rx_buf.empty && \
+		while ( my_icar.stm32_u2_rx.empty && \
 			(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
 			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
@@ -338,14 +338,14 @@ static void read_tcp_data( unsigned char *buf )
 					//prompt("Push to rx:\t");
 
 					for ( i = 0 ; i < gsm_tcp_len; i++ ) {
-						while ( u2_rx_buf.empty && \
+						while ( my_icar.stm32_u2_rx.empty && \
 							(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
 							OSTimeDlyHMSM(0, 0,	0, 100);
 							prompt("Line: %d, gsm_tcp_len: %d, i: %d\r\n",\
 								__LINE__,gsm_tcp_len,i);
 						}
 
-						if ( u2_rx_buf.empty ) {//
+						if ( my_icar.stm32_u2_rx.empty ) {//
 							prompt("Rec buf: %s\r\n",buf);
 							prompt("Wait TCP data timeout! check %s: %d\r\n",\
 								__FILE__,__LINE__);

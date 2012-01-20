@@ -62,6 +62,16 @@ struct ICAR_DEVICE {
 	unsigned char *sn ;//serial number
 	struct RTC_STATUS stm32_rtc;
 	struct ADC_STATUS stm32_adc;
+
+	struct UART_TX stm32_u1_tx;
+	struct UART_RX stm32_u1_rx;
+
+	struct UART_TX stm32_u2_tx;
+	struct UART_RX stm32_u2_rx;
+
+	struct UART_TX stm32_u3_tx;
+	struct UART_RX stm32_u3_rx;
+
 	struct GSM_STATUS mg323;
 
 };
