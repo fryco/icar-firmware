@@ -1,6 +1,6 @@
 #include "main.h"
 
-struct ICAR_ADC adc_temperature;
+extern struct ICAR_DEVICE my_icar;
 
 //ADC,内部温度传感器配置
 void ADCTEMP_Configuration(void)
@@ -8,7 +8,7 @@ void ADCTEMP_Configuration(void)
 	ADC_InitTypeDef ADC_InitStructure;
 	DMA_InitTypeDef DMA_InitStructure;
 
-	adc_temperature.completed = false;
+	my_icar.stm32_adc.completed = false;
 
 	/* 允许 DMA1 */
 	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
@@ -17,7 +17,7 @@ void ADCTEMP_Configuration(void)
 	//指定DMA外设基地址
 	DMA_InitStructure.DMA_PeripheralBaseAddr =(u32)( &(ADC1->DR));		//ADC1数据寄存器
 	//设定DMA内存基地址
-	DMA_InitStructure.DMA_MemoryBaseAddr = (u32)adc_temperature.converted;//获取ADC的数组
+	DMA_InitStructure.DMA_MemoryBaseAddr = (u32)my_icar.stm32_adc.converted;//获取ADC的数组
 	//外设作为数据传输的来源
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;					//片内外设作源头
 	//指定DMA通道的DMA缓存大小

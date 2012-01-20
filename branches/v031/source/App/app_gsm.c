@@ -1,6 +1,6 @@
 #include "main.h"
 
-struct GSM_STATUS mg323_status ;
+extern struct ICAR_DEVICE my_icar;
 extern struct CAR2SERVER_COMMUNICATION c2s_data ;
 extern struct UART_RX u2_rx_buf;
 extern unsigned char dest_server[];
@@ -18,22 +18,27 @@ void  App_TaskGsm (void *p_arg)
 
 	(void)p_arg;
 
-	mg323_status.server_ip_port = dest_server;
-	mg323_status.power_on = false;
-	mg323_status.gprs_count = 0 ;
-	mg323_status.gprs_ready = false;
-	mg323_status.tcp_online = false;
-	mg323_status.ask_online = false;
-	mg323_status.try_online = 0;
-	mg323_status.apn_index = NULL;
-	mg323_status.roam = false;
-	mg323_status.cgatt= false;
-	mg323_status.rx_empty = true ;
-	mg323_status.at_timer = OSTime ;
-	mg323_status.ring_count = 0 ;
-	mg323_status.dial_timer=0 ;
-	mg323_status.need_dial = false ;
-	mg323_status.voice_confirm = true ;
+	my_icar.mg323.server_ip_port = dest_server;
+	my_icar.mg323.power_on = false;
+
+	//Does it need replace by BKP_DR2,3 value?
+	my_icar.mg323.power_off_reason = NO_ERR ;
+	my_icar.mg323.power_off_timer=0;
+
+	my_icar.mg323.gprs_count = 0 ;
+	my_icar.mg323.gprs_ready = false;
+	my_icar.mg323.tcp_online = false;
+	my_icar.mg323.ask_online = false;
+	my_icar.mg323.try_online = 0;
+	my_icar.mg323.apn_index = NULL;
+	my_icar.mg323.roam = false;
+	my_icar.mg323.cgatt= false;
+	my_icar.mg323.rx_empty = true ;
+	my_icar.mg323.at_timer = OSTime ;
+	my_icar.mg323.ring_count = 0 ;
+	my_icar.mg323.dial_timer=0 ;
+	my_icar.mg323.need_dial = false ;
+	my_icar.mg323.voice_confirm = true ;
 
 	uart2_init( );
 
@@ -42,32 +47,41 @@ void  App_TaskGsm (void *p_arg)
 //2,Uart2 无反馈时，超时，重置状态 online ...
 	while ( 1 ) {
 
-		if ( mg323_status.ask_power ) {//ask power on the GSM module
-			if ( !mg323_status.power_on ) {
-				mg323_status.err_no = gsm_power_on() ;
-				if ( mg323_status.err_no == 0 ) {
-					mg323_status.power_on = true;
-					mg323_status.at_timer = OSTime ;
+		if ( my_icar.mg323.ask_power ) {//ask power on the GSM module
+			if ( !my_icar.mg323.power_on ) {
+				my_icar.mg323.err_no = gsm_power_on() ;
+				if ( my_icar.mg323.err_no == 0 ) {
+					my_icar.mg323.power_on = true;
+					my_icar.mg323.at_timer = OSTime ;
 
 					//check gprs network also
-					if ( !mg323_status.gprs_ready ) {
-						mg323_status.err_no = gsm_check_gprs( );
-						if ( mg323_status.err_no == 0 ) {
-							mg323_status.gprs_ready = true;
+					if ( !my_icar.mg323.gprs_ready ) {
+						my_icar.mg323.err_no = gsm_check_gprs( );
+						if ( my_icar.mg323.err_no == 0 ) {
+							my_icar.mg323.gprs_ready = true;
 						}
 						else { //error, maybe no gprs network or APN error
-							prompt("Reg gprs failure:%d will try later.\r\n",mg323_status.err_no);
-							mg323_status.gprs_ready = false;
-							mg323_status.tcp_online = false ;
+							prompt("Reg gprs failure:%d will try later.\r\n",my_icar.mg323.err_no);
+							my_icar.mg323.gprs_ready = false;
+							my_icar.mg323.tcp_online = false ;
 						}
 					}
 				}
 				else { //error, maybe no GSM network
-					prompt("GSM power on failure:%d will try later.\r\n",mg323_status.err_no);
+					prompt("GSM power on failure:%d will try later.\r\n",my_icar.mg323.err_no);
 					OSTimeDlyHMSM(0, 0, 3, 0);
-					mg323_status.gprs_ready = false;
-					mg323_status.tcp_online = false ;
-					mg323_status.power_on = false;
+					my_icar.mg323.gprs_ready = false;
+					my_icar.mg323.tcp_online = false ;
+					my_icar.mg323.power_on = false;
+					if ( my_icar.mg323.err_no == 8 ) {
+						my_icar.mg323.power_off_reason = SIM_CARD_ERR ;
+					}
+					else {
+						my_icar.mg323.power_off_reason = POWER_ON_FAILURE ;
+					}
+					my_icar.mg323.power_off_timer=RTC_GetCounter( );
+				    BKP_WriteBackupRegister(BKP_DR2, my_icar.mg323.power_off_timer);
+				    BKP_WriteBackupRegister(BKP_DR3, my_icar.mg323.power_off_reason);
 					gsm_pwr_off( );
 				}
 			}
@@ -76,64 +90,79 @@ void  App_TaskGsm (void *p_arg)
 			;//TBD: power off to save power
 		}
 
-		if ( mg323_status.power_on ) {//below action need power on
+		if ( my_icar.mg323.power_on ) {//below action need power on
 
 			//should receive feedback < 10 seconds, because we enquire every 4 sec.
-			if ( OSTime - mg323_status.at_timer > 10*AT_TIMEOUT ) {
+			if ( OSTime - my_icar.mg323.at_timer > 10*AT_TIMEOUT ) {
 				//GSM module no respond, reset it
 				prompt("\r\nGSM Module no respond, will be reset...%s\tline: %d\r\n",\
 						__FILE__, __LINE__);
-				mg323_status.gprs_ready = false;
-				mg323_status.tcp_online = false ;
-				mg323_status.power_on = false;
+				my_icar.mg323.gprs_ready = false;
+				my_icar.mg323.tcp_online = false ;
+				my_icar.mg323.power_on = false;
+
+				my_icar.mg323.power_off_reason = NO_RESPOND ;
+				my_icar.mg323.power_off_timer=RTC_GetCounter( );
+			    BKP_WriteBackupRegister(BKP_DR2, my_icar.mg323.power_off_timer);
+			    BKP_WriteBackupRegister(BKP_DR3, my_icar.mg323.power_off_reason);
 				gsm_pwr_off( );
 			}
 
 			//Check need online or not?
-			if ( mg323_status.ask_online ) {
+			if ( my_icar.mg323.ask_online ) {
 
-				if ( mg323_status.gprs_ready ) {
+				if ( my_icar.mg323.gprs_ready ) {
 					//reset counter
-					mg323_status.gprs_count = 0 ;
+					my_icar.mg323.gprs_count = 0 ;
 
-					if ( !mg323_status.tcp_online ) { //no online
-						prompt("IP %s.\r\n",mg323_status.local_ip);
+					if ( !my_icar.mg323.tcp_online ) { //no online
+						prompt("IP %s.\r\n",my_icar.mg323.local_ip);
 						//send online command
 						putstring(COM2,"AT^SISO=0\r\n");
 						//will be return ^SISW: 0,1,1xxx
 						//confirm this return in later
-						mg323_status.try_online++;
-						prompt("Try %d to online...\r\n",mg323_status.try_online);
-						if ( mg323_status.try_online > 15 ) {//failure > 15
-							mg323_status.gprs_ready = false;
-							mg323_status.tcp_online = false ;
-							mg323_status.power_on = false;
+						my_icar.mg323.try_online++;
+						prompt("Try %d to online...\r\n",my_icar.mg323.try_online);
+						if ( my_icar.mg323.try_online > 15 ) {//failure > 15
+							my_icar.mg323.gprs_ready = false;
+							my_icar.mg323.tcp_online = false ;
+							my_icar.mg323.power_on = false;
+
+							my_icar.mg323.power_off_reason = TRY_ONLINE ;
+							my_icar.mg323.power_off_timer=RTC_GetCounter( );
+						    BKP_WriteBackupRegister(BKP_DR2, my_icar.mg323.power_off_timer);
+						    BKP_WriteBackupRegister(BKP_DR3, my_icar.mg323.power_off_reason);
 							gsm_pwr_off( );
 							prompt("Try %d to online, still failure, \
-									reboot GSM module.\r\n",mg323_status.try_online);
+									reboot GSM module.\r\n",my_icar.mg323.try_online);
 							//will be auto power on because ask_power is true
-							mg323_status.gprs_count = 0 ;
+							my_icar.mg323.gprs_count = 0 ;
 							OSTimeDlyHMSM(0, 0, 1, 0);
 						}
 					}
 				}
 				else { //GPRS network no ready
 					putstring(COM2, "AT+CGREG?\r\n");
-					mg323_status.gprs_count++;
+					my_icar.mg323.gprs_count++;
 					//wait... timeout => restart
-					if ( mg323_status.gprs_count > 180 ) {//about 180s
-							mg323_status.gprs_ready = false;
-							mg323_status.tcp_online = false ;
-							mg323_status.power_on = false;
+					if ( my_icar.mg323.gprs_count > 180 ) {//about 180s
+							my_icar.mg323.gprs_ready = false;
+							my_icar.mg323.tcp_online = false ;
+							my_icar.mg323.power_on = false;
+
+							my_icar.mg323.power_off_reason = NO_GPRS ;
+							my_icar.mg323.power_off_timer=RTC_GetCounter( );
+						    BKP_WriteBackupRegister(BKP_DR2, my_icar.mg323.power_off_timer);
+						    BKP_WriteBackupRegister(BKP_DR3, my_icar.mg323.power_off_reason);
 							gsm_pwr_off( );
 							prompt("Find GPRS network timeout! check %s: %d\r\n",\
 								__FILE__, __LINE__);
 							//will be auto power on because ask_power is true
-							mg323_status.try_online = 0 ;
+							my_icar.mg323.try_online = 0 ;
 							OSTimeDlyHMSM(0, 0, 1, 0);
 					}
 				}
-			}//end of if ( mg323_status.ask_online )
+			}//end of if ( my_icar.mg323.ask_online )
 
 			//Send GSM signal and tcp status cmd every 3 sec.
 			
@@ -160,11 +189,11 @@ void  App_TaskGsm (void *p_arg)
 			OSTimeDlyHMSM(0, 0, 0, 10);
 
 			//if need dial
-			if ( mg323_status.need_dial && !mg323_status.voice_confirm) {
+			if ( my_icar.mg323.need_dial && !my_icar.mg323.voice_confirm) {
 
-				if ( OSTime - mg323_status.dial_timer > 2*60*1000 ) {//re-dial after 2 mins
+				if ( OSTime - my_icar.mg323.dial_timer > 2*60*1000 ) {//re-dial after 2 mins
 					prompt("Call my phone for confirm...");
-					mg323_status.dial_timer = OSTime ;
+					my_icar.mg323.dial_timer = OSTime ;
 					putstring(COM2,"ATD");
 					putstring(COM2,(unsigned char *)callback_phone);
 					putstring(COM2,";\r\n");
@@ -174,7 +203,7 @@ void  App_TaskGsm (void *p_arg)
 			//Check GSM output string
 			while ( !u2_rx_buf.empty ) {//have data ...
 				//reset timer here
-				mg323_status.at_timer = OSTime ;				
+				my_icar.mg323.at_timer = OSTime ;				
 
 				memset(rec_str, 0x0, AT_CMD_LENGTH);
 				if ( get_respond(rec_str) ) {
@@ -186,14 +215,14 @@ void  App_TaskGsm (void *p_arg)
 
 
 			//Check mg323 has data or not
-			if ( !mg323_status.rx_empty && mg323_status.tcp_online) { //has data
+			if ( !my_icar.mg323.rx_empty && my_icar.mg323.tcp_online) { //has data
 
 				read_tcp_data( rec_str );
 
 			}
 
 			//Check c2s_data.tx_len, if > 0, then send it
-			if ( mg323_status.tcp_online \
+			if ( my_icar.mg323.tcp_online \
 				&& c2s_data.tx_len > 0 \
 				&& !c2s_data.tx_lock ) { //can send data
 
@@ -205,19 +234,19 @@ void  App_TaskGsm (void *p_arg)
 		}
 
 		//update relay status even gsm power off
-		if ( OSTime - relay_timer > mg323_status.ring_count*10*60*1000 ) { //10 mins.
+		if ( OSTime - relay_timer > my_icar.mg323.ring_count*10*60*1000 ) { //10 mins.
 			led_off(OBD_CAN20);//shutdown relay
-			mg323_status.ring_count = 0 ;
-			mg323_status.need_dial = true ;
+			my_icar.mg323.ring_count = 0 ;
+			my_icar.mg323.need_dial = true ;
 		}
-		else {// < mg323_status.ring_count*10 mins, open relay
+		else {// < my_icar.mg323.ring_count*10 mins, open relay
 			led_on(OBD_CAN20);
 		}
 
 		//update LED status
-		if ( mg323_status.tcp_online ) {
+		if ( my_icar.mg323.tcp_online ) {
 			led_on(OBD_CAN10);
-			//prompt("TCP online %s.\r\n",mg323_status.local_ip);
+			//prompt("TCP online %s.\r\n",my_icar.mg323.local_ip);
 		}
 		else {
 			led_off(OBD_CAN10);
@@ -264,7 +293,7 @@ static void read_tcp_data( unsigned char *buf )
 			gsm_tcp_len = 0 ;//set default value
 			if ( strstr((char *)buf,"^SISR: 0,") ) {//found
 				//^SISR: 0,10 收到数据10个 or 
-				//^SISR: 0,0  no data, update mg323_status.rx_empty
+				//^SISR: 0,0  no data, update my_icar.mg323.rx_empty
 				//search first \r\n
 				buf_len=(strstr((char *)buf,"\r\n")-(char *)buf);
 				//prompt("buf:%s, len: %d\r\n",buf,buf_len);
@@ -301,7 +330,7 @@ static void read_tcp_data( unsigned char *buf )
 				}//end of switch
 
 				if ( gsm_tcp_len == 0 ) {//no data
-					mg323_status.rx_empty = true ;
+					my_icar.mg323.rx_empty = true ;
 					//prompt("\r\nGSM TCP no data. %s\tline: %d\r\n",__FILE__, __LINE__);
 				}
 				else {
@@ -395,7 +424,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 	//found GSM auto report
 	if (strstr((char *)buf,"network is unavailable")) {
-		mg323_status.tcp_online = false ;
+		my_icar.mg323.tcp_online = false ;
 		return 0;
 	}
 
@@ -407,13 +436,13 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		OSTimeDlyHMSM(0, 0, 0, 500);
 		putstring(COM2, "AT+CGREG?\r\n");
 
-		if ( mg323_status.tcp_online  ) {
+		if ( my_icar.mg323.tcp_online  ) {
 			//previous status is online, now is offline, close connect.
 			prompt("Close connection@ %d.\r\n",__LINE__);
-			mg323_status.tcp_online = false ;
+			my_icar.mg323.tcp_online = false ;
 			OSTimeDlyHMSM(0, 0, 0, 500);
 			putstring(COM2,"AT^SISC=0\r\n");
-			mg323_status.try_online = 0 ;
+			my_icar.mg323.try_online = 0 ;
 
 			//maybe some problem
 			OSTimeDlyHMSM(0, 0, 0, 500);
@@ -428,17 +457,17 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		switch (buf[10]) {
 
 			case 0x31://CGREG: 0,1\r\n
-				mg323_status.gprs_ready = true ;
-				mg323_status.roam = false;
+				my_icar.mg323.gprs_ready = true ;
+				my_icar.mg323.roam = false;
 				break;
 
 			case 0x35://CGREG: 0,5\r\n
-				mg323_status.gprs_ready = true ;
-				mg323_status.roam = true;
+				my_icar.mg323.gprs_ready = true ;
+				my_icar.mg323.roam = true;
 				break;
 
 			default:
-				mg323_status.gprs_ready = false ;
+				my_icar.mg323.gprs_ready = false ;
 				//enquire GPRS attach status:
 				putstring(COM2, "AT+CGATT?\r\n");
 				prompt("Unknow GPRS status: %s, check %s: %d\r\n",\
@@ -453,9 +482,9 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	if (strstr((char *)buf,"+CGATT")) {
 		prompt("Rec:%s\r\n",buf);
 		if ( buf[8] == '1' ) {
-			mg323_status.cgatt= true; }
+			my_icar.mg323.cgatt= true; }
 		else {
-			mg323_status.cgatt= false;
+			my_icar.mg323.cgatt= false;
 			prompt("GPRS not attached!\t%s, check %s: %d\r\n",\
 						buf,__FILE__, __LINE__);
 		}
@@ -467,15 +496,15 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	if (strstr((char *)buf,"+CSQ:")) {
         if(buf[7] == 0x2c)
         {
-            mg323_status.signal = buf[6] - 0x30; 
+            my_icar.mg323.signal = buf[6] - 0x30; 
         }
         else
         {
             buf[6] = buf[6] - 0x30;
             buf[7] = buf[7] - 0x30;
-            mg323_status.signal = buf[6]*10 + buf[7];   
+            my_icar.mg323.signal = buf[6]*10 + buf[7];   
         }
-		prompt("Signal:%02d\r\n",mg323_status.signal);
+		prompt("Signal:%02d\r\n",my_icar.mg323.signal);
 		return 0;
 	}
 
@@ -488,7 +517,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	if (strstr((char *)buf,"SISI: 0,")) {
 		//^SISI: 0,5,0,0,0,0
 		if ( buf[9]== 0x34 ) {
-			mg323_status.tcp_online = true ;
+			my_icar.mg323.tcp_online = true ;
 		}
 		else {
 			putstring(COM2,"AT^SICI?\r\n");//enquire for further info
@@ -497,13 +526,13 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 			OSTimeDlyHMSM(0, 0, 0, 500);
 			putstring(COM2, "AT+CGREG?\r\n");
 
-			if ( mg323_status.tcp_online  ) {
+			if ( my_icar.mg323.tcp_online  ) {
 				//previous status is online, now is offline, close connect.
-				mg323_status.tcp_online = false ;
+				my_icar.mg323.tcp_online = false ;
 				prompt("Close connection@ %d.\r\n",__LINE__);
 				OSTimeDlyHMSM(0, 0, 0, 500);
 				putstring(COM2,"AT^SISC=0\r\n");//close channel 0
-				mg323_status.try_online = 0 ;
+				my_icar.mg323.try_online = 0 ;
 
 				//maybe some problem
 				OSTimeDlyHMSM(0, 0, 0, 500);
@@ -520,23 +549,25 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 			case 0x30://0：Down 状态，Internet 连接已经定义但还没连接
 
-				//mg323_status.tcp_online = false ;
+				//my_icar.mg323.tcp_online = false ;
 				prompt("!!!Connection is down!!! %d\r\n",__LINE__);
 
 				break;
 
 			case 0x31://1：连接状态，服务已经打开，Internet 连接已经初始化
 				i = 0 ;//222.222.222.222
+				memset(my_icar.mg323.local_ip, 0x0, IP_LEN-1);
 				while ( (buf[i+14] != 0x22) && i < 15) { //"
-					mg323_status.local_ip[i] = buf[i+14];
+					my_icar.mg323.local_ip[i] = buf[i+14];
 					i++ ;
 				}
 				break;
 
 			case 0x32://2：Up 状态，Internet 连接已经建立，正使用一种或多种服务
 				i = 0 ;//222.222.222.222
+				memset(my_icar.mg323.local_ip, 0x0, IP_LEN-1);
 				while ( (buf[i+14] != 0x22) && i < 15) { //"
-					mg323_status.local_ip[i] = buf[i+14];
+					my_icar.mg323.local_ip[i] = buf[i+14];
 					i++ ;
 				}
 				break;
@@ -550,7 +581,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 				break;
 
 			default:
-				mg323_status.gprs_ready = false ;
+				my_icar.mg323.gprs_ready = false ;
 				prompt("Unknow SICI return: %s, check %s: %d\r\n",\
 							buf,__FILE__, __LINE__);
 				break;
@@ -564,10 +595,10 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		//^SISR: 0,0  :no data
 		if ( buf[10] > 0x30 ) {//have data
 			//prompt("TCP rec data: %s\r\n",buf);
-			mg323_status.rx_empty = false ;
+			my_icar.mg323.rx_empty = false ;
 		}
 		else {
-			mg323_status.rx_empty = true ;
+			my_icar.mg323.rx_empty = true ;
 			//prompt("\r\nGSM TCP no data. %s\tline: %d\r\n",__FILE__, __LINE__);
 		}
 		return 0;
@@ -577,7 +608,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	if (strstr((char *)buf,"^SISW: 0,1,1")) {
 		//need to double check
 		prompt("TCP online: %s\r\n",buf);
-		mg323_status.tcp_online = true ;
+		my_icar.mg323.tcp_online = true ;
 		//ask the IP, return:^SICI: 0,2,1,"10.156.174.147"
 		putstring(COM2,"AT^SICI?\r\n");
 		return 0;
@@ -587,19 +618,19 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	if (strstr((char *)buf,"RING")) {
 		putstring(COM2,"ATH\r\n");
 		*timer = OSTime;
-		mg323_status.ring_count++;
-		mg323_status.need_dial = false ;
-		mg323_status.voice_confirm = false ;
+		my_icar.mg323.ring_count++;
+		my_icar.mg323.need_dial = false ;
+		my_icar.mg323.voice_confirm = false ;
 		putstring(COM2,"ATH\r\n");
-		prompt("Receive %d time call.\r\n",mg323_status.ring_count);
+		prompt("Receive %d time call.\r\n",my_icar.mg323.ring_count);
 		return 0;
 	}
 
 	//found call confirm
 	if (strstr((char *)buf,"BUSY")) {//call success
-		mg323_status.need_dial = false ;
-		mg323_status.voice_confirm = true ;
-		mg323_status.dial_timer = 0 ; //prepare for next call
+		my_icar.mg323.need_dial = false ;
+		my_icar.mg323.voice_confirm = true ;
+		my_icar.mg323.dial_timer = 0 ; //prepare for next call
 		prompt("Confirmed by voice.\r\n");
 		return 0;
 	}

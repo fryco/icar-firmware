@@ -43,16 +43,27 @@
 #define AT_TIMEOUT				1000
 #define AT_CMD_LENGTH			64 //for GSM command
 //#define RTC_UPDATE_PERIOD		1*60*60 //1 Hour
-//#define RTC_UPDATE_PERIOD		1*1*10 //1 mins
-#define RTC_UPDATE_PERIOD		1*1*2 //2 secs
+#define RTC_UPDATE_PERIOD		1*1*60 //1 mins
+//#define RTC_UPDATE_PERIOD		1*1*2 //2 secs
 
 //For GSM <==> Server protocol
 #define GSM_HEAD				0xC9
-#define GSM_CMD_TIME			0x54 //'T'
+#define GSM_CMD_RECORD			0x52 //'R', record
+#define GSM_CMD_TIME			0x54 //'T', time
 
 
 #define	prompt(x, args...)	printf("[%d,%02d%%]> ",OSTime/1000,OSCPUUsage);printf(x,	##args);
 
 /* Exported functions ------------------------------------------------------- */
+
+/* Exported types ------------------------------------------------------------*/
+struct ICAR_DEVICE {
+	unsigned int login_timer;
+	unsigned char *sn ;//serial number
+	struct RTC_STATUS stm32_rtc;
+	struct ADC_STATUS stm32_adc;
+	struct GSM_STATUS mg323;
+
+};
 
 #endif /* __MAIN_H */

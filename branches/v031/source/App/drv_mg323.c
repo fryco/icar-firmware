@@ -7,7 +7,7 @@
 #endif
 
 extern struct UART_RX u2_rx_buf;
-extern struct GSM_STATUS mg323_status ;
+extern struct ICAR_DEVICE my_icar;
 
 const unsigned char dest_server[] = "cqt.8866.org:24";
 const unsigned char at_set_channel0_para[] = "AT^SICS=0,";
@@ -61,7 +61,7 @@ bool get_respond( unsigned char* rec_str)
 		while ( !u2_rx_buf.empty ) {//receive some data...
 
 			//reset timer here
-			mg323_status.at_timer = OSTime ;				
+			my_icar.mg323.at_timer = OSTime ;				
 
 			rec_str[i] = getbyte( COM2 );
 	
@@ -321,7 +321,7 @@ bool check_gsm_net(void)
 					return true;
 				}
 				if (strstr((char *)respond_str,"CREG: 0,5\r\n")) {//roam
-					mg323_status.roam = true ;
+					my_icar.mg323.roam = true ;
 					return true;
 				}
 			}
@@ -352,7 +352,7 @@ bool check_gsm_cops( )
 				if (strstr((char *)respond_str,"+COPS: ")) {//normal
 					i = 0 ;
 					while ( respond_str[i] != '\r' ) {
-						mg323_status.carrier[i] = respond_str[i] ;
+						my_icar.mg323.carrier[i] = respond_str[i] ;
 						i++;
 					}
 					return true;
@@ -420,9 +420,9 @@ bool check_gprs_att( )
 				//debug_gsm("Res_str:%s\r\n",respond_str);
 				if (strstr((char *)respond_str,"+CGATT:")) {
 					if ( respond_str[8] == '1' )
-						{ mg323_status.cgatt= true; }
+						{ my_icar.mg323.cgatt= true; }
 					else
-						{ mg323_status.cgatt= false; }
+						{ my_icar.mg323.cgatt= false; }
 					return true;
 				}
 			}
@@ -455,10 +455,10 @@ bool get_apn_by_imsi( )
 				
 				if ( (respond_str[0] >= 0x30) && (respond_str[0] <= 0x39) ){
 					debug_gsm("IMSI: %s\r\n",respond_str);
-					strncpy((char *)mg323_status.imsi, (char *)respond_str, 15);
+					strncpy((char *)my_icar.mg323.imsi, (char *)respond_str, 15);
 					for ( i = 0 ; i < apn_count ; i++ ) {
 						if ( cmpmem(respond_str,(unsigned char *)apn_list[i][0],5 )) {
-							mg323_status.apn_index = i ;
+							my_icar.mg323.apn_index = i ;
 							return true;
 						}
 					}
@@ -511,7 +511,7 @@ bool set_gprs_apn( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2, (unsigned char *)at_set_channel0_para);
 		putstring(COM2, "apn,");
-		putstring(COM2, (unsigned char *)apn_list[mg323_status.apn_index][1]);
+		putstring(COM2, (unsigned char *)apn_list[my_icar.mg323.apn_index][1]);
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( u2_rx_buf.empty ) {//no data...
@@ -544,7 +544,7 @@ bool set_gprs_user( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2, (unsigned char *)at_set_channel0_para);
 		putstring(COM2, "user,");
-		putstring(COM2, (unsigned char *)apn_list[mg323_status.apn_index][2]);
+		putstring(COM2, (unsigned char *)apn_list[my_icar.mg323.apn_index][2]);
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( u2_rx_buf.empty ) {//no data...
@@ -578,7 +578,7 @@ bool set_gprs_passwd( )
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2, (unsigned char *)at_set_channel0_para);
 		putstring(COM2, "passwd,");
-		putstring(COM2, (unsigned char *)apn_list[mg323_status.apn_index][3]);
+		putstring(COM2, (unsigned char *)apn_list[my_icar.mg323.apn_index][3]);
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( u2_rx_buf.empty ) {//no data...
@@ -670,7 +670,7 @@ bool set_dest_ip( )
 
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SISS=0,address,\"socktcp:\/\/");
-		putstring(COM2,mg323_status.server_ip_port);
+		putstring(COM2,my_icar.mg323.server_ip_port);
 		putstring(COM2,"\"\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( u2_rx_buf.empty ) {//no data...
@@ -807,7 +807,7 @@ bool get_local_ip( )
 				i = 0 ;
 				if (strstr((char *)respond_str,"SICI: 0,2,1,")) {
 					while ( respond_str[i+14] != 0x22 ) { //"
-						mg323_status.local_ip[i] = respond_str[i+14];
+						my_icar.mg323.local_ip[i] = respond_str[i+14];
 						if ( i > 15 ) return false ;//prevent overflow
 						i++ ;
 					}
@@ -846,7 +846,7 @@ bool gsm_ask_tcp( unsigned int dat_len )
 
 				if (strstr((char *)respond_str,"^SISR: 0,") \
 					&& respond_str[10] > 0x30 ) {
-					mg323_status.rx_empty = false ;
+					my_icar.mg323.rx_empty = false ;
 				}
 
 				if (strstr((char *)respond_str,"ERROR")) {
@@ -895,7 +895,7 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 
 			if (strstr((char *)respond_str,"^SISR: 0,") \
 				&& respond_str[10] > 0x30 ) {
-				mg323_status.rx_empty = false ;
+				my_icar.mg323.rx_empty = false ;
 			}
 
 			if (strstr((char *)respond_str,"ERROR")) {
@@ -1013,7 +1013,7 @@ unsigned char gsm_power_on( )
 		//module no respond, need to reset
 		debug_gsm("\r\nGSM module no respond, force shutdown...\r\n");
 		GSM_PM_OFF;
-		mg323_status.power_on = false;
+		my_icar.mg323.power_on = false;
 		OSTimeDlyHMSM(0, 0, 30, 0);
 		return 4 ; //mg323 no respond
 	}
@@ -1048,17 +1048,17 @@ unsigned char gsm_check_gprs( )
 	if( !check_gsm_cops() )  {
 		return 15 ; //get carrier error
 	}
-	prompt("Carrier is %s\r\n",mg323_status.carrier);
+	prompt("Carrier is %s\r\n",my_icar.mg323.carrier);
 
 	//来电显示 AT+CLIP=1
 	show_income_number( );
 
 	//检测网络信号强度 <12 不登陆
-	mg323_status.signal = check_gsm_CSQ();
+	my_icar.mg323.signal = check_gsm_CSQ();
 
-	debug_gsm("Current singal is: %d\r\n",mg323_status.signal);
-	if( mg323_status.signal < 12) {
-		prompt("GSM Signal too weak:%d\r\n",mg323_status.signal);
+	debug_gsm("Current singal is: %d\r\n",my_icar.mg323.signal);
+	if( my_icar.mg323.signal < 12) {
+		prompt("GSM Signal too weak:%d\r\n",my_icar.mg323.signal);
 		return 18 ;
 	}
 
@@ -1073,7 +1073,7 @@ unsigned char gsm_check_gprs( )
 	if( !check_gprs_att() )  {
 		return 25 ; //gprs attach failure
 	}
-	debug_gsm("GPRS attache status is: %d\r\n", mg323_status.cgatt);
+	debug_gsm("GPRS attache status is: %d\r\n", my_icar.mg323.cgatt);
 
 	//set connect type
 	if( !set_conn_type( ) )  {
@@ -1086,9 +1086,9 @@ unsigned char gsm_check_gprs( )
 		debug_gsm("Get APN error\r\n");
 		return 32 ; //get apn error
 	}
-	debug_gsm("Get APN ok: %s %s %s\r\n", apn_list[mg323_status.apn_index][1],\
-									apn_list[mg323_status.apn_index][2],\
-									apn_list[mg323_status.apn_index][3]);
+	debug_gsm("Get APN ok: %s %s %s\r\n", apn_list[my_icar.mg323.apn_index][1],\
+									apn_list[my_icar.mg323.apn_index][2],\
+									apn_list[my_icar.mg323.apn_index][3]);
 
 	//set APN
 	if( !set_gprs_apn( ) )  {
@@ -1097,14 +1097,14 @@ unsigned char gsm_check_gprs( )
 	}
 	prompt("Set APN ok.\r\n");
 
-	if ( *(apn_list[mg323_status.apn_index][2]) ) {	
+	if ( *(apn_list[my_icar.mg323.apn_index][2]) ) {	
 		if( !set_gprs_user( ) )  {
 			debug_gsm("Set APN user error\r\n");
 			return 36 ; //set apn user error
 		}
 	}
 
-	if ( *(apn_list[mg323_status.apn_index][3]) ) {	
+	if ( *(apn_list[my_icar.mg323.apn_index][3]) ) {	
 		if( !set_gprs_passwd( ) )  {
 			debug_gsm("Set APN passwd error\r\n");
 			return 38 ; //set apn passwd error

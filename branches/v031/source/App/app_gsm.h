@@ -6,11 +6,24 @@
 #include "stm32f10x.h"
 
 /* Exported macro ------------------------------------------------------------*/
-
+#define IP_LEN			16 //123.123.123.123
 /* Exported types ------------------------------------------------------------*/
+typedef enum
+{
+	NO_ERR = 0 ,//normal, no error
+	POWER_ON_FAILURE = 1, //
+	SIM_CARD_ERR = 2 ,//Pin? no SIM?
+	NO_RESPOND = 3, //if ( OSTime - mg323_status.at_timer > 10*AT_TIMEOUT )
+	TRY_ONLINE = 4, //if ( mg323_status.try_online > 15 )
+	NO_GPRS  = 5  //mg323_status.gprs_count > 180
+} SHUTDOWN_REASON;
+
 struct GSM_STATUS {
 	bool ask_power ;
 	bool power_on ;
+
+	SHUTDOWN_REASON power_off_reason;
+	unsigned int power_off_timer;
 
 	bool gprs_ready ;
 	unsigned char gprs_count;
@@ -21,7 +34,7 @@ struct GSM_STATUS {
 	//运营商信息，+COPS: 0,0,"CHINA MOBILE"
 	unsigned char carrier[32];
 	unsigned char imsi[16];
-	unsigned char local_ip[16];
+	unsigned char local_ip[IP_LEN];
 	unsigned char *server_ip_port;
 	unsigned int apn_index;
 	unsigned char signal;
