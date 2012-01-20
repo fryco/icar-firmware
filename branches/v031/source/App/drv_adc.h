@@ -19,7 +19,7 @@
 #define ADC_BUF_SIZE  16
 
 /* Exported types ------------------------------------------------------------*/
-struct ICAR_ADC {
+struct ADC_STATUS {
 	u16 converted[ADC_BUF_SIZE];
 
 	bool completed;

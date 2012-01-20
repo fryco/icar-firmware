@@ -33,7 +33,8 @@ extern struct UART_RX u2_rx_buf;
 extern struct UART_TX u3_tx_buf;
 extern struct UART_RX u3_rx_buf;
 
-extern struct ICAR_ADC adc_temperature;
+extern struct ICAR_DEVICE my_icar;
+
 /** @addtogroup STM32F10x_StdPeriph_Examples
   * @{
   */
@@ -314,7 +315,7 @@ void DMA1_Channel1_IRQHandler(void)
 		//DMA_Cmd(DMA1_Channel1, DISABLE);
 		DMA1_Channel1->CCR &= (uint16_t)(~DMA_CCR1_EN);
 
-		adc_temperature.completed = true;
+		my_icar.stm32_adc.completed = true;
 	}
 
 	//清除全部中断标志

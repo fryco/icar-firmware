@@ -5,16 +5,15 @@ static void calc_sn( void );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
 static unsigned char mcu_id_eor( unsigned int );
 static unsigned char gsm_send_time( struct SENT_QUEUE *, unsigned char *);
-static unsigned char gsm_send_signal( struct SENT_QUEUE *, unsigned char *);
+static unsigned char gsm_send_record( struct SENT_QUEUE *, unsigned char *, unsigned int *);
 static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *, struct SENT_QUEUE *queue_p);
 
 struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
 
 extern struct UART_RX u1_rx_buf;
 extern struct UART_TX u1_tx_buf;
-extern struct GSM_STATUS mg323_status ;
-extern struct RTC_STATUS stm32_rtc;
-extern struct ICAR_ADC adc_temperature;
+extern struct ICAR_DEVICE my_icar;
+//extern struct ICAR_ADC adc_temperature;
 
 static unsigned char pro_sn[]="02P1xxxxxx";
 //Last 6 bytes replace by MCU ID xor result
@@ -43,8 +42,8 @@ void  App_TaskManager (void *p_arg)
 
 	CPU_INT08U	os_err;
 	unsigned char var_uchar , gsm_sequence=0;
-
-	struct SENT_QUEUE gsm_sent_q[MAX_CMD_QUEUE];
+	unsigned int record_sequence = 0;
+	struct SENT_QUEUE gsm_sent_q[MAX_CMD_QUEUE];//last 2 queue for emergency event
 	struct GSM_RX_RESPOND mg323_rx_cmd;
 
 	u16 adc;
@@ -92,7 +91,7 @@ void  App_TaskManager (void *p_arg)
 	//wait power stable and others task init
 	OSTimeDlyHMSM(0, 0,	1, 0);
 
-	mg323_status.ask_power = true ;
+	my_icar.mg323.ask_power = true ;
 	mg323_rx_cmd.timer = OSTime ;
 	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
 	mg323_rx_cmd.status = S_HEAD;
@@ -116,21 +115,21 @@ void  App_TaskManager (void *p_arg)
 		IWDG_ReloadCounter();  
 
 		if ( c2s_data.tx_len > 0 ) {//have command, need online
-			mg323_status.ask_online = true ;
+			my_icar.mg323.ask_online = true ;
 		}
 		else {//consider in the future
-			;//mg323_status.ask_online = false ;
+			;//my_icar.mg323.ask_online = false ;
 		}
 
 		//Send command
-		if ( (RTC_GetCounter( ) - stm32_rtc.update_time) > RTC_UPDATE_PERIOD || \
-				stm32_rtc.update_time == 0 ) {//need update RTC by server time
+		if ( (RTC_GetCounter( ) - my_icar.stm32_rtc.update_time) > RTC_UPDATE_PERIOD || \
+				my_icar.stm32_rtc.update_time == 0 ) {//need update RTC by server time
 
 			gsm_send_time( gsm_sent_q, &gsm_sequence );
 		}
 
 		if ( (OSTime/1000)%3 == 0 ) {//record GSM signal, for testing
-			gsm_send_signal( gsm_sent_q, &gsm_sequence );
+			gsm_send_record( gsm_sent_q, &gsm_sequence, &record_sequence );
 		}
 
 		if ( !c2s_data.rx_empty ) {//receive some TCP data from GSM
@@ -148,19 +147,19 @@ void  App_TaskManager (void *p_arg)
 			putbyte( COM1, var_uchar );
 			if ( var_uchar == 'o' || var_uchar == 'O' ) {//online
 				prompt("Ask GSM online...\r\n");
-				mg323_status.ask_online = true ;
+				my_icar.mg323.ask_online = true ;
 			}
 			if ( var_uchar == 'c' || var_uchar == 'C' ) {//close
 				prompt("Ask GSM off line...\r\n");
-				mg323_status.ask_online = false ;
+				my_icar.mg323.ask_online = false ;
 			}
 		}
 
-		if( adc_temperature.completed ) {//temperature convert complete
-			adc_temperature.completed = false;
+		if( my_icar.stm32_adc.completed ) {//temperature convert complete
+			my_icar.stm32_adc.completed = false;
 
 			//滤波,只要数据的中间一段
-			adc=digit_filter(adc_temperature.converted,ADC_BUF_SIZE);
+			adc=digit_filter(my_icar.stm32_adc.converted,ADC_BUF_SIZE);
 
 			//DMA_Cmd(DMA1_Channel1, ENABLE);
 			DMA1_Channel1->CCR |= DMA_CCR1_EN;
@@ -172,7 +171,7 @@ void  App_TaskManager (void *p_arg)
 
 			if ( (OSTime/1000)%10 == 0 ) {
 				prompt("T: %d.%02d C\t",adc/100,adc%100);
-				RTC_show_time();
+				RTC_show_time(RTC_GetCounter());
 			}
 		}
 				 
@@ -183,8 +182,8 @@ void  App_TaskManager (void *p_arg)
 		led_toggle( OBD_UNKNOW ) ;
 		//led_toggle( OBD_KWP ) ;
 
-		if ( (OSTime/1000)%10 == 0 ) {//check every 10 sec
-			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
+		if ( (OSTime/1000)%10 == 0 ) {//check every 10 sec, don't check last 2 queue
+			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE-2 ; var_uchar++) {
 				if ( (OSTime - gsm_sent_q[var_uchar].send_timer > 60*1000) \
 					&& (gsm_sent_q[var_uchar].send_pcb !=0)) {
 					prompt("queue %d, CMD: 0x%02X timeout, reset!\r\n",\
@@ -477,7 +476,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 #endif
 
 	//find a no use SENT_QUEUE to record the SEQ/CMD
-	for ( index = 0 ; index < MAX_CMD_QUEUE ; index++) {
+	for ( index = 0 ; index < MAX_CMD_QUEUE-2 ; index++) {
 
 		if ( queue_p[index].send_pcb == 0 ) { //no use
 
@@ -485,7 +484,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				c2s_data.tx_len,c2s_data.tx_lock);
 			printf("queue: %02d\r\n",index);
 	
-			stm32_rtc.update_time = RTC_GetCounter( ) ;
+			my_icar.stm32_rtc.update_time = RTC_GetCounter( ) ;
 
 			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
 
@@ -540,7 +539,97 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 }
 
 
-static unsigned char gsm_send_signal( struct SENT_QUEUE *queue_p, unsigned char *sequence)
+//return 0: ok
+//return 1: no send queue
+//return 2: no free buffer or buffer busy
+static unsigned char gsm_send_record( struct SENT_QUEUE *queue_p, \
+	unsigned char *cmd_seq, unsigned int *record_seq)
 {
-;
+	static unsigned char i, chkbyte, index, ip_length;
+	static unsigned int seq = 0;
+#if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
+    OS_CPU_SR  cpu_sr = 0;
+#endif
+
+	//find a no use SENT_QUEUE to record the SEQ/CMD
+	for ( index = 0 ; index < MAX_CMD_QUEUE-2 ; index++) {
+
+		if ( queue_p[index].send_pcb == 0 ) { //no use
+
+			prompt("Update GSM signal, tx_len: %d, tx_lock: %d, ",\
+				c2s_data.tx_len,c2s_data.tx_lock);
+			printf("queue: %02d\r\n",index);
+
+			//HEAD SEQ PCB Length(2 bytes) DATA(var char) check
+			//DATA: Record_seq(2 bytes)+GSM signal(1byte)+voltage(2 bytes)+IP
+			//IP(123.123.123.123) 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33
+			//i.e:  C9 01 52 00 14 FF FF 1C 0F FF 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33 73 
+
+			if ( !c2s_data.tx_lock \
+				&& c2s_data.tx_len < (GSM_BUF_LENGTH-30) ) {
+				//no process occupy && have enough buffer
+	
+				OS_ENTER_CRITICAL();
+				c2s_data.tx_lock = true ;
+				OS_EXIT_CRITICAL();
+
+				//set protocol string value
+				queue_p[index].send_timer= OSTime ;
+				queue_p[index].send_seq = *cmd_seq ;
+				queue_p[index].send_pcb = GSM_CMD_RECORD ;
+	
+				ip_length = strlen((char *)my_icar.mg323.local_ip) ;
+				//prompt("IP: %s Len: %d\r\n",my_icar.mg323.local_ip,ip_length);
+				//prepare GSM command
+				c2s_data.tx[c2s_data.tx_len]   = GSM_HEAD ;
+				c2s_data.tx[c2s_data.tx_len+1] = *cmd_seq ;//SEQ
+				*cmd_seq = c2s_data.tx[c2s_data.tx_len+1]+1;//increase seq
+				c2s_data.tx[c2s_data.tx_len+2] = GSM_CMD_RECORD ;//PCB
+				c2s_data.tx[c2s_data.tx_len+3] = 0  ;//length high
+				c2s_data.tx[c2s_data.tx_len+4] = 5+ip_length;//length low
+
+				//record sequence, 2 bytes
+				seq = *record_seq ;
+				c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//seq high
+				c2s_data.tx[c2s_data.tx_len+6] =  seq&0xFF  ;//seq low
+				seq++, *record_seq=seq;//increase seq
+
+				//GSM signal, 1 byte
+				c2s_data.tx[c2s_data.tx_len+7] = my_icar.mg323.signal;
+
+				//ADC, 2 byte
+				c2s_data.tx[c2s_data.tx_len+8] = 0;
+				c2s_data.tx[c2s_data.tx_len+9] = 0;
+
+				//Local IP
+				strncpy((char *)&c2s_data.tx[c2s_data.tx_len+10], \
+					(char *)my_icar.mg323.local_ip, IP_LEN-1);
+
+	
+				prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+				chkbyte = GSM_HEAD ;
+				for ( i = 1 ; i < (ip_length+10) ; i++ ) {//calc chkbyte
+					chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
+					printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+				}
+				c2s_data.tx[c2s_data.tx_len+ip_length+10] = chkbyte ;
+				printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+ip_length+10]);
+				//update buf length
+				c2s_data.tx_len = c2s_data.tx_len + ip_length+11 ;
+	//need check
+				OS_ENTER_CRITICAL();
+				c2s_data.tx_lock = false ;
+				OS_EXIT_CRITICAL();
+
+				return 0 ;
+			}//end of if ( !c2s_data.tx_lock && c2s_data.tx_len < (GSM_BUF_LENGTH-20))
+			else {//no buffer
+				prompt("No free buffer or buffer busy! check %s:%d\r\n",__FILE__, __LINE__);	
+				return 2;
+			}
+		}//end of queue_p[index].send_pcb == 0
+	}
+
+	prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
+	return 1;
 }

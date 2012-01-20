@@ -4,6 +4,8 @@
 
 static	OS_STK		   App_TaskManagerStk[APP_TASK_MANAGER_STK_SIZE];
 
+struct ICAR_DEVICE my_icar;
+
 /**
   * @brief  Configures the nested vectored interrupt controller.
   * @param  None

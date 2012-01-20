@@ -1,9 +1,11 @@
 #include "main.h"
 
-struct RTC_STATUS stm32_rtc;
+extern struct ICAR_DEVICE my_icar;
 
 //Backup register list:
 //BKP_DR1, stm32_rtc.prescaler
+//BKP_DR2, GSM Module power off timer
+//BKP_DR3, GSM Module power off reason
 
 static unsigned int datetime_to_seconds (struct DATE_TIME *datetime)
 {
@@ -78,9 +80,9 @@ void rtc_init(void)	{
 	/* Allow access to BKP Domain */
 	PWR_BackupAccessCmd(ENABLE);
 
-	stm32_rtc.prescaler = BKP_ReadBackupRegister(BKP_DR1) ;
+	my_icar.stm32_rtc.prescaler = BKP_ReadBackupRegister(BKP_DR1) ;
 
-	if (stm32_rtc.prescaler == 0x0)
+	if (my_icar.stm32_rtc.prescaler == 0x0)
 	{
 	    prompt("RTC not yet configured....\r\n");
 	
@@ -115,14 +117,14 @@ void rtc_init(void)	{
 	
 	    prompt("RTC configured.\r\n");
 	
-		stm32_rtc.prescaler = ((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL ;
+		my_icar.stm32_rtc.prescaler = ((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL ;
 
-	    BKP_WriteBackupRegister(BKP_DR1, stm32_rtc.prescaler);
+	    BKP_WriteBackupRegister(BKP_DR1, my_icar.stm32_rtc.prescaler);
 	}
 	else {
-    	prompt("No need to configure RTC....%X\r\n",stm32_rtc.prescaler);
+    	prompt("No need to configure RTC....%X\r\n",my_icar.stm32_rtc.prescaler);
 
-		RTC_SetPrescaler(stm32_rtc.prescaler);
+		RTC_SetPrescaler(my_icar.stm32_rtc.prescaler);
   
 		/* Wait until last write operation on RTC registers has finished */
 		RTC_WaitForLastTask();
@@ -134,7 +136,7 @@ void rtc_init(void)	{
 	/* Wait until last write operation on RTC registers has finished */
 	RTC_WaitForLastTask();
 
-	stm32_rtc.update_time = 0 ;
+	my_icar.stm32_rtc.update_time = 0 ;
 
 	seconds_to_datetime(RTC_GetCounter() , &datetime);
 	prompt("UTC: %04d-%02d-%02d  ", datetime.year, datetime.month, datetime.day);
@@ -146,53 +148,53 @@ void RTC_update_calibrate( unsigned char *p1, unsigned char *p2)
 	struct DATE_TIME datetime;
 	unsigned char i ;
 
-	stm32_rtc.update_time = 0 ;
+	my_icar.stm32_rtc.update_time = 0 ;
 	for ( i = 0 ; i < 4 ; i++ ) {//
 		if ( (p1+i+5) < p2+GSM_BUF_LENGTH ) {
-			stm32_rtc.update_time |= (*(p1+i+5))<<(24-i*8);
+			my_icar.stm32_rtc.update_time |= (*(p1+i+5))<<(24-i*8);
 		}
 		else {//data in begin of buffer
-			stm32_rtc.update_time |= (*(p1+i+5-GSM_BUF_LENGTH))<<(24-i*8);
+			my_icar.stm32_rtc.update_time |= (*(p1+i+5-GSM_BUF_LENGTH))<<(24-i*8);
 		}
 	}
-	//prompt("stm32_rtc.update_time: %08X ",stm32_rtc.update_time);
+	//prompt("my_icar.stm32_rtc.update_time: %08X ",my_icar.stm32_rtc.update_time);
 
 
-	if ( stm32_rtc.update_time != RTC_GetCounter( )) {
+	if ( my_icar.stm32_rtc.update_time != RTC_GetCounter( )) {
 		//prompt("RTC prescaler %d ==> ",((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL);
-		if ( stm32_rtc.update_time > RTC_GetCounter( )) {
+		if ( my_icar.stm32_rtc.update_time > RTC_GetCounter( )) {
 
-			i = stm32_rtc.update_time - RTC_GetCounter( );
+			i = my_icar.stm32_rtc.update_time - RTC_GetCounter( );
 	
 			if ( i < 10 ) {
-				stm32_rtc.prescaler = stm32_rtc.prescaler--;
+				my_icar.stm32_rtc.prescaler = my_icar.stm32_rtc.prescaler--;
 			}
 			else {
-				stm32_rtc.prescaler = stm32_rtc.prescaler - i*20;
+				my_icar.stm32_rtc.prescaler = my_icar.stm32_rtc.prescaler - i*20;
 			}
-			if ( stm32_rtc.prescaler < 30000 ) {//prevent calc error
-				stm32_rtc.prescaler = 30000 ;
+			if ( my_icar.stm32_rtc.prescaler < 30000 ) {//prevent calc error
+				my_icar.stm32_rtc.prescaler = 30000 ;
 			}
 
 		}
 		else {
-			i = RTC_GetCounter( ) - stm32_rtc.update_time;
+			i = RTC_GetCounter( ) - my_icar.stm32_rtc.update_time;
 			if ( i < 10 ) {
-				stm32_rtc.prescaler = stm32_rtc.prescaler++;
+				my_icar.stm32_rtc.prescaler = my_icar.stm32_rtc.prescaler++;
 			}
 			else {
-				stm32_rtc.prescaler = stm32_rtc.prescaler + i*20;
+				my_icar.stm32_rtc.prescaler = my_icar.stm32_rtc.prescaler + i*20;
 			}
-			if ( stm32_rtc.prescaler > 45000 ) {//prevent calc error
-				stm32_rtc.prescaler = 45000 ;
+			if ( my_icar.stm32_rtc.prescaler > 45000 ) {//prevent calc error
+				my_icar.stm32_rtc.prescaler = 45000 ;
 			}
 		}
 		
-		RTC_SetPrescaler(stm32_rtc.prescaler);
+		RTC_SetPrescaler(my_icar.stm32_rtc.prescaler);
 		/* Wait until last write operation on RTC registers has finished */
 		RTC_WaitForLastTask();
 	
-		BKP_WriteBackupRegister(BKP_DR1, stm32_rtc.prescaler);
+		BKP_WriteBackupRegister(BKP_DR1, my_icar.stm32_rtc.prescaler);
 		//printf("%d\r\n",((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL);
 
 		seconds_to_datetime(RTC_GetCounter() , &datetime);
@@ -200,7 +202,7 @@ void RTC_update_calibrate( unsigned char *p1, unsigned char *p2)
 		printf("%02d:%02d:%02d ==> ", datetime.hour, datetime.minute, datetime.second);
 	
 		//Update RTC
-		RTC_SetCounter( stm32_rtc.update_time );
+		RTC_SetCounter( my_icar.stm32_rtc.update_time );
 		/* Wait until last write operation on RTC registers has finished */
 		RTC_WaitForLastTask();
 	
@@ -212,9 +214,9 @@ void RTC_update_calibrate( unsigned char *p1, unsigned char *p2)
 	}//if ==, no need update RTC Prescaler and show time change
 }
 
-void RTC_show_time( )
+void RTC_show_time( unsigned int seconds)
 {
 	struct DATE_TIME datetime;
-	seconds_to_datetime(RTC_GetCounter() , &datetime);
+	seconds_to_datetime(seconds , &datetime);
 	printf("UTC: %02d:%02d:%02d\r\n", datetime.hour, datetime.minute, datetime.second);
 }
