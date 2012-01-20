@@ -230,26 +230,26 @@ void  App_TaskGsm (void *p_arg)
 			}
 		}
 		else { //gsm power off
-			led_off(OBD_CAN10);
+			led_off(ONLINE_LED);
 		}
 
 		//update relay status even gsm power off
 		if ( OSTime - relay_timer > my_icar.mg323.ring_count*10*60*1000 ) { //10 mins.
-			led_off(OBD_CAN20);//shutdown relay
+			led_off(RELAY_LED);//shutdown relay
 			my_icar.mg323.ring_count = 0 ;
 			my_icar.mg323.need_dial = true ;
 		}
 		else {// < my_icar.mg323.ring_count*10 mins, open relay
-			led_on(OBD_CAN20);
+			led_on(RELAY_LED);
 		}
 
 		//update LED status
 		if ( my_icar.mg323.tcp_online ) {
-			led_on(OBD_CAN10);
+			led_on(ONLINE_LED);
 			//prompt("TCP online %s.\r\n",my_icar.mg323.local_ip);
 		}
 		else {
-			led_off(OBD_CAN10);
+			led_off(ONLINE_LED);
 			prompt("!!!  TCP offline  !!!\r\n");
 		}
 
