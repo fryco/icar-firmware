@@ -40,11 +40,19 @@
 
 #define DEBUG_GSM
 
-#define AT_TIMEOUT				1000
 #define AT_CMD_LENGTH			64 //for GSM command
+#define MAX_ONLINE_TRY			30 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
+
+#define AT_TIMEOUT				1*OS_TICKS_PER_SEC // 1 sec
+
+#define TCP_SEND_PERIOD			1*1*60*OS_TICKS_PER_SEC //60 secs
+#define TCP_CHECK_PERIOD		1*1*30*OS_TICKS_PER_SEC //30 secs
+#define CLEAN_QUEUE_PERIOD		1*2*60*OS_TICKS_PER_SEC //2  mins
+#define RELAY_ON_PERIOD			1*3*60*OS_TICKS_PER_SEC //3  mins
+#define RE_DIAL_PERIOD			1*2*60*OS_TICKS_PER_SEC //2  mins
+
 //#define RTC_UPDATE_PERIOD		1*60*60 //1 Hour
-#define RTC_UPDATE_PERIOD		1*1*60 //1 mins
-//#define RTC_UPDATE_PERIOD		1*1*2 //2 secs
+#define RTC_UPDATE_PERIOD		1*2*60 //2 mins, use RTC time, +1 per second in RTC
 
 //For GSM <==> Server protocol
 #define GSM_HEAD				0xC9

@@ -4,9 +4,9 @@ static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static void calc_sn( void );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
 static unsigned char mcu_id_eor( unsigned int );
-static unsigned char gsm_send_time( struct SENT_QUEUE *, unsigned char *);
-static unsigned char gsm_send_record( struct SENT_QUEUE *, unsigned char *, unsigned int *);
-static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *, struct SENT_QUEUE *queue_p);
+static unsigned char gsm_send_time( unsigned char *);
+static unsigned char gsm_send_record( unsigned char *, unsigned int *);
+static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *);
 
 struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
 
@@ -40,7 +40,6 @@ void  App_TaskManager (void *p_arg)
 	CPU_INT08U	os_err;
 	unsigned char var_uchar , gsm_sequence=0;
 	unsigned int record_sequence = 0;
-	struct SENT_QUEUE gsm_sent_q[MAX_CMD_QUEUE];//last 2 queue for emergency event
 	struct GSM_RX_RESPOND mg323_rx_cmd;
 
 	u16 adc;
@@ -49,16 +48,20 @@ void  App_TaskManager (void *p_arg)
 
 	/* Initialize the queue.	*/
 	for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
-		gsm_sent_q[var_uchar].send_timer= 0 ;//free queue if > 60 secs.
-		gsm_sent_q[var_uchar].send_pcb = 0 ;
+		c2s_data.queue_sent[var_uchar].send_timer= 0 ;//free queue if > 60 secs.
+		c2s_data.queue_sent[var_uchar].send_pcb = 0 ;
 	}
+	c2s_data.queue_count = 0;
 
 	c2s_data.tx_lock = false ;
+	c2s_data.tx_timer= 0 ;
 
 	c2s_data.rx_out_last = c2s_data.rx;
 	c2s_data.rx_in_last  = c2s_data.rx;
 	c2s_data.rx_empty = true ;
 	c2s_data.rx_full = false ;
+	c2s_data.rx_timer = 0 ;
+	c2s_data.check_timer = 0 ;
 
 	/* Initialize the SysTick.								*/
 	OS_CPU_SysTickInit();
@@ -132,18 +135,18 @@ void  App_TaskManager (void *p_arg)
 		if ( (RTC_GetCounter( ) - my_icar.stm32_rtc.update_timer) > RTC_UPDATE_PERIOD || \
 				my_icar.stm32_rtc.update_timer == 0 ) {//need update RTC by server time
 
-			gsm_send_time( gsm_sent_q, &gsm_sequence );//will be sent SN also
+			gsm_send_time( &gsm_sequence );//will be sent SN also
 		}
 
 		if ( my_icar.login_timer ) {//send others CMD after login
-			if ( (OSTime/100)%3 == 0 ) {//record GSM signal, for testing
-				gsm_send_record( gsm_sent_q, &gsm_sequence, &record_sequence );
-			}
+			//if ( (OSTime/100)%3 == 0 ) {//record GSM signal, for testing
+				gsm_send_record( &gsm_sequence, &record_sequence );
+			//}
 		}
 
 		if ( !c2s_data.rx_empty ) {//receive some TCP data from GSM
 
-			gsm_rx_decode( &mg323_rx_cmd, gsm_sent_q );
+			gsm_rx_decode( &mg323_rx_cmd );
 		}
 
 		if ( my_icar.stm32_u1_rx.lost_data ) {//error! lost data
@@ -184,22 +187,31 @@ void  App_TaskManager (void *p_arg)
 			}
 		}
 				 
+		if ( (OSTime/100)%30 == 0 ) {//check every 30 sec, don't check last 2 queue
+			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE-2 ; var_uchar++) {
+				if ( (OSTime - c2s_data.queue_sent[var_uchar].send_timer > CLEAN_QUEUE_PERIOD) \
+					&& (c2s_data.queue_sent[var_uchar].send_pcb !=0)) {
+					prompt("queue %d, CMD: 0x%02X timeout, reset!\r\n",\
+						var_uchar,c2s_data.queue_sent[var_uchar].send_pcb);//60 secs.
+					c2s_data.queue_sent[var_uchar].send_timer= 0 ;//free queue if > 1 min
+					c2s_data.queue_sent[var_uchar].send_pcb = 0 ;
+					if ( c2s_data.queue_count > 0 ) {
+						c2s_data.queue_count--;
+					}
+				}
+			}
+
+			if ( c2s_data.queue_count > MAX_CMD_QUEUE*4/3 ) {
+				c2s_data.tx_timer= 0 ;//need send immediately
+				prompt("Free queue is: %d, RESET c2s_data.tx_timer @ %d\r\n",\
+					MAX_CMD_QUEUE-c2s_data.queue_count,__LINE__);
+			}
+		}//end of check every 30 sec
+
 		/* Insert delay	*/
 		OSTimeDlyHMSM(0, 0,	0, 800);
 		//printf("L%010d\r\n",OSTime);
 		led_toggle( POWER_LED ) ;
-
-		if ( (OSTime/100)%10 == 0 ) {//check every 10 sec, don't check last 2 queue
-			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE-2 ; var_uchar++) {
-				if ( (OSTime - gsm_sent_q[var_uchar].send_timer > 60*1000) \
-					&& (gsm_sent_q[var_uchar].send_pcb !=0)) {
-					prompt("queue %d, CMD: 0x%02X timeout, reset!\r\n",\
-						var_uchar,gsm_sent_q[var_uchar].send_pcb);//60 secs.
-					gsm_sent_q[var_uchar].send_timer= 0 ;//free queue if > 1 min
-					gsm_sent_q[var_uchar].send_pcb = 0 ;
-				}
-			}
-		}//end of check every 10 sec
 	}
 }
 
@@ -238,7 +250,7 @@ static void calc_sn( )
 
 //return 0: ok
 //return 1: failure
-static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf ,struct SENT_QUEUE *queue_p)
+static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 {
 	unsigned char chkbyte, queue_index=0;
 	unsigned int  chk_index, free_len=0;
@@ -377,16 +389,19 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf ,struct SENT_QUEU
 			if ( chkbyte == buf->chk ) {//data correct
 
 				//prompt("buf->pcb: %02X\r\n",buf->pcb);
-				//find the sent record in gsm_sent_q by SEQ
+				//find the sent record in c2s_data.queue_sent by SEQ
 				for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
-					if ( queue_p[queue_index].send_seq == buf->seq \
-						&& buf->pcb==(queue_p[queue_index].send_pcb | 0x80)) { 
+					if ( c2s_data.queue_sent[queue_index].send_seq == buf->seq \
+						&& buf->pcb==(c2s_data.queue_sent[queue_index].send_pcb | 0x80)) { 
 
 						//prompt("queue %d is correct record.\r\n",queue_index);
 						//found, free this record
-						queue_p[queue_index].send_pcb = 0 ;
+						c2s_data.queue_sent[queue_index].send_pcb = 0 ;
+						if ( c2s_data.queue_count > 0 ) {
+							c2s_data.queue_count--;
+						}
 						break ;
-					}//end of queue_p[queue_index].send_pcb == 0
+					}//end of c2s_data.queue_sent[queue_index].send_pcb == 0
 				}
 
 				//handle the respond
@@ -403,21 +418,29 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf ,struct SENT_QUEU
 					switch (*((buf->start)+5)) {
 
 					case 0x0://record success
-						prompt("Record CMD success.\r\n");
+						prompt("Record CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						break;
 
 					case 0x1://need upload SN first
-						my_icar.stm32_rtc.update_timer = 0 ;//will run gsm_send_time
-						prompt("Record CMD failure, need product SN first!\r\n");
+						prompt("Record CMD failure, need product SN first! CMD_seq: %02X\r\n",\
+							*((buf->start)+1));
+						if ( my_icar.stm32_rtc.update_count > 1 ) {//waiting server return
+							;//no need send again
+						}
+						else {
+							my_icar.stm32_rtc.update_timer = 0 ;//will run gsm_send_time
+						}
+
 						break;
 
 					case 0x2://need upload SN first
-						prompt("Record CMD failure, insert into database error!\r\n");
+						prompt("Record CMD failure, insert into database error! \
+							CMD_seq: %02X\r\n",*((buf->start)+1));
 						break;
 
 					default:
-						prompt("Record CMD failure, unknow error code: %d  ",\
-								*((buf->start)+5));
+						prompt("Record CMD failure, unknow error code: %d CMD_seq: %02X ",\
+								*((buf->start)+5),*((buf->start)+1));
 						printf("check %s: %d\r\n",__FILE__,__LINE__);
 						break;
 					}
@@ -425,12 +448,11 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf ,struct SENT_QUEU
 
 				case GSM_CMD_TIME://0x54,'T'
 					//C9 08 D4 00 04 4F 0B CD E5 7D
-					//prompt("Time respond PCB: 0x%X @ %08X, %08X~%08X\r\n",\
-						//buf->pcb&0x7F,buf->start,\
-						//c2s_data.rx,c2s_data.rx+GSM_BUF_LENGTH);
 
+					my_icar.stm32_rtc.update_count = 0 ;
 					//Update and calibrate RTC
 					RTC_update_calibrate(buf->start,c2s_data.rx) ;
+
 					break;
 
 				default:
@@ -471,9 +493,9 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf ,struct SENT_QUEU
 			}
 			OS_EXIT_CRITICAL();
 
-			prompt("Next add: %X\t",c2s_data.rx_out_last);
-			printf("In last: %X\t",c2s_data.rx_in_last);
-			printf("rx_empty: %X\r\n",c2s_data.rx_empty);
+			//prompt("Next add: %X\t",c2s_data.rx_out_last);
+			//printf("In last: %X\t",c2s_data.rx_in_last);
+			//printf("rx_empty: %X\r\n",c2s_data.rx_empty);
 
 			//update the next status
 			buf->status = S_HEAD;
@@ -506,7 +528,7 @@ static unsigned int calc_free_buffer(unsigned char *in,unsigned char *out,unsign
 //return 0: ok
 //return 1: no send queue
 //return 2: no free buffer or buffer busy
-static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *sequence)
+static unsigned char gsm_send_time( unsigned char *sequence)
 {
 	static unsigned char i, chkbyte, index;
 
@@ -517,7 +539,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 	//find a no use SENT_QUEUE to record the SEQ/CMD
 	for ( index = 0 ; index < MAX_CMD_QUEUE-2 ; index++) {
 
-		if ( queue_p[index].send_pcb == 0 ) { //no use
+		if ( c2s_data.queue_sent[index].send_pcb == 0 ) { //no use
 
 			prompt("Update RTC, tx_len: %d, tx_lock: %d, ",\
 				c2s_data.tx_len,c2s_data.tx_lock);
@@ -536,9 +558,10 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				OS_EXIT_CRITICAL();
 
 				//set protocol string value
-				queue_p[index].send_timer= OSTime ;
-				queue_p[index].send_seq = *sequence ;
-				queue_p[index].send_pcb = GSM_CMD_TIME ;
+				c2s_data.queue_sent[index].send_timer= OSTime ;
+				c2s_data.queue_sent[index].send_seq = *sequence ;
+				c2s_data.queue_sent[index].send_pcb = GSM_CMD_TIME ;
+				c2s_data.queue_count++;
 	
 				//prepare GSM command
 				c2s_data.tx[c2s_data.tx_len]   = GSM_HEAD ;
@@ -560,6 +583,11 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				//update buf length
 				c2s_data.tx_len = c2s_data.tx_len + 16 ;
 	
+				c2s_data.tx_timer= 0 ;//need send immediately
+				prompt("RESET c2s_data.tx_timer @ %d\r\n",__LINE__);							
+
+				my_icar.stm32_rtc.update_count++ ;
+
 				OS_ENTER_CRITICAL();
 				c2s_data.tx_lock = false ;
 				OS_EXIT_CRITICAL();
@@ -570,10 +598,10 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 				prompt("No free buffer or buffer busy! check %s:%d\r\n",__FILE__, __LINE__);	
 				return 2;
 			}
-		}//end of queue_p[index].send_pcb == 0
+		}//end of c2s_data.queue_sent[index].send_pcb == 0
 	}
 
-	prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
+	prompt("No free queue: %d check %s:%d\r\n",index,__FILE__, __LINE__);
 	return 1;
 }
 
@@ -581,8 +609,7 @@ static unsigned char gsm_send_time( struct SENT_QUEUE *queue_p, unsigned char *s
 //return 0: ok
 //return 1: no send queue
 //return 2: no free buffer or buffer busy
-static unsigned char gsm_send_record( struct SENT_QUEUE *queue_p, \
-	unsigned char *cmd_seq, unsigned int *record_seq)
+static unsigned char gsm_send_record( unsigned char *cmd_seq, unsigned int *record_seq)
 {
 	static unsigned char i, chkbyte, index, ip_length;
 	static unsigned int seq = 0;
@@ -591,13 +618,13 @@ static unsigned char gsm_send_record( struct SENT_QUEUE *queue_p, \
 #endif
 
 	//find a no use SENT_QUEUE to record the SEQ/CMD
-	for ( index = 0 ; index < MAX_CMD_QUEUE-2 ; index++) {
+	for ( index = 0 ; index < MAX_CMD_QUEUE-4 ; index++) {
+		//low CMD, leave last 4 queue for other high CMD use
+		if ( c2s_data.queue_sent[index].send_pcb == 0 ) { //no use
 
-		if ( queue_p[index].send_pcb == 0 ) { //no use
-
-			prompt("Update GSM signal, tx_len: %d, tx_lock: %d, ",\
-				c2s_data.tx_len,c2s_data.tx_lock);
-			printf("queue: %02d\r\n",index);
+			//prompt("Update GSM signal, tx_len: %d, tx_lock: %d, ",\
+				//c2s_data.tx_len,c2s_data.tx_lock);
+			//printf("queue: %02d\r\n",index);
 
 			//HEAD SEQ PCB Length(2 bytes) DATA(var char) check
 			//DATA: Record_seq(2 bytes)+GSM signal(1byte)+voltage(2 bytes)+IP
@@ -613,9 +640,10 @@ static unsigned char gsm_send_record( struct SENT_QUEUE *queue_p, \
 				OS_EXIT_CRITICAL();
 
 				//set protocol string value
-				queue_p[index].send_timer= OSTime ;
-				queue_p[index].send_seq = *cmd_seq ;
-				queue_p[index].send_pcb = GSM_CMD_RECORD ;
+				c2s_data.queue_sent[index].send_timer= OSTime ;
+				c2s_data.queue_sent[index].send_seq = *cmd_seq ;
+				c2s_data.queue_sent[index].send_pcb = GSM_CMD_RECORD ;
+				c2s_data.queue_count++;
 	
 				ip_length = strlen((char *)my_icar.mg323.local_ip) ;
 				//prompt("IP: %s Len: %d\r\n",my_icar.mg323.local_ip,ip_length);
@@ -666,9 +694,9 @@ static unsigned char gsm_send_record( struct SENT_QUEUE *queue_p, \
 				prompt("No free buffer or buffer busy! check %s:%d\r\n",__FILE__, __LINE__);	
 				return 2;
 			}
-		}//end of queue_p[index].send_pcb == 0
+		}//end of c2s_data.queue_sent[index].send_pcb == 0
 	}
 
-	prompt("No free queue! check %s:%d\r\n",__FILE__, __LINE__);
+	prompt("No free queue: %d check %s:%d\r\n",index,__FILE__, __LINE__);
 	return 1;
 }
