@@ -6,7 +6,7 @@ extern struct ICAR_DEVICE my_icar;
 //BKP_DR1, stm32_rtc.prescaler
 //BKP_DR2, GSM Module power off timer
 //BKP_DR3, GSM Module power off reason
-
+/*
 static unsigned int datetime_to_seconds (struct DATE_TIME *datetime)
 {
     unsigned int years, months, days;
@@ -24,7 +24,7 @@ static unsigned int datetime_to_seconds (struct DATE_TIME *datetime)
 
     return days*86400 + datetime->hour*3600 + datetime->minute*60 + datetime->second;
 }
-
+*/
 static void seconds_to_datetime (unsigned int counts, struct DATE_TIME *datetime)
 {
     unsigned int  years, months, days, hours, minutes, seconds, tt;

@@ -116,7 +116,7 @@ void  App_TaskGsm (void *p_arg)
 					my_icar.mg323.gprs_count = 0 ;
 
 					if ( !my_icar.mg323.tcp_online ) { //no online
-						prompt("IP %s.\r\n",my_icar.mg323.local_ip);
+						prompt("IP: %s\r\n",my_icar.mg323.local_ip);
 						//send online command
 						putstring(COM2,"AT^SISO=0\r\n");
 						//will be return ^SISW: 0,1,1xxx
@@ -240,8 +240,8 @@ void  App_TaskGsm (void *p_arg)
 					send_tcp_data( );//will update c2s_data.tx_timer if send success
 				}
 				else {//no need send immediately, send later
-					prompt("Send delay, tx_len: %d Time: %d\r\n",\
-						c2s_data.tx_len,OSTime-c2s_data.tx_timer);
+					;//prompt("Send delay, tx_len: %d Time: %d\r\n",\
+						//c2s_data.tx_len,OSTime-c2s_data.tx_timer);
 				}
 			}
 		}
@@ -562,7 +562,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 	//found IP message, i.e ^SICI: 0,2,0,"10.7.60.209"
 	if (strstr((char *)buf,"^SICI: 0,2,")) {
-		prompt("SICI return: %s\r\n",buf);
+		//prompt("SICI return: %s\r\n",buf);
 
 		switch (buf[11]) {
 
