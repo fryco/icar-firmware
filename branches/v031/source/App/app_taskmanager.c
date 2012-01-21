@@ -2,6 +2,7 @@
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static void calc_sn( void );
+static void flash_led( unsigned int );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
 static unsigned char mcu_id_eor( unsigned int );
 static unsigned char gsm_send_time( unsigned char *);
@@ -74,6 +75,10 @@ void  App_TaskManager (void *p_arg)
 		OSTimeDlyHMSM(0, 0,	0, 10);
 	}//2012/1/21 verified
 	*/
+
+	//flash LED, wait power stable and others task init
+	flash_led( 80 );//100ms
+
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();												/* Determine CPU capacity.								*/
 #endif
@@ -95,9 +100,6 @@ void  App_TaskManager (void *p_arg)
 	//enable temperature adc DMA
 	//DMA_Cmd(DMA1_Channel1, ENABLE);
 	DMA1_Channel1->CCR |= DMA_CCR1_EN;
-
-	//wait power stable and others task init
-	OSTimeDlyHMSM(0, 0,	1, 0);
 
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
 	my_icar.mg323.ask_power = true ;
@@ -201,7 +203,7 @@ void  App_TaskManager (void *p_arg)
 				}
 			}
 
-			if ( c2s_data.queue_count > MAX_CMD_QUEUE*4/3 ) {
+			if ( c2s_data.queue_count > MAX_CMD_QUEUE/2 ) {
 				c2s_data.tx_timer= 0 ;//need send immediately
 				prompt("Free queue is: %d, RESET c2s_data.tx_timer @ %d\r\n",\
 					MAX_CMD_QUEUE-c2s_data.queue_count,__LINE__);
@@ -699,4 +701,37 @@ static unsigned char gsm_send_record( unsigned char *cmd_seq, unsigned int *reco
 
 	prompt("No free queue: %d check %s:%d\r\n",index,__FILE__, __LINE__);
 	return 1;
+}
+
+static void flash_led( unsigned int i )
+{
+	led_off(POWER_LED);
+	OSTimeDlyHMSM(0, 0,	0, i);
+
+	led_on(ALARM_LED);
+	OSTimeDlyHMSM(0, 0,	0, i);
+	led_off(ALARM_LED);
+	OSTimeDlyHMSM(0, 0,	0, i);
+
+	led_on(OBD_CAN20);
+	OSTimeDlyHMSM(0, 0,	0, i);
+	led_off(OBD_CAN20);
+	OSTimeDlyHMSM(0, 0,	0, i);
+
+	led_on(OBD_CAN10);
+	OSTimeDlyHMSM(0, 0,	0, i);
+	led_off(OBD_CAN10);
+	OSTimeDlyHMSM(0, 0,	0, i);
+
+	led_on(OBD_CAN20);
+	OSTimeDlyHMSM(0, 0,	0, i);
+	led_off(OBD_CAN20);
+	OSTimeDlyHMSM(0, 0,	0, i);
+
+	led_on(ALARM_LED);
+	OSTimeDlyHMSM(0, 0,	0, i);
+	led_off(ALARM_LED);
+	OSTimeDlyHMSM(0, 0,	0, i);
+
+	led_on(POWER_LED);
 }
