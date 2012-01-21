@@ -56,7 +56,7 @@ bool get_respond( unsigned char* rec_str)
 
 	respond_time = OSTime ;
 	while( OSTime - respond_time < AT_TIMEOUT ) {
-		OSTimeDlyHMSM(0, 0, 0, 10);
+		OSTimeDlyHMSM(0, 0, 0, 20);
 		while ( !my_icar.stm32_u2_rx.empty ) {//receive some data...
 
 			//reset timer here
@@ -91,7 +91,7 @@ bool test_at_uart(void)
 		putstring(COM2, "AT\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
@@ -137,7 +137,7 @@ bool check_sim_state(void)
 		putstring(COM2, "AT+CPIN?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
@@ -174,7 +174,7 @@ bool close_ifc(void)
 		putstring(COM2, "AT+IFC=0,0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
@@ -201,7 +201,7 @@ bool factory_setting(void)
 		putstring(COM2, "AT&F\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
@@ -231,7 +231,7 @@ bool show_income_number(void)
 		putstring(COM2, "AT+CLIP=1\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
@@ -258,7 +258,7 @@ unsigned char check_gsm_CSQ( )
 		putstring(COM2,"AT+CSQ\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
@@ -279,7 +279,7 @@ unsigned char check_gsm_CSQ( )
 			            return  l_tmp;
 					}
 					else {
-						OSTimeDlyHMSM(0, 0,	1, 0);
+						OSTimeDlyHMSM(0, 0,	0, 500);
 						break ;
 					}
 				}
@@ -311,7 +311,7 @@ bool check_gsm_net(void)
 		putstring(COM2, "AT+CREG?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -343,7 +343,7 @@ bool check_gsm_cops( )
 		putstring(COM2, "AT+COPS?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -382,7 +382,7 @@ bool check_gprs_net(void)
 		putstring(COM2, "AT+CGREG?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -412,7 +412,7 @@ bool check_gprs_att( )
 		putstring(COM2, "AT+CGATT?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -447,7 +447,7 @@ bool get_apn_by_imsi( )
 		putstring(COM2, "AT+CIMI\r\n");//get imsi
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -467,7 +467,7 @@ bool get_apn_by_imsi( )
 				debug_gsm("CMD:AT+CIMI no respond, timeout\r\n");
 			}
 		}
-		OSTimeDlyHMSM(0, 0,	1, 0);
+		OSTimeDlyHMSM(0, 0,	0, 500);
 	}
 	return false ;      
 }
@@ -481,7 +481,7 @@ bool set_conn_type( )
 		putstring(COM2,"AT^SICS=0,conType, GPRS0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -514,7 +514,7 @@ bool set_gprs_apn( )
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -547,7 +547,7 @@ bool set_gprs_user( )
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -581,7 +581,7 @@ bool set_gprs_passwd( )
 		putstring(COM2, "\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -611,7 +611,7 @@ bool set_conn_id( )
 		putstring(COM2,"AT^SISS=0,conId,0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -641,7 +641,7 @@ bool set_svr_type( )
 		putstring(COM2,"AT^SISS=0,srvType, Socket\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -673,7 +673,7 @@ bool set_dest_ip( )
 		putstring(COM2,"\"\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -703,7 +703,7 @@ bool start_tcp_conn( )
 		putstring(COM2,"AT^SISO=0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -733,7 +733,7 @@ bool close_tcp_conn( )
 		putstring(COM2,"AT^SISC=0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -763,7 +763,7 @@ u8 check_tcp_status( )
 		putstring(COM2,"AT^SISI?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -794,7 +794,7 @@ bool get_local_ip( )
 		putstring(COM2,"AT^SICI?\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -838,7 +838,7 @@ bool gsm_ask_tcp( unsigned int dat_len )
 		//wait GSM return: ^SISW: 0,xx,xx
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -861,7 +861,7 @@ bool gsm_ask_tcp( unsigned int dat_len )
 				debug_gsm("CMD:AT^SISW no respond, timeout\r\n");
 			}
 		}
-		OSTimeDlyHMSM(0, 0,	10, 0);
+		OSTimeDlyHMSM(0, 0,	1, 0);
 	}
 
 	return false ;      
@@ -887,7 +887,7 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 	//wait GSM return: ERROR or OK
 	memset(respond_str, 0x0, AT_CMD_LENGTH);
 	if ( my_icar.stm32_u2_rx.empty ) {//no data...
-		OSTimeDlyHMSM(0, 0,	0, 500);
+		OSTimeDlyHMSM(0, 0,	0, 100);
 	}
 	while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 		if ( get_respond(respond_str) ) {
@@ -901,7 +901,7 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 				return false;
 			}
 			if (strstr((char *)respond_str,"OK")) {
-				OSTimeDlyHMSM(0, 0,	0, 50);//wait ^SISW: 0,1
+				OSTimeDlyHMSM(0, 0,	0, 20);//wait ^SISW: 0,1
 			}
 
 			if (strstr((char *)respond_str,"^SISW: 0,1")) {
@@ -928,7 +928,7 @@ bool gsm_dial( unsigned char * phone_number )
 		putstring(COM2,";\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -945,7 +945,7 @@ bool gsm_dial( unsigned char * phone_number )
 				debug_gsm("CMD:ATD no respond, timeout\r\n");
 			}
 		}
-		OSTimeDlyHMSM(0, 0,	10, 0);
+		OSTimeDlyHMSM(0, 0,	1, 0);
 	}
 	return false ;      
 }
@@ -959,7 +959,7 @@ bool shutdown_mg323( )
 		putstring(COM2,"AT^SMSO\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 500);
+			OSTimeDlyHMSM(0, 0,	0, 100);
 		}
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
@@ -1007,13 +1007,13 @@ unsigned char gsm_power_on( )
 	GSM_PM_ON;
 
 	//check module: mg323
-	OSTimeDlyHMSM(0, 0, 2, 0);
+	OSTimeDlyHMSM(0, 0, 2, 0);//wait power stable
 	if( !test_at_uart() )  {
 		//module no respond, need to reset
 		debug_gsm("\r\nGSM module no respond, force shutdown...\r\n");
 		GSM_PM_OFF;
 		my_icar.mg323.power_on = false;
-		OSTimeDlyHMSM(0, 0, 30, 0);
+		OSTimeDlyHMSM(0, 0, 10, 0);
 		return 4 ; //mg323 no respond
 	}
 
@@ -1028,7 +1028,7 @@ unsigned char gsm_power_on( )
 	prompt("Check SIM card status ok.\r\n");
 
 	factory_setting( );
-	OSTimeDlyHMSM(0, 0, 0, 500);
+	OSTimeDlyHMSM(0, 0, 1, 0);
 	close_ifc();//关闭硬件流控制
 
 	//check gsm network
@@ -1145,15 +1145,15 @@ bool gsm_pwr_off(void)
 
 	if ( result_temp != 2 ) { //error, force shutdown
 		close_tcp_conn( );
-		OSTimeDlyHMSM(0, 0, 5, 0);
+		OSTimeDlyHMSM(0, 0, 3, 0);
 		close_tcp_conn( );
-		OSTimeDlyHMSM(0, 0, 5, 0);
+		OSTimeDlyHMSM(0, 0, 3, 0);
 	}
 
 	//shutdown module ... AT^SMSO
 	if( !shutdown_mg323( ) )  {
 		debug_gsm("shutdown error\r\n");
-		OSTimeDlyHMSM(0, 0, 5, 0);
+		OSTimeDlyHMSM(0, 0, 3, 0);
 		shutdown_mg323( );
 	}
 	else {

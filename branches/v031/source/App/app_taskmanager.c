@@ -61,8 +61,16 @@ void  App_TaskManager (void *p_arg)
 	c2s_data.rx_full = false ;
 
 	/* Initialize the SysTick.								*/
-	OS_CPU_SysTickInit(); 
-
+	OS_CPU_SysTickInit();
+	//Note: the minimum time unit is 10ms,
+	//Don't use: OSTimeDlyHMSM(0,0,0,1 );
+	//At least : OSTimeDlyHMSM(0,0,0,10);
+	/*
+	while ( 1 ) {//for verify tick accuracy
+		led_toggle( ALARM_LED ) ;
+		OSTimeDlyHMSM(0, 0,	0, 10);
+	}//2012/1/21 verified
+	*/
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();												/* Determine CPU capacity.								*/
 #endif
@@ -128,7 +136,7 @@ void  App_TaskManager (void *p_arg)
 		}
 
 		if ( my_icar.login_timer ) {//send others CMD after login
-			if ( (OSTime/1000)%3 == 0 ) {//record GSM signal, for testing
+			if ( (OSTime/100)%3 == 0 ) {//record GSM signal, for testing
 				gsm_send_record( gsm_sent_q, &gsm_sequence, &record_sequence );
 			}
 		}
@@ -170,20 +178,18 @@ void  App_TaskManager (void *p_arg)
 			adc = 142000 - ((adc*330*1000) >> 12);
 			adc = adc*100/435+2500;
 
-			if ( (OSTime/1000)%10 == 0 ) {
+			if ( (OSTime/100)%10 == 0 ) {
 				prompt("T: %d.%02d C\t",adc/100,adc%100);
 				RTC_show_time(RTC_GetCounter());
 			}
 		}
 				 
 		/* Insert delay	*/
-		//OSTimeDlyHMSM(0, 0,	1, 0);
 		OSTimeDlyHMSM(0, 0,	0, 800);
 		//printf("L%010d\r\n",OSTime);
-		led_toggle( OBD_UNKNOW ) ;
-		//led_toggle( OBD_KWP ) ;
+		led_toggle( POWER_LED ) ;
 
-		if ( (OSTime/1000)%10 == 0 ) {//check every 10 sec, don't check last 2 queue
+		if ( (OSTime/100)%10 == 0 ) {//check every 10 sec, don't check last 2 queue
 			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE-2 ; var_uchar++) {
 				if ( (OSTime - gsm_sent_q[var_uchar].send_timer > 60*1000) \
 					&& (gsm_sent_q[var_uchar].send_pcb !=0)) {

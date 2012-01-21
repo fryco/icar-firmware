@@ -166,27 +166,18 @@ void  App_TaskGsm (void *p_arg)
 
 			//Send GSM signal and tcp status cmd every 3 sec.
 			
-			if ( (OSTime/1000)%2 == 0 ) {// GPRS
-				putstring(COM2,"AT+CSQ\r\n");//Signal
-			}
-			if ( (OSTime/1000)%2 == 1 ) {//connection status
+			if ( (OSTime/100)%3 == 0 ) {//connection status
 				putstring(COM2,"AT^SISI?\r\n");
-			}
-
-			if ( (OSTime/1000)%5 == 2 ) {
-				//ask the IP, return:^SICI: 0,2,1,"10.156.174.147"
-				//send when SISI return error
+				//send below when SISI return error
 				//putstring(COM2,"AT^SICI?\r\n");
-			}
-
-			if ( (OSTime/1000)%5 == 4 ) {
-				//send when SISI return error
 				//putstring(COM2, "AT+CGREG?\r\n");
 			}
-
+			else {
+				putstring(COM2,"AT+CSQ\r\n");//Signal
+			}
 
 			//waiting GSM respond
-			OSTimeDlyHMSM(0, 0, 0, 10);
+			OSTimeDlyHMSM(0, 0, 0, 20);
 
 			//if need dial
 			if ( my_icar.mg323.need_dial && !my_icar.mg323.voice_confirm) {

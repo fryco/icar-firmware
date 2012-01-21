@@ -260,7 +260,7 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
-				OSTimeDlyHMSM(0, 0,	0, 1); //wait 1 msecond, send ~10Bytes@115200
+				OSTimeDlyHMSM(0, 0,	0, 10); //wait 10 msecond, send ~100Bytes@115200
 				//USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
 			}                     
 
@@ -286,7 +286,7 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
-				OSTimeDlyHMSM(0, 0,	0, 1); //wait 1 msecond, send ~10Bytes@115200
+				OSTimeDlyHMSM(0, 0,	0, 10); //wait 10 msecond, send ~100Bytes@115200
 				//USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
 			}                     
 
@@ -313,7 +313,7 @@ bool putbyte( COM_TypeDef COM, unsigned char ch )
 				//中断发送不及，缓存即将满时...
 				USART_ITConfig(USART3, USART_IT_TXE, ENABLE);
 				//延时，把缓存发送出去
-				OSTimeDlyHMSM(0, 0,	0, 1); //wait 1 msecond, send ~10Bytes@115200
+				OSTimeDlyHMSM(0, 0,	0, 10); //wait 10 msecond, send ~100Bytes@115200
 				//USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
 			}                     
 
@@ -470,7 +470,7 @@ bool putstring(COM_TypeDef COM, unsigned char  *puts)
 			OSTimeDlyHMSM(0, 0,	retry, 0); //wait xx sec.
 		}
 
-		if ( retry == 10 ) {
+		if ( retry >= 10 ) {
 			return false;
 		}
 	}
@@ -578,7 +578,7 @@ PUTCHAR_PROTOTYPE
 		OSTimeDlyHMSM(0, 0,	0, 10); //wait 10 msec.
 	}
 
-	if ( retry == 100 ) {
+	if ( retry >= 100 ) {
 		while ( 1 ) USART1->DR ='E' ;
 	}
 	else {

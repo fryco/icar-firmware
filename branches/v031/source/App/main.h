@@ -52,7 +52,7 @@
 #define GSM_CMD_TIME			0x54 //'T', time
 
 
-#define	prompt(x, args...)	printf("[%d,%02d%%]> ",OSTime/1000,OSCPUUsage);printf(x,	##args);
+#define	prompt(x, args...)	printf("[%d,%02d%%]> ",OSTime/100,OSCPUUsage);printf(x,	##args);
 
 /* Exported functions ------------------------------------------------------- */
 
