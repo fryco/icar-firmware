@@ -6,11 +6,11 @@
 #include "stm32f10x.h"
 
 /* Exported macro ------------------------------------------------------------*/
-#define MAX_CMD_QUEUE		10
+#define MAX_CMD_QUEUE		60
 
 //HEAD SEQ CMD Length(2 bytes) INF(Max.1024) check
 //#define GSM_BUF_LENGTH		1024+8 //for GSM command
-#define GSM_BUF_LENGTH		257 //for GSM command
+#define GSM_BUF_LENGTH		1024 //for GSM command
 
 /* Exported types ------------------------------------------------------------*/
 typedef enum
@@ -37,10 +37,16 @@ struct SENT_QUEUE {
 };
 
 struct CAR2SERVER_COMMUNICATION {
+	//queue for sent CMD
+	unsigned char queue_count ;
+	struct SENT_QUEUE queue_sent[MAX_CMD_QUEUE];//last 2 queue for emergency event
+
+	//tx buffer for tcp data
 	bool tx_lock ; //如果发现长期加锁情况，则加lock_timer
 	//tx buffer for tcp data
 	unsigned char tx[GSM_BUF_LENGTH];
 	unsigned int tx_len;//tx_len=0即为 empty;tx_len=GSM_BUF_LENGTH即为full
+	unsigned int tx_timer; // send if > TCP_SEND_PERIOD
 
 	//rx buffer for tcp data
 	unsigned char rx[GSM_BUF_LENGTH];
@@ -48,7 +54,8 @@ struct CAR2SERVER_COMMUNICATION {
 	unsigned char *rx_in_last;
 	bool rx_empty;
 	bool rx_full;
-	unsigned int rx_timer;
+	unsigned int rx_timer;//prevent rx timeout
+	unsigned int check_timer;//check rx period
 };
 
 /* Exported constants --------------------------------------------------------*/

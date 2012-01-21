@@ -136,11 +136,12 @@ void rtc_init(void)	{
 	/* Wait until last write operation on RTC registers has finished */
 	RTC_WaitForLastTask();
 
-	my_icar.stm32_rtc.update_timer = 0 ;
-
 	seconds_to_datetime(RTC_GetCounter() , &datetime);
 	prompt("UTC: %04d-%02d-%02d  ", datetime.year, datetime.month, datetime.day);
 	printf("%02d:%02d:%02d\r\n", datetime.hour, datetime.minute, datetime.second);
+
+	my_icar.stm32_rtc.update_timer = 0 ;
+	my_icar.stm32_rtc.update_count = 0 ;
 }
 
 void RTC_update_calibrate( unsigned char *p1, unsigned char *p2) 

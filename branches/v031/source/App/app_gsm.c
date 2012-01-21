@@ -121,9 +121,18 @@ void  App_TaskGsm (void *p_arg)
 						putstring(COM2,"AT^SISO=0\r\n");
 						//will be return ^SISW: 0,1,1xxx
 						//confirm this return in later
+						c2s_data.check_timer = 0 ;//need check GSM TCP buffer
 						my_icar.mg323.try_online++;
 						prompt("Try %d to online...\r\n",my_icar.mg323.try_online);
-						if ( my_icar.mg323.try_online > 15 ) {//failure > 15
+	
+						if ( my_icar.stm32_rtc.update_count > 1 ) {//waiting server return
+							;//no need send again
+						}
+						else {
+							my_icar.stm32_rtc.update_timer = 0 ;//need run gsm_send_time
+						}
+
+						if ( my_icar.mg323.try_online > MAX_ONLINE_TRY ) {//failure
 							my_icar.mg323.gprs_ready = false;
 							my_icar.mg323.tcp_online = false ;
 							my_icar.mg323.power_on = false;
@@ -167,10 +176,15 @@ void  App_TaskGsm (void *p_arg)
 			//Send GSM signal and tcp status cmd every 3 sec.
 			
 			if ( (OSTime/100)%3 == 0 ) {//connection status
-				putstring(COM2,"AT^SISI?\r\n");
-				//send below when SISI return error
-				//putstring(COM2,"AT^SICI?\r\n");
-				//putstring(COM2, "AT+CGREG?\r\n");
+				if ( (OSTime/100)%6 == 0 ) {
+					putstring(COM2,"AT^SICI?\r\n");
+				}
+				else {
+					putstring(COM2,"AT^SISI?\r\n");
+					//send below when SISI return error
+					//putstring(COM2,"AT^SICI?\r\n");
+					//putstring(COM2, "AT+CGREG?\r\n");
+				}
 			}
 			else {
 				putstring(COM2,"AT+CSQ\r\n");//Signal
@@ -182,7 +196,7 @@ void  App_TaskGsm (void *p_arg)
 			//if need dial
 			if ( my_icar.mg323.need_dial && !my_icar.mg323.voice_confirm) {
 
-				if ( OSTime - my_icar.mg323.dial_timer > 2*60*1000 ) {//re-dial after 2 mins
+				if ( OSTime - my_icar.mg323.dial_timer > RE_DIAL_PERIOD ) {//re-dial after 2 mins
 					prompt("Call my phone for confirm...");
 					my_icar.mg323.dial_timer = OSTime ;
 					putstring(COM2,"ATD");
@@ -206,18 +220,29 @@ void  App_TaskGsm (void *p_arg)
 
 
 			//Check mg323 has data or not
-			if ( !my_icar.mg323.rx_empty && my_icar.mg323.tcp_online) { //has data
+			if ( (c2s_data.check_timer == 0) \
+				|| ((OSTime-c2s_data.check_timer)>TCP_CHECK_PERIOD) \
+				|| (!my_icar.mg323.rx_empty && my_icar.mg323.tcp_online)) { //has data
 
 				read_tcp_data( rec_str );
-
+				c2s_data.check_timer = OSTime ;//Update timer
 			}
 
 			//Check c2s_data.tx_len, if > 0, then send it
 			if ( my_icar.mg323.tcp_online \
-				&& c2s_data.tx_len > 0 \
-				&& !c2s_data.tx_lock ) { //can send data
+				&& c2s_data.tx_len > 0 ) { //can send data
+				//&& !c2s_data.tx_lock ) { //can send data
 
-				send_tcp_data( );
+				if ( (c2s_data.tx_len > GSM_BUF_LENGTH/2) \
+					|| c2s_data.tx_timer == 0 \
+					|| (OSTime-c2s_data.tx_timer) > TCP_SEND_PERIOD) {
+
+					send_tcp_data( );//will update c2s_data.tx_timer if send success
+				}
+				else {//no need send immediately, send later
+					prompt("Send delay, tx_len: %d Time: %d\r\n",\
+						c2s_data.tx_len,OSTime-c2s_data.tx_timer);
+				}
 			}
 		}
 		else { //gsm power off
@@ -225,7 +250,7 @@ void  App_TaskGsm (void *p_arg)
 		}
 
 		//update relay status even gsm power off
-		if ( OSTime - relay_timer > my_icar.mg323.ring_count*10*60*1000 ) { //10 mins.
+		if ( OSTime - relay_timer > my_icar.mg323.ring_count*RELAY_ON_PERIOD ) { //10 mins.
 			led_off(RELAY_LED);//shutdown relay
 			my_icar.mg323.ring_count = 0 ;
 			my_icar.mg323.need_dial = true ;
@@ -381,30 +406,33 @@ static void send_tcp_data( )
     OS_CPU_SR  cpu_sr = 0;
 #endif
 	
-	OS_ENTER_CRITICAL();
-	c2s_data.tx_lock = true ;
-	OS_EXIT_CRITICAL();
-
-	if ( gsm_ask_tcp(c2s_data.tx_len) ) {//GSM buffer ready
-		//prompt("Wil send data %s\tline: %d.\r\n",__FILE__, __LINE__);
-		if ( gsm_send_tcp(c2s_data.tx,c2s_data.tx_len) ) {
-			//Check: ^SISW: 0,1 
-			c2s_data.tx_len = 0 ;
-			//printf("\tOK!\r\n");
+	if ( !c2s_data.tx_lock ) {
+		OS_ENTER_CRITICAL();
+		c2s_data.tx_lock = true ;
+		OS_EXIT_CRITICAL();
+	
+		if ( gsm_ask_tcp(c2s_data.tx_len) ) {//GSM buffer ready
+			//prompt("Wil send data %s\tline: %d.\r\n",__FILE__, __LINE__);
+			if ( gsm_send_tcp(c2s_data.tx,c2s_data.tx_len) ) {
+				//Check: ^SISW: 0,1 
+				prompt("Send %d bytes OK!\r\n",c2s_data.tx_len);
+				c2s_data.tx_len = 0 ;
+				c2s_data.tx_timer = OSTime ;//update timer
+			}
+			else {
+				printf("\r\nGSM send TCP data error.\t");
+				prompt("Check %s, line:	%d\r\n",__FILE__, __LINE__);
+			}
 		}
-		else {
-			printf("\r\nGSM send TCP data error.\t");
-			prompt("Check %s, line:	%d\r\n",__FILE__, __LINE__);
+		else {//may GSM module no respond, need to enquire
+			putstring(COM2,"AT^SISI?\r\n");//enquire online or not
+			prompt("Can not send data %s\tline: %d.\r\n",__FILE__, __LINE__);
 		}
+	
+		OS_ENTER_CRITICAL();
+		c2s_data.tx_lock = false ;
+		OS_EXIT_CRITICAL();
 	}
-	else {//may GSM module no respond, need to enquire
-		putstring(COM2,"AT^SISI?\r\n");//enquire online or not
-		prompt("Can not send data %s\tline: %d.\r\n",__FILE__, __LINE__);
-	}
-
-	OS_ENTER_CRITICAL();
-	c2s_data.tx_lock = false ;
-	OS_EXIT_CRITICAL();
 }
 
 //return 0:	ok
