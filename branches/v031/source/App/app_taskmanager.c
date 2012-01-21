@@ -420,7 +420,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					switch (*((buf->start)+5)) {
 
 					case 0x0://record success
-						prompt("Record CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						//prompt("Record CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						break;
 
 					case 0x1://need upload SN first
@@ -586,7 +586,7 @@ static unsigned char gsm_send_time( unsigned char *sequence)
 				c2s_data.tx_len = c2s_data.tx_len + 16 ;
 	
 				c2s_data.tx_timer= 0 ;//need send immediately
-				prompt("RESET c2s_data.tx_timer @ %d\r\n",__LINE__);							
+				//prompt("RESET c2s_data.tx_timer @ %d\r\n",__LINE__);							
 
 				my_icar.stm32_rtc.update_count++ ;
 
@@ -597,7 +597,14 @@ static unsigned char gsm_send_time( unsigned char *sequence)
 				return 0 ;
 			}//end of if ( !c2s_data.tx_lock && c2s_data.tx_len < (GSM_BUF_LENGTH-20))
 			else {//no buffer
-				prompt("No free buffer or buffer busy! check %s:%d\r\n",__FILE__, __LINE__);	
+				if ( c2s_data.tx_lock ) {
+					prompt("TCP tx buffer lock: %d, can't add CMD: %c ",\
+							c2s_data.tx_lock,GSM_CMD_TIME);
+				}
+				else {
+					prompt("TCP tx free buffer: %d ",GSM_BUF_LENGTH-c2s_data.tx_len);
+				}
+				printf("check %s:%d\r\n",__FILE__, __LINE__);
 				return 2;
 			}
 		}//end of c2s_data.queue_sent[index].send_pcb == 0
@@ -693,7 +700,14 @@ static unsigned char gsm_send_record( unsigned char *cmd_seq, unsigned int *reco
 				return 0 ;
 			}//end of if ( !c2s_data.tx_lock && c2s_data.tx_len < (GSM_BUF_LENGTH-20))
 			else {//no buffer
-				prompt("No free buffer or buffer busy! check %s:%d\r\n",__FILE__, __LINE__);	
+				if ( c2s_data.tx_lock ) {
+					prompt("TCP tx buffer lock: %d, can't add CMD: %c ",\
+							c2s_data.tx_lock,GSM_CMD_RECORD);
+				}
+				else {
+					prompt("TCP tx free buffer: %d ",GSM_BUF_LENGTH-c2s_data.tx_len);
+				}
+				printf("check %s:%d\r\n",__FILE__, __LINE__);
 				return 2;
 			}
 		}//end of c2s_data.queue_sent[index].send_pcb == 0
