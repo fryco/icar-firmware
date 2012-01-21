@@ -356,8 +356,8 @@ void  OS_CPU_SysTickHandler (void)
 void  OS_CPU_SysTickInit (void)
 {
 
-  /* Setup SysTick Timer for 1 msec interrupts  */
-  if (SysTick_Config(SystemCoreClock / 1000))
+  /* Setup SysTick Timer for 10 msec interrupts  */
+  if (SysTick_Config(SystemCoreClock / 100))
   { 
     /* Capture error */ 
     while (1);
