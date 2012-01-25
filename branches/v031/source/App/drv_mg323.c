@@ -785,7 +785,7 @@ u8 check_tcp_status( )
 	return false ;      
 }
 
-bool get_local_ip( )
+bool get_ip_local( )
 {
 	u8 i, retry;
 	u8 respond_str[AT_CMD_LENGTH];
@@ -806,7 +806,7 @@ bool get_local_ip( )
 				i = 0 ;
 				if (strstr((char *)respond_str,"SICI: 0,2,1,")) {
 					while ( respond_str[i+14] != 0x22 ) { //"
-						my_icar.mg323.local_ip[i] = respond_str[i+14];
+						my_icar.mg323.ip_local[i] = respond_str[i+14];
 						if ( i > 15 ) return false ;//prevent overflow
 						i++ ;
 					}

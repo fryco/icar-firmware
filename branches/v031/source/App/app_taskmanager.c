@@ -5,6 +5,7 @@ static void calc_sn( void );
 static void flash_led( unsigned int );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
 static unsigned char mcu_id_eor( unsigned int );
+static unsigned char gsm_send_pcb( unsigned char *, unsigned char);//protocol control byte
 static unsigned char gsm_send_time( unsigned char *);
 static unsigned char gsm_send_record( unsigned char *, unsigned int *);
 static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *);
@@ -42,6 +43,7 @@ void  App_TaskManager (void *p_arg)
 	unsigned char var_uchar , gsm_sequence=0;
 	unsigned int record_sequence = 0;
 	struct GSM_RX_RESPOND mg323_rx_cmd;
+	unsigned char ip_old[IP_LEN];
 
 	u16 adc;
 
@@ -144,6 +146,16 @@ void  App_TaskManager (void *p_arg)
 			//if ( (OSTime/100)%3 == 0 ) {//record GSM signal, for testing
 				gsm_send_record( &gsm_sequence, &record_sequence );
 			//}
+
+
+			if ( !(cmpmem((unsigned char *)my_icar.mg323.ip_local,ip_old,strlen((char *)my_icar.mg323.ip_local)))\
+					&& !my_icar.mg323.ip_updating ) {
+
+				my_icar.mg323.ip_updating = true ;
+				gsm_send_pcb(&gsm_sequence, GSM_CMD_IP);
+				//strncpy((char *)ip_old,(char *)my_icar.mg323.ip_local, IP_LEN-1);
+			}
+
 		}
 
 		if ( !c2s_data.rx_empty ) {//receive some TCP data from GSM
@@ -654,8 +666,8 @@ static unsigned char gsm_send_record( unsigned char *cmd_seq, unsigned int *reco
 				c2s_data.queue_sent[index].send_pcb = GSM_CMD_RECORD ;
 				c2s_data.queue_count++;
 	
-				ip_length = strlen((char *)my_icar.mg323.local_ip) ;
-				//prompt("IP: %s Len: %d\r\n",my_icar.mg323.local_ip,ip_length);
+				ip_length = strlen((char *)my_icar.mg323.ip_local) ;
+				//prompt("IP: %s Len: %d\r\n",my_icar.mg323.ip_local,ip_length);
 				//prepare GSM command
 				c2s_data.tx[c2s_data.tx_len]   = GSM_HEAD ;
 				c2s_data.tx[c2s_data.tx_len+1] = *cmd_seq ;//SEQ
@@ -679,7 +691,7 @@ static unsigned char gsm_send_record( unsigned char *cmd_seq, unsigned int *reco
 
 				//Local IP
 				strncpy((char *)&c2s_data.tx[c2s_data.tx_len+10], \
-					(char *)my_icar.mg323.local_ip, IP_LEN-1);
+					(char *)my_icar.mg323.ip_local, IP_LEN-1);
 
 	
 				//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
@@ -748,4 +760,90 @@ static void flash_led( unsigned int i )
 	OSTimeDlyHMSM(0, 0,	0, i);
 
 	led_on(POWER_LED);
+}
+
+//return 0: ok
+//return 1: no send queue
+//return 2: no free buffer or buffer busy
+static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pcb)
+{
+	static unsigned char i, chkbyte, index, ip_length;
+
+#if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
+    OS_CPU_SR  cpu_sr = 0;
+#endif
+
+	//find a no use SENT_QUEUE to record the SEQ/CMD
+	for ( index = 0 ; index < MAX_CMD_QUEUE-4 ; index++) {
+
+		if ( c2s_data.queue_sent[index].send_pcb == 0 ) { //no use
+
+			prompt("Send PCB %02X, tx_len: %d, tx_lock: %d, ",\
+				out_pcb,c2s_data.tx_len,c2s_data.tx_lock);
+			printf("queue: %02d\r\n",index);
+
+			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
+
+			if ( !c2s_data.tx_lock \
+				&& c2s_data.tx_len < (GSM_BUF_LENGTH-20) ) {
+				//no process occupy && have enough buffer
+	
+				OS_ENTER_CRITICAL();
+				c2s_data.tx_lock = true ;
+				OS_EXIT_CRITICAL();
+
+				//save pcb to queue
+				c2s_data.queue_sent[index].send_timer= OSTime ;
+				c2s_data.queue_sent[index].send_seq = *sequence ;
+				c2s_data.queue_sent[index].send_pcb = out_pcb ;
+				c2s_data.queue_count++;
+	
+				//prepare GSM command
+				c2s_data.tx[c2s_data.tx_len]   = GSM_HEAD ;
+				c2s_data.tx[c2s_data.tx_len+1] = *sequence ;//SEQ
+				*sequence = c2s_data.tx[c2s_data.tx_len+1]+1;//increase seq
+				c2s_data.tx[c2s_data.tx_len+2] = out_pcb ;//PCB
+
+				if ( out_pcb == GSM_CMD_IP ) {
+					ip_length = strlen((char *)my_icar.mg323.ip_local) ;
+
+					c2s_data.tx[c2s_data.tx_len+3] = 0  ;//length high
+					c2s_data.tx[c2s_data.tx_len+4] = ip_length;//length low
+					//Local IP
+					strncpy((char *)&c2s_data.tx[c2s_data.tx_len+5], \
+						(char *)my_icar.mg323.ip_local, IP_LEN-1);
+
+					//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+					chkbyte = GSM_HEAD ;
+					for ( i = 1 ; i < 5+ip_length ; i++ ) {//calc chkbyte
+						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
+						//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+					}
+					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
+					//printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+i]);
+					//update buf length
+					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
+				}	
+				OS_ENTER_CRITICAL();
+				c2s_data.tx_lock = false ;
+				OS_EXIT_CRITICAL();
+
+				return 0 ;
+			}//end of if ( !c2s_data.tx_lock && c2s_data.tx_len < (GSM_BUF_LENGTH-20))
+			else {//no buffer
+				if ( c2s_data.tx_lock ) {
+					prompt("TCP tx buffer lock: %d, can't add CMD: %c ",\
+							c2s_data.tx_lock,GSM_CMD_TIME);
+				}
+				else {
+					prompt("TCP tx free buffer: %d ",GSM_BUF_LENGTH-c2s_data.tx_len);
+				}
+				printf("check %s:%d\r\n",__FILE__, __LINE__);
+				return 2;
+			}
+		}//end of c2s_data.queue_sent[index].send_pcb == 0
+	}
+
+	prompt("No free queue: %d check %s:%d\r\n",index,__FILE__, __LINE__);
+	return 1;
 }
