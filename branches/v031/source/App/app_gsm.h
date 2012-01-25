@@ -34,7 +34,8 @@ struct GSM_STATUS {
 	//运营商信息，+COPS: 0,0,"CHINA MOBILE"
 	unsigned char carrier[32];
 	unsigned char imsi[16];
-	unsigned char local_ip[IP_LEN];
+	unsigned char ip_local[IP_LEN];
+	bool ip_updating;//updating to server 
 	unsigned char *server_ip_port;
 	unsigned int apn_index;
 	unsigned char signal;
