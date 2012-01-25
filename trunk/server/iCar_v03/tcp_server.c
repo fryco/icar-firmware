@@ -60,6 +60,9 @@ void process_conn_server(struct icar_data *mycar)
 	int cmd_err_cnt = 0 ;//command error count
 	struct icar_command cmd ;
 
+	memset(cmd.pro_sn, 0x0, 10);
+	mycar->sn = cmd.pro_sn ;
+
 	if ( debug_flag ) {
 		fprintf(stderr, "\n%sConnect: %s:%d\n",\
 						(char *)ctime(&ticks),(char *)inet_ntoa(mycar->client_addr.sin_addr),\
@@ -76,11 +79,11 @@ void process_conn_server(struct icar_data *mycar)
 		return ;
 	}
 
-	snprintf(sql_buf,BUFSIZE-1,"insert into t_log values (%d,'0123456789','%s','%d','%s',1,2);",\
+	snprintf(sql_buf,BUFSIZE-1,"insert into t_log_pid values ('',%d,'%s','%d','%d');",\
 			(int)time(NULL),\
 			(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 			ntohs(mycar->client_addr.sin_port),\
-			(char *)inet_ntoa(mycar->client_addr.sin_addr)); //will be replace by local IP
+			getpid());
 
 	if ( mysql_query(&(mycar->mydb.mysql),sql_buf)) {//error
 		fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
@@ -144,7 +147,7 @@ void process_conn_server(struct icar_data *mycar)
 				else {
 					cmd.seq = recv_buf[buf_index+1];
 					cmd.pcb = recv_buf[buf_index+2];
-					fprintf(stderr, "cmd seq=0x%X pcb=0x%X len=%d\r\n",\
+					fprintf(stderr, "cmd seq=0x%X pcb=0x%X len=%d\t",\
 									cmd.seq,cmd.pcb,cmd.len);
 
 					//handle the input cmd
@@ -177,25 +180,126 @@ void process_conn_server(struct icar_data *mycar)
 							fprintf(stderr, "CMD is Record GSM signal...\n");
 						}
 
-						if ( strlen(mycar->sn) == 10 ) {//error
+						if ( strlen(mycar->sn) == 10 ) {
+
 							if ( record_signal(mycar,&recv_buf[buf_index])) {//error
 								if ( debug_flag ) {
 									fprintf(stderr, "Record GSM signal err= %d: %s",\
 										mycar->err_code,mycar->err_msg);
 								}
 				
-								memset(send_buf, '\0', BUFSIZE);  
-								snprintf(send_buf,100,"ER\r\n");
-								write(mycar->client_socket,send_buf,strlen(send_buf));
+
+								if ( record_command(mycar,&recv_buf[buf_index],"DB_ERR",7)) {
+									if ( debug_flag ) {
+										fprintf(stderr, "Record command err= %d: %s",\
+											mycar->err_code,mycar->err_msg);
+										}
+								}
+
+								//send respond 
+								memset(send_buf, '\0', BUFSIZE);
+								send_buf[0] = HEAD ;
+								send_buf[1] = cmd.seq ;
+								send_buf[2] = cmd.pcb | 0x80 ;
+								send_buf[3] =  00;//len high
+								send_buf[4] =  01;//len low
+								send_buf[5] =  02;//insert into database error.
+	
+								//Calc chk
+								cmd.chk = HEAD ;
+								for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
+									cmd.chk ^= send_buf[chk_count] ;
+									//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
+								}
+	
+								send_buf[6] =  cmd.chk ;
+	
+								if ( debug_flag ) {
+									fprintf(stderr, "CMD 0x%02X error, will send: ",cmd.pcb);
+									for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
+										fprintf(stderr, "%02X ",send_buf[chk_count]);
+									}
+									fprintf(stderr, "to %s\n",mycar->sn);
+								}
+	
+								write(mycar->client_socket,send_buf,7);
 							}
 							else { //ok
-								memset(send_buf, '\0', BUFSIZE);  
-								snprintf(send_buf,100,"OK\r\n");
-								write(mycar->client_socket,send_buf,strlen(send_buf));
+
+								if ( record_command(mycar,&recv_buf[buf_index],"NO_ERR",7)) {//error
+									if ( debug_flag ) {
+										fprintf(stderr, "Record command err= %d: %s",\
+											mycar->err_code,mycar->err_msg);
+										}
+								}
+
+								//send respond 
+								memset(send_buf, '\0', BUFSIZE);
+								send_buf[0] = HEAD ;
+								send_buf[1] = cmd.seq ;
+								send_buf[2] = cmd.pcb | 0x80 ;
+								send_buf[3] =  00;//len high
+								send_buf[4] =  01;//len low
+								send_buf[5] =  00;//ok
+	
+								//Calc chk
+								cmd.chk = HEAD ;
+								for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
+									cmd.chk ^= send_buf[chk_count] ;
+									//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
+								}
+	
+								send_buf[6] =  cmd.chk ;
+	
+								if ( debug_flag ) {
+									fprintf(stderr, "CMD 0x%02X ok, will send: ",cmd.pcb);
+									for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
+										fprintf(stderr, "%02X ",send_buf[chk_count]);
+									}
+									fprintf(stderr, "to %s\n",mycar->sn);
+								}
+	
+								write(mycar->client_socket,send_buf,7);
 							}
 						}//end of strlen(cmd.pro_sn) == 10
 						else { //no SN
 							fprintf(stderr, "Please upload SN first!\n");
+
+							//record this command
+							if ( record_command(mycar,&recv_buf[buf_index],"NEED_SN",7)) {//error
+								if ( debug_flag ) {
+									fprintf(stderr, "Record command err= %d: %s",\
+										mycar->err_code,mycar->err_msg);
+									}
+							}
+
+							//send respond 
+							memset(send_buf, '\0', BUFSIZE);
+							send_buf[0] = HEAD ;
+							send_buf[1] = cmd.seq ;
+							send_buf[2] = cmd.pcb | 0x80 ;
+							send_buf[3] =  00;//len high
+							send_buf[4] =  01;//len low
+							send_buf[5] =  01;//error code, need product SN.
+
+							//Calc chk
+							cmd.chk = HEAD ;
+							for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
+								cmd.chk ^= send_buf[chk_count] ;
+								//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
+							}
+
+							send_buf[6] =  cmd.chk ;
+
+							if ( debug_flag ) {
+								fprintf(stderr, "CMD 0x%02X error, will return: ",cmd.pcb);
+								for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
+									fprintf(stderr, "%02X ",send_buf[chk_count]);
+								}
+								fprintf(stderr, "\n");
+							}
+
+							write(mycar->client_socket,send_buf,7);
 						}
 
 						buf_index = buf_index + cmd.len ;//update index
@@ -203,13 +307,18 @@ void process_conn_server(struct icar_data *mycar)
 						break;
 
 					case 0x54://'T', Time, C9 A4 54 00 0A 30 32 50 31 43 30 44 32 41 37 23
-						//record the product SN
-						strncpy(cmd.pro_sn, &recv_buf[5], 10);
-						cmd.pro_sn[10] = 0x0;
-						mycar->sn = cmd.pro_sn ;
+						if ( strlen(mycar->sn) == 10 ) {
+							fprintf(stderr, "\r\nNo need update ");
+						}
+						else {	//record the product SN
+							strncpy(cmd.pro_sn, &recv_buf[5], 10);
+							cmd.pro_sn[10] = 0x0;
+						}
+						fprintf(stderr, "SN: %s\r\n",mycar->sn);
+						fprintf(stderr, "cmd.pro_sn: %s\r\n",cmd.pro_sn);
 
 						//record this command
-						if ( record_command(mycar,&recv_buf[buf_index])) {//error
+						if ( record_command(mycar,&recv_buf[buf_index],"NO_ERR",10)) {
 							if ( debug_flag ) {
 								fprintf(stderr, "Record command err= %d: %s",\
 									mycar->err_code,mycar->err_msg);

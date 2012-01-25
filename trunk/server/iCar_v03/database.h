@@ -8,6 +8,10 @@
 
 #define BUFSIZE 1024*4
 
+#define RESULT_NO_ERR			0
+#define RESULT_NO_SN			1
+#define RESULT_INS_DB_FAIL		2
+
 /* database.c */
 struct icar_db {
 	//database
@@ -47,7 +51,7 @@ int db_connect(struct icar_db *);
 
 int check_sn(struct icar_data * );
 
-int record_command(struct icar_data *, unsigned char *);
+int record_command(struct icar_data *, unsigned char *, unsigned char *, unsigned int);
 int record_signal(struct icar_data *, unsigned char *);
 
 //error code:

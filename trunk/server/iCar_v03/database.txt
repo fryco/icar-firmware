@@ -52,7 +52,6 @@ insert into `t_log` VALUES ('2011-11-12 06:39:36','128.30.11.21','128.30.11.21',
  * SN, char(10): i.e: 02P11AH000
  * IP, varchar(15) default NULL: external IP
  * port, SMALLINT ,
- * IP_local, varchar(15) default NULL: internal IP
  * cmd_seq, tinyint
  * cmd_pcb, tinyint
  * cmd_len, SMALLINT
@@ -96,15 +95,20 @@ FROM `t_log`
 ORDER BY date DESC
 LIMIT 0 , 30
 
-SELECT FROM_UNIXTIME( date ) , `sequence` , `IP` , `port`, `IP_local`, `gsm_signal`
-FROM `t_log_conn_test`
+SELECT FROM_UNIXTIME( date ) , `signal_seq` , `IP` , `port`, `IP_local`, `gsm_signal`
+FROM `t_log_signal`
 ORDER BY date DESC
 LIMIT 0 , 30
 
-SELECT FROM_UNIXTIME( date ) , `IP` , `port`, `IP_local`, `cmd_seq` , hex(cmd_pcb) ,`cmd_len` ,`cmd_str`
+SELECT FROM_UNIXTIME( date ) , `IP` , `port` , `cmd_seq` , hex( cmd_pcb ) , `cmd_len` , `cmd_str`
 FROM `t_log_command`
+WHERE date >1326954101
 ORDER BY date DESC
-LIMIT 0 , 30
+
+SELECT FROM_UNIXTIME( date ) , `IP` , `port` , `cmd_seq` ,char( cmd_pcb ) , `cmd_len` , `cmd_str`
+FROM `t_log_command`
+WHERE date >1326954101
+ORDER BY date DESC
 
 /**** insert into ip_address_varbinary values ****/
 insert ip_address_varbinary values(
