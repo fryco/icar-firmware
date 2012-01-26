@@ -41,6 +41,9 @@ void  App_TaskGsm (void *p_arg)
 	my_icar.mg323.need_dial = false ;
 	my_icar.mg323.voice_confirm = true ;
 
+	memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
+	memset(my_icar.mg323.ip_old, 0x0, IP_LEN-1);
+
 	uart2_init( );
 
 	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
@@ -118,6 +121,7 @@ void  App_TaskGsm (void *p_arg)
 
 					if ( !my_icar.mg323.tcp_online ) { //no online
 						prompt("IP: %s\r\n",my_icar.mg323.ip_local);
+						memset(my_icar.mg323.ip_old, 0x0, IP_LEN-1);//update IP to server when online
 						//send online command
 						putstring(COM2,"AT^SISO=0\r\n");
 						//will be return ^SISW: 0,1,1xxx

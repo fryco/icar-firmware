@@ -43,7 +43,6 @@ void  App_TaskManager (void *p_arg)
 	unsigned char var_uchar , gsm_sequence=0;
 	unsigned int record_sequence = 0;
 	struct GSM_RX_RESPOND mg323_rx_cmd;
-	unsigned char ip_old[IP_LEN];
 
 	u16 adc;
 
@@ -148,14 +147,13 @@ void  App_TaskManager (void *p_arg)
 			//}
 
 
-			if ( !(cmpmem((unsigned char *)my_icar.mg323.ip_local,ip_old,strlen((char *)my_icar.mg323.ip_local)))\
+			if ( !(cmpmem((unsigned char *)my_icar.mg323.ip_local,my_icar.mg323.ip_old,strlen((char *)my_icar.mg323.ip_local)))\
 					&& !my_icar.mg323.ip_updating ) {
 
+				prompt("Updating IP to server...\r\n");
 				my_icar.mg323.ip_updating = true ;
 				gsm_send_pcb(&gsm_sequence, GSM_CMD_IP);
-				//strncpy((char *)ip_old,(char *)my_icar.mg323.ip_local, IP_LEN-1);
 			}
-
 		}
 
 		if ( !c2s_data.rx_empty ) {//receive some TCP data from GSM
@@ -196,7 +194,7 @@ void  App_TaskManager (void *p_arg)
 			adc = adc*100/435+2500;
 
 			if ( (OSTime/100)%10 == 0 ) {
-				prompt("T: %d.%02d C\t",adc/100,adc%100);
+				prompt("IP: %s\tOld: %s\tT: %d.%02d C\t",my_icar.mg323.ip_local,my_icar.mg323.ip_old,adc/100,adc%100);
 				RTC_show_time(RTC_GetCounter());
 			}
 		}
@@ -420,6 +418,42 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 				//handle the respond
 				switch (buf->pcb&0x7F) {
+
+				case GSM_CMD_IP://0x49,'I'
+					//C9 49 D2 00 01 00 53
+					my_icar.mg323.ip_updating = false;
+
+					switch (*((buf->start)+5)) {
+
+					case 0x0://update IP success
+						//prompt("Update IP success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						strncpy((char *)my_icar.mg323.ip_old,(char *)my_icar.mg323.ip_local, IP_LEN-1);
+						break;
+
+					case 0x1://need upload SN first
+						prompt("Update IP failure, need product SN first! CMD_seq: %02X\r\n",\
+							*((buf->start)+1));
+						if ( my_icar.stm32_rtc.update_count > 1 ) {//waiting server return
+							;//no need send again
+						}
+						else {
+							my_icar.stm32_rtc.update_timer = 0 ;//will run gsm_send_time
+						}
+
+						break;
+
+					case 0x2://insert into database error
+						prompt("Update IP failure, insert into database error! \
+							CMD_seq: %02X\r\n",*((buf->start)+1));
+						break;
+
+					default:
+						prompt("Update IP failure, unknow error code: %d CMD_seq: %02X ",\
+								*((buf->start)+5),*((buf->start)+1));
+						printf("check %s: %d\r\n",__FILE__,__LINE__);
+						break;
+					}
+					break;
 
 				case 0x4C://'L':
 					break;
@@ -805,17 +839,25 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 				c2s_data.tx[c2s_data.tx_len+2] = out_pcb ;//PCB
 
 				if ( out_pcb == GSM_CMD_IP ) {
+
 					ip_length = strlen((char *)my_icar.mg323.ip_local) ;
 
 					c2s_data.tx[c2s_data.tx_len+3] = 0  ;//length high
-					c2s_data.tx[c2s_data.tx_len+4] = ip_length;//length low
+					c2s_data.tx[c2s_data.tx_len+4] = ip_length+4;//length low
+
+					//record OSTime, 4 bytes
+					c2s_data.tx[c2s_data.tx_len+5] = (OSTime>>24)&0xFF  ;//OSTime high
+					c2s_data.tx[c2s_data.tx_len+6] = (OSTime>>16)&0xFF  ;//OSTime high
+					c2s_data.tx[c2s_data.tx_len+7] = (OSTime>>8)&0xFF  ;//OSTime low
+					c2s_data.tx[c2s_data.tx_len+8] =  OSTime&0xFF  ;//OSTime low
+
 					//Local IP
-					strncpy((char *)&c2s_data.tx[c2s_data.tx_len+5], \
+					strncpy((char *)&c2s_data.tx[c2s_data.tx_len+9], \
 						(char *)my_icar.mg323.ip_local, IP_LEN-1);
 
 					//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 					chkbyte = GSM_HEAD ;
-					for ( i = 1 ; i < 5+ip_length ; i++ ) {//calc chkbyte
+					for ( i = 1 ; i < ip_length+9 ; i++ ) {//calc chkbyte
 						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
 						//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
 					}
