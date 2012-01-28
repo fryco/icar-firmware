@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <linux/in.h>
 
-#define BUFSIZE 1024*4
+#define BUFSIZE 1024*2
 
 #define RESULT_NO_ERR			0
 #define RESULT_NO_SN			1

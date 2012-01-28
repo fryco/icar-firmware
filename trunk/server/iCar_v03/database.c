@@ -144,30 +144,6 @@ int db_check(struct icar_data *mycar)
 		}
 	}
 
-	//check table t_log_pid
-	//prevent error: 2014
-	res_ptr=mysql_store_result(&(mycar->mydb.mysql));
-	mysql_free_result(res_ptr);
-	if ( mysql_query(&(mycar->mydb.mysql),"SELECT * FROM `t_log_pid` LIMIT 0 , 30;") ) {
-	//error, maybe no this table, create it
-		err = mysql_errno(&(mycar->mydb.mysql)) ;
-		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(mycar->mydb.mysql)));
-		if ( err == 1146 ) { //Table doesn't exist
-			mysql_query(&(mycar->mydb.mysql),\
-			"create table t_log_pid( `ID` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
-					`date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
-                   `IP` varchar(15) NOT NULL COMMENT 'external IP',\
-                   `port` smallint unsigned NOT NULL,\
-                   `PID` int unsigned NOT NULL\
-                   ) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
-		}
-		else { //unknow error
-			fprintf(stderr, "select table error, check %s:%d\n",__FILE__, __LINE__);
-			mysql_close(&(mycar->mydb.mysql));
-			return 1 ;
-		}
-	}
-
 	//check table t_log_ip
 	//prevent error: 2014
 	res_ptr=mysql_store_result(&(mycar->mydb.mysql));
@@ -180,11 +156,12 @@ int db_check(struct icar_data *mycar)
 			mysql_query(&(mycar->mydb.mysql),\
 			"create table t_log_ip( `ID` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
 					`date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
-                   `SN` char(10) NOT NULL COMMENT 'Product serial numble',\
-                   `IP` varchar(15) NOT NULL COMMENT 'external IP',\
-                   `port` smallint unsigned NOT NULL,\
-                   `IP_local` varchar(15) NOT NULL  COMMENT 'internal IP',\
-                   `OSTime` int unsigned NOT NULL COMMENT '100Hz Tick'\
+					`SN` char(10) NOT NULL COMMENT 'Product serial numble',\
+					`IP` varchar(15) NOT NULL COMMENT 'external IP',\
+					`port` smallint unsigned NOT NULL,\
+					`IP_local` varchar(15) NOT NULL  COMMENT 'internal IP',\
+					`OSTime` int unsigned NOT NULL COMMENT '100Hz Tick',\
+					`PID` int unsigned NOT NULL\
                    ) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
 		}
 		else { //unknow error
@@ -257,11 +234,11 @@ int db_check(struct icar_data *mycar)
 		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(mycar->mydb.mysql)));
 		if ( err == 1146 ) { //Table doesn't exist
 			mysql_query(&(mycar->mydb.mysql),\
-			"create table t_log_command_s( `ID` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
-					`date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
-                   `SN` char(10) NOT NULL COMMENT 'Product serial numble',\
-                   `cmd_seq` tinyint unsigned NOT NULL,\
-                   `cmd_pcb` tinyint unsigned NOT NULL,\
+			"create table t_log_command_s(`ID` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,\
+					`date` int unsigned NOT NULL  COMMENT 'FROM_UNIXTIME(date)',\
+					`SN` char(10) NOT NULL COMMENT 'Product serial numble',\
+					`cmd_seq` tinyint unsigned NOT NULL,\
+					`cmd_pcb` tinyint unsigned NOT NULL,\
 					`cmd_str` varchar(100) NOT NULL,\
 					`rx_len` smallint unsigned NOT NULL,\
 					`return` enum('NO_ERR', 'NEED_SN', 'DB_ERR') NOT NULL,\
@@ -288,9 +265,9 @@ int db_check(struct icar_data *mycar)
 			mysql_query(&(mycar->mydb.mysql),\
 			"create table t_log_command_l( `ID` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
 					`date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
-                   `SN` char(10) NOT NULL COMMENT 'Product serial numble',\
-                   `cmd_seq` tinyint unsigned NOT NULL,\
-                   `cmd_pcb` tinyint unsigned NOT NULL,\
+					`SN` char(10) NOT NULL COMMENT 'Product serial numble',\
+					`cmd_seq` tinyint unsigned NOT NULL,\
+					`cmd_pcb` tinyint unsigned NOT NULL,\
 					`cmd_str` varchar(4096) NOT NULL,\
 					`rx_len` smallint unsigned NOT NULL,\
 					`return` enum('NO_ERR', 'NEED_SN', 'DB_ERR') NOT NULL,\
@@ -426,17 +403,24 @@ int record_command(struct icar_data *mycar, unsigned char *buf, unsigned char * 
 	cmd_pcb = buf[2];
 	buf_len = buf[3] << 8 | buf[4];
 	//fprintf(stderr, "\r\nSEQ: 0x%02X, PCB: 0x%02X, Len: %d\r\n",\
-		//cmd_seq,cmd_pcb,buf_len);
+		cmd_seq,cmd_pcb,buf_len);
 
-	for ( buf_index = 5 ; buf_index < buf_len+5 ; buf_index++ ) {
-		snprintf(&cmd_str[(buf_index-5)*3],8,"%02X ",*(buf+buf_index));
+	if ( buf_len ) {
+		for ( buf_index = 5 ; buf_index < buf_len+5 ; buf_index++ ) {
+			snprintf(&cmd_str[(buf_index-5)*3],8,"%02X ",*(buf+buf_index));
+			//fprintf(stderr, "%02X ",*(buf+buf_index));
+		}
+		cmd_str[((buf_index-5)*3)-1] = 0x0 ;
+		fprintf(stderr, "cmd_str: %s\r\n",cmd_str);
 	}
-	cmd_str[((buf_index-5)*3)-1] = 0x0 ;
-	//fprintf(stderr, "cmd_str: %s\r\n",cmd_str);
+	else {
+		cmd_str[0] = 0x0 ;
+	}
 
+	memset(sql_buf, '\0', BUFSIZE*2);
 	if ( buf_len*3 < 100 ) { //insert into short table
 		//insert cmd detail to table: t_log_command_short
-		snprintf(sql_buf,BUFSIZE-1,"insert into t_log_command_s values ( '',\
+		snprintf(sql_buf,BUFSIZE-1,"insert into t_log_command_s values ('',\
 									'%d',\
 									'%s',\
 									'%d',\
@@ -621,9 +605,11 @@ int record_ip(struct icar_data *mycar, unsigned char *buf)
 	MYSQL_ROW sqlrow;
 	unsigned long sqlrow_cnt = 0 ;
 
-	//input: HEAD+SEQ+PCB+LEN+OSTime+IP+CHK
+	//input: HEAD+SEQ+PCB+LEN+OSTime+SN+IP+CHK
 	//IP(123.123.123.123) 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33
-	//i.e: C9 01 49 00 13 01 23 45 67 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33 bc 
+	//i.e: C9 01 53 00 1B 00 00 0D 99 
+	//     30 32 50 31 43 30 44 32 41 37 
+	//     31 30 2E 32 30 31 2E 31 33 37 2E 32 37 28 
 	buf_len = buf[3] << 8 | buf[4];
 
 	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
@@ -634,8 +620,8 @@ int record_ip(struct icar_data *mycar, unsigned char *buf)
 	ostime = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[9];
 	fprintf(stderr, "\tOSTime: %d ",ostime);
 	
-	for ( buf_index = 0 ; buf_index < buf_len - 4 ; buf_index++ ) {
-		gsm_ip[buf_index] = *(buf+9+buf_index) ;
+	for ( buf_index = 0 ; buf_index < buf_len - 14 ; buf_index++ ) {
+		gsm_ip[buf_index] = *(buf+19+buf_index) ;
 		;//fprintf(stderr, "buf_index=%d\t%X\r\n",buf_index,gsm_ip[buf_index]);
 	}
 	gsm_ip[buf_index]  = 0x0; 
@@ -652,13 +638,15 @@ int record_ip(struct icar_data *mycar, unsigned char *buf)
 								'%s',\
 								'%d',\
 								'%s',\
+								'%d',\
 								'%d');",\
 								time(NULL),\
 								mycar->sn,\
 								(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 								ntohs(mycar->client_addr.sin_port),\
 								gsm_ip,\
-								ostime);
+								ostime,\
+								getpid());
 
 	if ( debug_flag ) {
 		;//fprintf(stderr, "%s\r\n",sql_buf);
