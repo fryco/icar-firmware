@@ -36,7 +36,7 @@ struct GSM_STATUS {
 	unsigned char imsi[16];
 	unsigned char ip_local[IP_LEN];
 	unsigned char ip_old[IP_LEN];
-	bool ip_updating;//updating to server 
+
 	unsigned char *server_ip_port;
 	unsigned int apn_index;
 	unsigned char signal;

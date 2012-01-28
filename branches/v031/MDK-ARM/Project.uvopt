@@ -302,8 +302,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>220</TopLine>
-      <CurrentLine>220</CurrentLine>
+      <TopLine>29</TopLine>
+      <CurrentLine>36</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\source\App\app_gsm.c</PathWithFileName>
       <FilenameWithoutPath>app_gsm.c</FilenameWithoutPath>
@@ -356,10 +356,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>41</ColumnNumber>
+      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>27</TopLine>
-      <CurrentLine>40</CurrentLine>
+      <TopLine>144</TopLine>
+      <CurrentLine>144</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\source\App\drv_rtc.c</PathWithFileName>
       <FilenameWithoutPath>drv_rtc.c</FilenameWithoutPath>
@@ -400,8 +400,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>137</TopLine>
-      <CurrentLine>150</CurrentLine>
+      <TopLine>1</TopLine>
+      <CurrentLine>9</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\source\App\app_taskmanager.c</PathWithFileName>
       <FilenameWithoutPath>app_taskmanager.c</FilenameWithoutPath>
@@ -4136,9 +4136,9 @@
       <Documents>
         <Doc>
           <Name>..\source\App\drv_rtc.c</Name>
-          <ColumnNumber>41</ColumnNumber>
-          <TopLine>27</TopLine>
-          <CurrentLine>40</CurrentLine>
+          <ColumnNumber>0</ColumnNumber>
+          <TopLine>144</TopLine>
+          <CurrentLine>144</CurrentLine>
         </Doc>
         <Doc>
           <Name>..\source\App\drv_gpio.h</Name>
@@ -4149,8 +4149,8 @@
         <Doc>
           <Name>..\source\App\app_taskmanager.c</Name>
           <ColumnNumber>0</ColumnNumber>
-          <TopLine>137</TopLine>
-          <CurrentLine>150</CurrentLine>
+          <TopLine>1</TopLine>
+          <CurrentLine>9</CurrentLine>
         </Doc>
         <Doc>
           <Name>..\source\App\drv_adc.c</Name>
@@ -4179,8 +4179,8 @@
         <Doc>
           <Name>..\source\App\app_gsm.c</Name>
           <ColumnNumber>0</ColumnNumber>
-          <TopLine>220</TopLine>
-          <CurrentLine>220</CurrentLine>
+          <TopLine>29</TopLine>
+          <CurrentLine>36</CurrentLine>
         </Doc>
         <Doc>
           <Name>..\source\port\os_cpu_c.c</Name>

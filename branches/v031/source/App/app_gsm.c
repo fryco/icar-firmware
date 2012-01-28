@@ -9,12 +9,15 @@ const unsigned char callback_phone[] = "13828431106";
 
 static unsigned char gsm_string_decode( unsigned char *, unsigned int *);
 static void read_tcp_data( unsigned char * );
-static void send_tcp_data( void );
+static void send_tcp_data( unsigned char *, unsigned int * );
 
 void  App_TaskGsm (void *p_arg)
 {
 	unsigned char rec_str[AT_CMD_LENGTH];
 	unsigned int  relay_timer=0;
+#if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
+    OS_CPU_SR  cpu_sr = 0;
+#endif
 
 	(void)p_arg;
 
@@ -30,7 +33,7 @@ void  App_TaskGsm (void *p_arg)
 	my_icar.mg323.tcp_online = false;
 	my_icar.mg323.ask_online = false;
 	my_icar.mg323.try_online = 0;
-	my_icar.mg323.ip_updating = false;
+
 	my_icar.mg323.apn_index = NULL;
 	my_icar.mg323.roam = false;
 	my_icar.mg323.cgatt= false;
@@ -127,16 +130,10 @@ void  App_TaskGsm (void *p_arg)
 						//will be return ^SISW: 0,1,1xxx
 						//confirm this return in later
 						c2s_data.check_timer = 0 ;//need check GSM TCP buffer
+
 						my_icar.mg323.try_online++;
 						prompt("Try %d to online...\r\n",my_icar.mg323.try_online);
 	
-						if ( my_icar.stm32_rtc.update_count > 1 ) {//waiting server return
-							;//no need send again
-						}
-						else {
-							my_icar.stm32_rtc.update_timer = 0 ;//need run gsm_send_time
-						}
-
 						if ( my_icar.mg323.try_online > MAX_ONLINE_TRY ) {//failure
 							my_icar.mg323.gprs_ready = false;
 							my_icar.mg323.tcp_online = false ;
@@ -234,15 +231,28 @@ void  App_TaskGsm (void *p_arg)
 			}
 
 			//Check c2s_data.tx_len, if > 0, then send it
-			if ( my_icar.mg323.tcp_online \
-				&& c2s_data.tx_len > 0 ) { //can send data
-				//&& !c2s_data.tx_lock ) { //can send data
+			if ( my_icar.mg323.tcp_online ) { //can send data
+
+				if ( c2s_data.tx_sn_len > 0 ) {
+					send_tcp_data(c2s_data.tx_sn,&c2s_data.tx_sn_len );
+				}
 
 				if ( (c2s_data.tx_len > GSM_BUF_LENGTH/2) \
 					|| c2s_data.tx_timer == 0 \
 					|| (OSTime-c2s_data.tx_timer) > TCP_SEND_PERIOD) {
 
-					send_tcp_data( );//will update c2s_data.tx_timer if send success
+					if ( !c2s_data.tx_lock ) {
+						OS_ENTER_CRITICAL();
+						c2s_data.tx_lock = true ;
+						OS_EXIT_CRITICAL();
+
+						//will update c2s_data.tx_timer if send success						
+						send_tcp_data(c2s_data.tx, &c2s_data.tx_len );
+
+						OS_ENTER_CRITICAL();
+						c2s_data.tx_lock = false ;
+						OS_EXIT_CRITICAL();
+					}
 				}
 				else {//no need send immediately, send later
 					;//prompt("Send delay, tx_len: %d Time: %d\r\n",\
@@ -271,7 +281,9 @@ void  App_TaskGsm (void *p_arg)
 		}
 		else {
 			led_off(ONLINE_LED);
-			prompt("!!!  TCP offline  !!!\r\n");
+			if ( my_icar.mg323.ask_online ) {
+				prompt("!!!  TCP offline  !!!\r\n");
+			}
 		}
 
 		//1, release CPU
@@ -404,40 +416,25 @@ static void read_tcp_data( unsigned char *buf )
 
 }
 
-static void send_tcp_data( )
+static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
 {
-
-#if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
-    OS_CPU_SR  cpu_sr = 0;
-#endif
-	
-	if ( !c2s_data.tx_lock ) {
-		OS_ENTER_CRITICAL();
-		c2s_data.tx_lock = true ;
-		OS_EXIT_CRITICAL();
-	
-		if ( gsm_ask_tcp(c2s_data.tx_len) ) {//GSM buffer ready
-			//prompt("Wil send data %s\tline: %d.\r\n",__FILE__, __LINE__);
-			if ( gsm_send_tcp(c2s_data.tx,c2s_data.tx_len) ) {
-				//Check: ^SISW: 0,1 
-				prompt("Send %d bytes OK!\r\n",c2s_data.tx_len);
-				c2s_data.tx_len = 0 ;
-				c2s_data.tx_timer = OSTime ;//update timer
-			}
-			else {
-				printf("\r\nGSM send TCP data error.\t");
-				prompt("Check %s, line:	%d\r\n",__FILE__, __LINE__);
-			}
+	if ( gsm_ask_tcp(*buf_len) ) {//GSM buffer ready
+		//prompt("Wil send data %s\tline: %d.\r\n",__FILE__, __LINE__);
+		if ( gsm_send_tcp(buffer,*buf_len) ) {
+			//Check: ^SISW: 0,1 
+			prompt("Send %d bytes OK!\r\n",*buf_len);
+			*buf_len = 0 ;
+			c2s_data.tx_timer = OSTime ;//update timer
 		}
-		else {//may GSM module no respond, need to enquire
-			putstring(COM2,"AT^SISI?\r\n");//enquire online or not
-			prompt("Can not send data %s\tline: %d.\r\n",__FILE__, __LINE__);
+		else {
+			printf("\r\nGSM send TCP data error.\t");
+			prompt("Check %s, line:	%d\r\n",__FILE__, __LINE__);
 		}
-	
-		OS_ENTER_CRITICAL();
-		c2s_data.tx_lock = false ;
-		OS_EXIT_CRITICAL();
 	}
+	else {//may GSM module no respond, need to enquire
+		putstring(COM2,"AT^SISI?\r\n");//enquire online or not
+		prompt("Can not send data %s\tline: %d.\r\n",__FILE__, __LINE__);
+	}	
 }
 
 //return 0:	ok
@@ -542,6 +539,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		//^SISI: 0,5,0,0,0,0
 		if ( buf[9]== 0x34 ) {
 			my_icar.mg323.tcp_online = true ;
+			my_icar.mg323.try_online = 0 ;
 		}
 		else {
 			putstring(COM2,"AT^SICI?\r\n");//enquire for further info

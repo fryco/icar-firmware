@@ -56,8 +56,8 @@
 
 //For GSM <==> Server protocol
 #define GSM_HEAD				0xC9
-#define GSM_CMD_IP				0x49 //'I', IP, report GSM module IP
 #define GSM_CMD_RECORD			0x52 //'R', record
+#define GSM_CMD_SN				0x53 //'S', upload SN
 #define GSM_CMD_TIME			0x54 //'T', time
 
 
