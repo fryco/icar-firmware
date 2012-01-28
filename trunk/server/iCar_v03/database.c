@@ -168,6 +168,32 @@ int db_check(struct icar_data *mycar)
 		}
 	}
 
+	//check table t_log_ip
+	//prevent error: 2014
+	res_ptr=mysql_store_result(&(mycar->mydb.mysql));
+	mysql_free_result(res_ptr);
+	if ( mysql_query(&(mycar->mydb.mysql),"SELECT * FROM `t_log_ip` LIMIT 0 , 30;") ) {
+	//error, maybe no this table, create it
+		err = mysql_errno(&(mycar->mydb.mysql)) ;
+		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(mycar->mydb.mysql)));
+		if ( err == 1146 ) { //Table doesn't exist
+			mysql_query(&(mycar->mydb.mysql),\
+			"create table t_log_ip( `ID` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
+					`date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
+                   `SN` char(10) NOT NULL COMMENT 'Product serial numble',\
+                   `IP` varchar(15) NOT NULL COMMENT 'external IP',\
+                   `port` smallint unsigned NOT NULL,\
+                   `IP_local` varchar(15) NOT NULL  COMMENT 'internal IP',\
+                   `OSTime` int unsigned NOT NULL COMMENT '100Hz Tick'\
+                   ) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
+		}
+		else { //unknow error
+			fprintf(stderr, "select table error, check %s:%d\n",__FILE__, __LINE__);
+			mysql_close(&(mycar->mydb.mysql));
+			return 1 ;
+		}
+	}
+
 	//check table t_log_signal
 	//prevent error: 2014
 	res_ptr=mysql_store_result(&(mycar->mydb.mysql));
@@ -571,6 +597,81 @@ int record_signal(struct icar_data *mycar, unsigned char *buf)
 	else { //ok
 		if ( debug_flag ) {
 			fprintf(stderr, "insert new GSM IP&Signal ok.\n");
+		}
+	}
+
+	//prevent error: 2014
+	res_ptr=mysql_store_result(&(mycar->mydb.mysql));
+	mysql_free_result(res_ptr);
+
+	return 0;
+
+}
+
+
+//0: ok
+//others: error, check err_code and err_msg
+int record_ip(struct icar_data *mycar, unsigned char *buf)
+{
+	char sql_buf[BUFSIZE];
+	unsigned int buf_index, buf_len, ostime=0;
+	unsigned char gsm_ip[20];
+
+	MYSQL_RES *res_ptr;
+	MYSQL_ROW sqlrow;
+	unsigned long sqlrow_cnt = 0 ;
+
+	//input: HEAD+SEQ+PCB+LEN+OSTime+IP+CHK
+	//IP(123.123.123.123) 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33
+	//i.e: C9 01 49 00 13 01 23 45 67 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33 bc 
+	buf_len = buf[3] << 8 | buf[4];
+
+	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
+		fprintf(stderr, "%02X ",*(buf+buf_index));
+	}
+	fprintf(stderr, "\r\nLen: %d ",buf_len);
+
+	ostime = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[9];
+	fprintf(stderr, "\tOSTime: %d ",ostime);
+	
+	for ( buf_index = 0 ; buf_index < buf_len - 4 ; buf_index++ ) {
+		gsm_ip[buf_index] = *(buf+9+buf_index) ;
+		;//fprintf(stderr, "buf_index=%d\t%X\r\n",buf_index,gsm_ip[buf_index]);
+	}
+	gsm_ip[buf_index]  = 0x0; 
+	gsm_ip[15] = 0x0; //ip length < 15
+
+	if ( debug_flag ) {
+		fprintf(stderr, "GSM IP: %s\r\n",gsm_ip);
+	}
+
+	//insert GSM IP and signal to table t_log_ip:
+	snprintf(sql_buf,BUFSIZE-1,"insert into t_log_ip values ( '',\
+								'%d',\
+								'%s',\
+								'%s',\
+								'%d',\
+								'%s',\
+								'%d');",\
+								time(NULL),\
+								mycar->sn,\
+								(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+								ntohs(mycar->client_addr.sin_port),\
+								gsm_ip,\
+								ostime);
+
+	if ( debug_flag ) {
+		;//fprintf(stderr, "%s\r\n",sql_buf);
+	}
+
+	if ( mysql_query(&(mycar->mydb.mysql),sql_buf)) {//error
+		fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
+						mysql_errno(&(mycar->mydb.mysql)),mysql_error(&(mycar->mydb.mysql)));
+		return 1;
+	}
+	else { //ok
+		if ( debug_flag ) {
+			fprintf(stderr, "insert new GSM IP ok.\n");
 		}
 	}
 

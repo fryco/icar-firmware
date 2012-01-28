@@ -53,6 +53,7 @@ int check_sn(struct icar_data * );
 
 int record_command(struct icar_data *, unsigned char *, unsigned char *, unsigned int);
 int record_signal(struct icar_data *, unsigned char *);
+int record_ip(struct icar_data *, unsigned char *);
 
 //error code:
 //10:  iCar serial numble error.

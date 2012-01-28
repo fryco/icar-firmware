@@ -167,6 +167,140 @@ void process_conn_server(struct icar_data *mycar)
 						}
 						break;
 			
+
+					case 0x49://'I' IP, C9 SEQ 49 LEN IP CHK
+
+						if ( debug_flag ) {
+							fprintf(stderr, "CMD is update GSM IP...\n");
+						}
+
+						if ( strlen(mycar->sn) == 10 ) {
+
+							if ( record_ip(mycar,&recv_buf[buf_index])) {//error
+								if ( debug_flag ) {
+									fprintf(stderr, "Update GSM IP err= %d: %s",\
+										mycar->err_code,mycar->err_msg);
+								}
+				
+
+								if ( record_command(mycar,&recv_buf[buf_index],"DB_ERR",7)) {
+									if ( debug_flag ) {
+										fprintf(stderr, "Update GSM IP err= %d: %s",\
+											mycar->err_code,mycar->err_msg);
+										}
+								}
+
+								//send respond 
+								memset(send_buf, '\0', BUFSIZE);
+								send_buf[0] = HEAD ;
+								send_buf[1] = cmd.seq ;
+								send_buf[2] = cmd.pcb | 0x80 ;
+								send_buf[3] =  00;//len high
+								send_buf[4] =  01;//len low
+								send_buf[5] =  02;//insert into database error.
+	
+								//Calc chk
+								cmd.chk = HEAD ;
+								for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
+									cmd.chk ^= send_buf[chk_count] ;
+									//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
+								}
+	
+								send_buf[6] =  cmd.chk ;
+	
+								if ( debug_flag ) {
+									fprintf(stderr, "CMD 0x%02X error, will send: ",cmd.pcb);
+									for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
+										fprintf(stderr, "%02X ",send_buf[chk_count]);
+									}
+									fprintf(stderr, "to %s\n",mycar->sn);
+								}
+	
+								write(mycar->client_socket,send_buf,7);
+							}
+							else { //ok
+
+								if ( record_command(mycar,&recv_buf[buf_index],"NO_ERR",7)) {//error
+									if ( debug_flag ) {
+										fprintf(stderr, "GSM IP command err= %d: %s",\
+											mycar->err_code,mycar->err_msg);
+										}
+								}
+
+								//send respond 
+								memset(send_buf, '\0', BUFSIZE);
+								send_buf[0] = HEAD ;
+								send_buf[1] = cmd.seq ;
+								send_buf[2] = cmd.pcb | 0x80 ;
+								send_buf[3] =  00;//len high
+								send_buf[4] =  01;//len low
+								send_buf[5] =  00;//ok
+	
+								//Calc chk
+								cmd.chk = HEAD ;
+								for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
+									cmd.chk ^= send_buf[chk_count] ;
+									//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
+								}
+	
+								send_buf[6] =  cmd.chk ;
+	
+								if ( debug_flag ) {
+									fprintf(stderr, "CMD 0x%02X ok, will send: ",cmd.pcb);
+									for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
+										fprintf(stderr, "%02X ",send_buf[chk_count]);
+									}
+									fprintf(stderr, "to %s\n",mycar->sn);
+								}
+	
+								write(mycar->client_socket,send_buf,7);
+							}
+						}//end of strlen(cmd.pro_sn) == 10
+						else { //no SN
+							fprintf(stderr, "Please upload SN first!\n");
+
+							//record this command
+							if ( record_command(mycar,&recv_buf[buf_index],"NEED_SN",7)) {//error
+								if ( debug_flag ) {
+									fprintf(stderr, "GSM IP command err= %d: %s",\
+										mycar->err_code,mycar->err_msg);
+									}
+							}
+
+							//send respond 
+							memset(send_buf, '\0', BUFSIZE);
+							send_buf[0] = HEAD ;
+							send_buf[1] = cmd.seq ;
+							send_buf[2] = cmd.pcb | 0x80 ;
+							send_buf[3] =  00;//len high
+							send_buf[4] =  01;//len low
+							send_buf[5] =  01;//error code, need product SN.
+
+							//Calc chk
+							cmd.chk = HEAD ;
+							for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
+								cmd.chk ^= send_buf[chk_count] ;
+								//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
+							}
+
+							send_buf[6] =  cmd.chk ;
+
+							if ( debug_flag ) {
+								fprintf(stderr, "CMD 0x%02X error, will return: ",cmd.pcb);
+								for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
+									fprintf(stderr, "%02X ",send_buf[chk_count]);
+								}
+								fprintf(stderr, "\n");
+							}
+
+							write(mycar->client_socket,send_buf,7);
+						}
+
+						buf_index = buf_index + cmd.len ;//update index
+
+						break;
+
+					
 					case 0x51://'Q' Quit
 						if ( debug_flag ) {
 							fprintf(stderr, "CMD is Quit, disconnect...\n");
@@ -306,12 +440,12 @@ void process_conn_server(struct icar_data *mycar)
 
 						break;
 
-					case 0x54://'T', Time, C9 A4 54 00 0A 30 32 50 31 43 30 44 32 41 37 23
+					case 0x53://'S', SN, C9 A4 54 00 0A 30 32 50 31 43 30 44 32 41 37 23
 						if ( strlen(mycar->sn) == 10 ) {
 							fprintf(stderr, "\r\nNo need update ");
 						}
 						else {	//record the product SN
-							strncpy(cmd.pro_sn, &recv_buf[5], 10);
+							strncpy(cmd.pro_sn, &recv_buf[9], 10);
 							cmd.pro_sn[10] = 0x0;
 						}
 						fprintf(stderr, "SN: %s\r\n",mycar->sn);
@@ -347,7 +481,7 @@ void process_conn_server(struct icar_data *mycar)
 						send_buf[9] =  cmd.chk ;
 
 						if ( debug_flag ) {
-							fprintf(stderr, "CMD is Time, will send: ");
+							fprintf(stderr, "CMD is SN, will send: ");
 							for ( chk_count = 0 ; chk_count < 10 ; chk_count++ ) {
 								fprintf(stderr, "%02X ",send_buf[chk_count]);
 							}
@@ -356,6 +490,58 @@ void process_conn_server(struct icar_data *mycar)
 
 						write(mycar->client_socket,send_buf,10);
 
+						buf_index = buf_index + cmd.len ;//update index
+						break;
+
+					
+					case 0x54://'T', Time, C9 A4 54 00 00 23
+						if ( debug_flag ) {
+							fprintf(stderr, "CMD is Time...\n");
+						}
+
+						if ( strlen(mycar->sn) == 10 ) {
+
+							fprintf(stderr, "SN: %s\r\n",mycar->sn);
+							fprintf(stderr, "cmd.pro_sn: %s\r\n",cmd.pro_sn);
+/*
+							//record this command
+							if ( record_command(mycar,&recv_buf[buf_index],"NO_ERR",10)) {
+								if ( debug_flag ) {
+									fprintf(stderr, "Record command err= %d: %s",\
+										mycar->err_code,mycar->err_msg);
+									}
+							}
+*/
+							//send respond 
+							memset(send_buf, '\0', BUFSIZE);
+							send_buf[0] = HEAD ;
+							send_buf[1] = cmd.seq ;
+							send_buf[2] = cmd.pcb | 0x80 ;
+							send_buf[3] =  00;//len high
+							send_buf[4] =  04;//len low
+							send_buf[5] =  (time(NULL) >> 24)&0xFF;//time high
+							send_buf[6] =  (time(NULL) >> 16)&0xFF;//time high
+							send_buf[7] =  (time(NULL) >> 8)&0xFF;//time low
+							send_buf[8] =  (time(NULL) >> 00)&0xFF;//time low
+
+							//Calc chk
+							cmd.chk = HEAD ;
+							for ( chk_count = 1 ; chk_count < 4+5 ; chk_count++) {
+								cmd.chk ^= send_buf[chk_count] ;
+							}
+
+							send_buf[9] =  cmd.chk ;
+
+							if ( debug_flag ) {
+								fprintf(stderr, "CMD is Time, will send: ");
+								for ( chk_count = 0 ; chk_count < 10 ; chk_count++ ) {
+									fprintf(stderr, "%02X ",send_buf[chk_count]);
+								}
+								fprintf(stderr, "to %s\n",cmd.pro_sn);
+							}
+
+							write(mycar->client_socket,send_buf,10);
+						}
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
