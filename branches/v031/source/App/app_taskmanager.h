@@ -42,11 +42,14 @@ struct CAR2SERVER_COMMUNICATION {
 	struct SENT_QUEUE queue_sent[MAX_CMD_QUEUE];//last 2 queue for emergency event
 
 	//tx buffer for tcp data
-	bool tx_lock ; //如果发现长期加锁情况，则加lock_timer
+	bool tx_lock ;
 	//tx buffer for tcp data
 	unsigned char tx[GSM_BUF_LENGTH];
 	unsigned int tx_len;//tx_len=0即为 empty;tx_len=GSM_BUF_LENGTH即为full
 	unsigned int tx_timer; // send if > TCP_SEND_PERIOD
+
+	unsigned char tx_sn[36];//tx buffer for SN
+	unsigned int  tx_sn_len;//tx length for SN
 
 	//rx buffer for tcp data
 	unsigned char rx[GSM_BUF_LENGTH];

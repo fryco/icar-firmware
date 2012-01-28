@@ -19,7 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 /* Exported types ------------------------------------------------------------*/
 struct RTC_STATUS {
-	unsigned char update_count ;
+	//unsigned char update_count ;
 	unsigned int update_timer ;//re-update if > RTC_UPDATE_PERIOD
 	unsigned int prescaler ;  //++ if rtc slow, -- if rtc fast
 };

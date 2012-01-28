@@ -141,7 +141,6 @@ void rtc_init(void)	{
 	printf("%02d:%02d:%02d\r\n", datetime.hour, datetime.minute, datetime.second);
 
 	my_icar.stm32_rtc.update_timer = 0 ;
-	my_icar.stm32_rtc.update_count = 0 ;
 }
 
 void RTC_update_calibrate( unsigned char *p1, unsigned char *p2) 
