@@ -35,7 +35,6 @@ struct GSM_STATUS {
 	unsigned char carrier[32];
 	unsigned char imsi[16];
 	unsigned char ip_local[IP_LEN];
-	unsigned char ip_old[IP_LEN];
 
 	unsigned char *server_ip_port;
 	unsigned int apn_index;
