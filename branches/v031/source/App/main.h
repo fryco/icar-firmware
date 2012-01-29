@@ -69,6 +69,8 @@
 struct ICAR_DEVICE {
 	unsigned int login_timer;
 	unsigned char *sn ;//serial number
+	bool need_sn;//server need SN
+
 	struct RTC_STATUS stm32_rtc;
 	struct ADC_STATUS stm32_adc;
 

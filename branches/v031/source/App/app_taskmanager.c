@@ -1,3 +1,10 @@
+/*
+C9 00 53 00 1A 00 00 0C 52 30 32 50 31 43 30 44 32 41 37 31 30 2E 35 32 2E 31 39 2E 32 33 39 D6
+C9 01 54 00 00 9C
+
+Q1: 重复记录
+Q2：记录中有IP，去除
+*/
 #include "main.h"
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
@@ -100,6 +107,7 @@ void  App_TaskManager (void *p_arg)
 	DMA1_Channel1->CCR |= DMA_CCR1_EN;
 
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
+	my_icar.need_sn = true ;
 	my_icar.mg323.ask_power = true ;
 
 	mg323_rx_cmd.timer = OSTime ;
@@ -135,11 +143,11 @@ void  App_TaskManager (void *p_arg)
 		}
 
 		//Send command
-		if ( my_icar.login_timer ) {//send others CMD after login
+		if ( my_icar.need_sn && c2s_data.tx_sn_len == 0 ) {//no in sending process
+			gsm_send_sn( &gsm_sequence );//will be return time also
+		}
 
-			if ( c2s_data.tx_sn_len == 0 && !my_icar.mg323.tcp_online) {//no in sending process
-				gsm_send_sn( &gsm_sequence );//will be return time also
-			}
+		if ( my_icar.login_timer ) {//send others CMD after login
 
 			if ( (RTC_GetCounter( ) - my_icar.stm32_rtc.update_timer) > RTC_UPDATE_PERIOD ) {
 				//need update RTC by server time
@@ -149,11 +157,6 @@ void  App_TaskManager (void *p_arg)
 			//if ( (OSTime/100)%3 == 0 ) {//record GSM signal, for testing
 				gsm_send_record( &gsm_sequence, &record_sequence );
 			//}
-		}
-		else {//login first 
-			if ( c2s_data.tx_sn_len == 0 ) {//no in sending process
-				gsm_send_sn( &gsm_sequence );//will be return time also
-			}
 		}
 
 		if ( !c2s_data.rx_empty ) {//receive some TCP data from GSM
@@ -194,7 +197,7 @@ void  App_TaskManager (void *p_arg)
 			adc = adc*100/435+2500;
 
 			if ( (OSTime/100)%10 == 0 ) {
-				prompt("IP: %s\tOld: %s\tT: %d.%02d C\t",my_icar.mg323.ip_local,my_icar.mg323.ip_old,adc/100,adc%100);
+				prompt("IP: %s\tT: %d.%02d C\t",my_icar.mg323.ip_local,adc/100,adc%100);
 				RTC_show_time(RTC_GetCounter());
 			}
 		}
@@ -445,7 +448,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						break;
 
 					default:
-						prompt("Record CMD failure, unknow error code: %d CMD_seq: %02X ",\
+						prompt("Record CMD failure, unknow error code: 0x%02X CMD_seq: %02X ",\
 								*((buf->start)+5),*((buf->start)+1));
 						printf("check %s: %d\r\n",__FILE__,__LINE__);
 						break;
@@ -455,8 +458,25 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				case GSM_CMD_SN://0x53,'S'
 					//C9 08 D4 00 04 4F 0B CD E5 7D
 
-					//Update and calibrate RTC
-					RTC_update_calibrate(buf->start,c2s_data.rx) ;
+					switch (*((buf->start)+4)) {
+
+					case 0x1://need upload SN first
+						prompt("SN CMD failure! CMD_seq: %02X\r\n",\
+							*((buf->start)+1));
+						break;
+
+					case 0x4://CMD success
+						//Update and calibrate RTC
+						RTC_update_calibrate(buf->start,c2s_data.rx) ;
+						my_icar.need_sn = false ;
+						break;
+
+					default:
+						prompt("SN CMD failure, unknow error code: 0x%02X CMD_seq: %02X ",\
+								*((buf->start)+5),*((buf->start)+1));
+						printf("check %s: %d\r\n",__FILE__,__LINE__);
+						break;
+					}
 
 					break;
 
@@ -478,7 +498,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						break;
 
 					default:
-						prompt("Record CMD failure, unknow error code: %d CMD_seq: %02X ",\
+						prompt("Record CMD failure, unknow error code: 0x%02X CMD_seq: %02X ",\
 								*((buf->start)+5),*((buf->start)+1));
 						printf("check %s: %d\r\n",__FILE__,__LINE__);
 						break;

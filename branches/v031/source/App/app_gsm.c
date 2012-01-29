@@ -45,7 +45,6 @@ void  App_TaskGsm (void *p_arg)
 	my_icar.mg323.voice_confirm = true ;
 
 	memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
-	memset(my_icar.mg323.ip_old, 0x0, IP_LEN-1);
 
 	uart2_init( );
 
@@ -124,13 +123,12 @@ void  App_TaskGsm (void *p_arg)
 
 					if ( !my_icar.mg323.tcp_online ) { //no online
 						prompt("IP: %s\r\n",my_icar.mg323.ip_local);
-						memset(my_icar.mg323.ip_old, 0x0, IP_LEN-1);//update IP to server when online
 						//send online command
 						putstring(COM2,"AT^SISO=0\r\n");
 						//will be return ^SISW: 0,1,1xxx
 						//confirm this return in later
 						c2s_data.check_timer = 0 ;//need check GSM TCP buffer
-
+						my_icar.need_sn = true ;//need upload SN
 						my_icar.mg323.try_online++;
 						prompt("Try %d to online...\r\n",my_icar.mg323.try_online);
 	
@@ -233,30 +231,32 @@ void  App_TaskGsm (void *p_arg)
 			//Check c2s_data.tx_len, if > 0, then send it
 			if ( my_icar.mg323.tcp_online ) { //can send data
 
-				if ( c2s_data.tx_sn_len > 0 ) {
+				if ( c2s_data.tx_sn_len > 0 && my_icar.need_sn ) {
+					prompt("Sending SN...\t");
 					send_tcp_data(c2s_data.tx_sn,&c2s_data.tx_sn_len );
 				}
-
-				if ( (c2s_data.tx_len > GSM_BUF_LENGTH/2) \
-					|| c2s_data.tx_timer == 0 \
-					|| (OSTime-c2s_data.tx_timer) > TCP_SEND_PERIOD) {
-
-					if ( !c2s_data.tx_lock ) {
-						OS_ENTER_CRITICAL();
-						c2s_data.tx_lock = true ;
-						OS_EXIT_CRITICAL();
-
-						//will update c2s_data.tx_timer if send success						
-						send_tcp_data(c2s_data.tx, &c2s_data.tx_len );
-
-						OS_ENTER_CRITICAL();
-						c2s_data.tx_lock = false ;
-						OS_EXIT_CRITICAL();
+				else {
+					if ( (c2s_data.tx_len > GSM_BUF_LENGTH/2) \
+						|| c2s_data.tx_timer == 0 \
+						|| (OSTime-c2s_data.tx_timer) > TCP_SEND_PERIOD) {
+	
+						if ( !c2s_data.tx_lock ) {
+							OS_ENTER_CRITICAL();
+							c2s_data.tx_lock = true ;
+							OS_EXIT_CRITICAL();
+	
+							//will update c2s_data.tx_timer if send success						
+							send_tcp_data(c2s_data.tx, &c2s_data.tx_len );
+	
+							OS_ENTER_CRITICAL();
+							c2s_data.tx_lock = false ;
+							OS_EXIT_CRITICAL();
+						}
 					}
-				}
-				else {//no need send immediately, send later
-					;//prompt("Send delay, tx_len: %d Time: %d\r\n",\
-						//c2s_data.tx_len,OSTime-c2s_data.tx_timer);
+					else {//no need send immediately, send later
+						;//prompt("Send delay, tx_len: %d Time: %d\r\n",\
+							//c2s_data.tx_len,OSTime-c2s_data.tx_timer);
+					}
 				}
 			}
 		}
