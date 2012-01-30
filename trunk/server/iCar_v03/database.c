@@ -184,9 +184,6 @@ int db_check(struct icar_data *mycar)
 			"create table t_log_signal( `ID` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
 					`date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
                    `SN` char(10) NOT NULL COMMENT 'Product serial numble',\
-                   `IP` varchar(15) NOT NULL COMMENT 'external IP',\
-                   `port` smallint unsigned NOT NULL,\
-                   `IP_local` varchar(15) NOT NULL  COMMENT 'internal IP',\
                    `cmd_seq` tinyint unsigned NOT NULL,\
                    `gsm_signal` tinyint unsigned NOT NULL,\
                    `signal_seq` smallint unsigned NOT NULL\
@@ -210,12 +207,12 @@ int db_check(struct icar_data *mycar)
 		if ( err == 1146 ) { //Table doesn't exist
 			mysql_query(&(mycar->mydb.mysql),\
 			"create table t_log_error( `ID` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
-					`date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
-                   `SN` char(10) NOT NULL COMMENT 'Product serial numble',\
-                   `err_time` int unsigned NOT NULL,\
-                   `err_code` tinyint unsigned NOT NULL,\
-                   `err_str` varchar(128) NOT NULL\
-                   ) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
+			`date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
+			`SN` char(10) NOT NULL COMMENT 'Product serial numble',\
+			`err_time` int unsigned NOT NULL,\
+			`err_code` tinyint unsigned NOT NULL,\
+			`err_str` varchar(128) NOT NULL\
+			) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
 		}
 		else { //unknow error
 			fprintf(stderr, "select table error, check %s:%d\n",__FILE__, __LINE__);
@@ -411,7 +408,7 @@ int record_command(struct icar_data *mycar, unsigned char *buf, unsigned char * 
 			//fprintf(stderr, "%02X ",*(buf+buf_index));
 		}
 		cmd_str[((buf_index-5)*3)-1] = 0x0 ;
-		fprintf(stderr, "cmd_str: %s\r\n",cmd_str);
+		//fprintf(stderr, "cmd_str: %s\r\n",cmd_str);
 	}
 	else {
 		cmd_str[0] = 0x0 ;
@@ -451,7 +448,7 @@ int record_command(struct icar_data *mycar, unsigned char *buf, unsigned char * 
 		}
 		else { //ok
 			if ( debug_flag ) {
-				fprintf(stderr, "Record CMD: 0x%02X ok.\n",cmd_pcb);
+				;//fprintf(stderr, "Record CMD: 0x%02X ok.\n",cmd_pcb);
 			}
 		}
 
@@ -490,7 +487,7 @@ int record_command(struct icar_data *mycar, unsigned char *buf, unsigned char * 
 		}
 		else { //ok
 			if ( debug_flag ) {
-				fprintf(stderr, "Record CMD: 0x%02X ok.\n",cmd_pcb);
+				;//fprintf(stderr, "Record CMD: 0x%02X ok.\n",cmd_pcb);
 			}
 		}
 
@@ -509,7 +506,6 @@ int record_signal(struct icar_data *mycar, unsigned char *buf)
 {
 	char sql_buf[BUFSIZE];
 	unsigned int buf_index, buf_len;
-	unsigned char gsm_ip[20];
 	unsigned char cmd_seq=0, gsm_signal;
 	unsigned int  record_seq,adc_voltage;
 
@@ -518,9 +514,9 @@ int record_signal(struct icar_data *mycar, unsigned char *buf)
 	unsigned long sqlrow_cnt = 0 ;
 
 	//input: HEAD+SEQ+PCB+LEN+DATA+CHK
-	//DATA: Record_seq(2 bytes)+GSM signal(1byte)+voltage(2 bytes)+IP
+	//DATA: Record_seq(2 bytes)+GSM signal(1byte)+voltage(2 bytes)
 	//IP(123.123.123.123) 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33
-	//i.e:  C9 01 52 00 14 FF FF 1C 0F FF 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33 73 
+	//i.e:  C9 01 52 00 14 FF FF 1C 0F FF 73 
 	cmd_seq = buf[1];
 	buf_len = buf[3] << 8 | buf[4];
 
@@ -530,31 +526,16 @@ int record_signal(struct icar_data *mycar, unsigned char *buf)
 	//fprintf(stderr, "\r\nLen: %d ",buf_len);
 
 	record_seq = buf[5] << 8 | buf[6];
-	//fprintf(stderr, "\trecord_seq: %d ",record_seq);
+	fprintf(stderr, "Record_seq: %d ",record_seq);
 
 	gsm_signal = buf[7] ;
-	//fprintf(stderr, "\tSingal: %d ",gsm_signal);
+	fprintf(stderr, "Singal: %d ",gsm_signal);
 
 	adc_voltage = buf[8] << 8 | buf[9];
-	//fprintf(stderr, "\tadc_voltage: %d\r\n",adc_voltage);
-
-
-	for ( buf_index = 0 ; buf_index < buf_len - 5 ; buf_index++ ) {
-		gsm_ip[buf_index] = *(buf+10+buf_index) ;
-		//fprintf(stderr, "buf_index=%d\t%X\r\n",buf_index,gsm_ip[buf_index]);
-	}
-	gsm_ip[buf_index]  = 0x0; 
-	gsm_ip[15] = 0x0; //ip length < 15
-
-	if ( debug_flag ) {
-		fprintf(stderr, "GSM IP: %s\r\n",gsm_ip);
-	}
+	fprintf(stderr, "adc_voltage: %d\r\n",adc_voltage);
 
 	//insert GSM IP and signal to table t_log_signal:
 	snprintf(sql_buf,BUFSIZE-1,"insert into t_log_signal values ( '',\
-								'%d',\
-								'%s',\
-								'%s',\
 								'%d',\
 								'%s',\
 								'%d',\
@@ -562,9 +543,6 @@ int record_signal(struct icar_data *mycar, unsigned char *buf)
 								'%d');",\
 								time(NULL),\
 								mycar->sn,\
-								(char *)inet_ntoa(mycar->client_addr.sin_addr),\
-								ntohs(mycar->client_addr.sin_port),\
-								gsm_ip,\
 								cmd_seq,\
 								gsm_signal,\
 								record_seq);
@@ -579,9 +557,7 @@ int record_signal(struct icar_data *mycar, unsigned char *buf)
 		return 1;
 	}
 	else { //ok
-		if ( debug_flag ) {
-			fprintf(stderr, "insert new GSM IP&Signal ok.\n");
-		}
+		;
 	}
 
 	//prevent error: 2014
@@ -613,12 +589,12 @@ int record_ip(struct icar_data *mycar, unsigned char *buf)
 	buf_len = buf[3] << 8 | buf[4];
 
 	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
-		fprintf(stderr, "%02X ",*(buf+buf_index));
+		;//fprintf(stderr, "%02X ",*(buf+buf_index));
 	}
-	fprintf(stderr, "\r\nLen: %d ",buf_len);
+	//fprintf(stderr, "\r\nLen: %d ",buf_len);
 
 	ostime = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[9];
-	fprintf(stderr, "\tOSTime: %d ",ostime);
+	fprintf(stderr, "\r\nOSTime: %d ",ostime);
 	
 	for ( buf_index = 0 ; buf_index < buf_len - 14 ; buf_index++ ) {
 		gsm_ip[buf_index] = *(buf+19+buf_index) ;
@@ -658,9 +634,83 @@ int record_ip(struct icar_data *mycar, unsigned char *buf)
 		return 1;
 	}
 	else { //ok
-		if ( debug_flag ) {
-			fprintf(stderr, "insert new GSM IP ok.\n");
-		}
+		;//
+	}
+
+	//prevent error: 2014
+	res_ptr=mysql_store_result(&(mycar->mydb.mysql));
+	mysql_free_result(res_ptr);
+
+	return 0;
+
+}
+
+//0: ok
+//others: error, check err_code and err_msg
+int record_error(struct icar_data *mycar, unsigned char *buf)
+{
+	char sql_buf[BUFSIZE];
+	unsigned int buf_index, buf_len, ostime=0, err_len;
+	unsigned char err_str[128];
+
+	MYSQL_RES *res_ptr;
+	MYSQL_ROW sqlrow;
+	unsigned long sqlrow_cnt = 0 ;
+
+	//input: HEAD+SEQ+PCB+LEN+OSTime+SN+IP+CHK
+	//IP(123.123.123.123) 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33
+	//i.e: C9 01 53 00 1B 00 00 0D 99 
+	//     30 32 50 31 43 30 44 32 41 37 
+	//     31 30 2E 32 30 31 2E 31 33 37 2E 32 37 28 
+	buf_len = buf[3] << 8 | buf[4];
+
+	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
+		;//fprintf(stderr, "%02X ",*(buf+buf_index));
+	}
+	//fprintf(stderr, "\r\nLen: %d ",buf_len);
+
+	ostime = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[9];
+	//fprintf(stderr, "\r\nOSTime: %d ",ostime);
+
+	snprintf(err_str, 127, "Different SN: %s and ",mycar->sn);
+	err_len = strlen( err_str );
+
+	for ( buf_index = 0 ; buf_index < 10 ; buf_index++ ) {
+		err_str[buf_index+err_len] = *(buf+9+buf_index) ;
+		if ( buf_index > 127 ) { break ; }
+		;//fprintf(stderr, "buf_index=%d\t%X\r\n",buf_index,gsm_ip[buf_index]);
+	}
+	err_str[buf_index+err_len]  = 0x0, 	err_str[128] = 0x0; 
+
+	if ( debug_flag ) {
+		;//fprintf(stderr, "err_str: %s\r\n",err_str);
+	}
+
+	//insert err to table t_log_error:
+	snprintf(sql_buf,BUFSIZE-1,"insert into t_log_error values ( '',\
+								'%d',\
+								'%s',\
+								'%d',\
+								'',\
+								'%s'\
+								);",\
+								time(NULL),\
+								mycar->sn,\
+								ostime,\
+								err_str\
+								);
+
+	if ( debug_flag ) {
+		;//fprintf(stderr, "%s\r\n",sql_buf);
+	}
+
+	if ( mysql_query(&(mycar->mydb.mysql),sql_buf)) {//error
+		fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
+						mysql_errno(&(mycar->mydb.mysql)),mysql_error(&(mycar->mydb.mysql)));
+		return 1;
+	}
+	else { //ok
+		;//
 	}
 
 	//prevent error: 2014
