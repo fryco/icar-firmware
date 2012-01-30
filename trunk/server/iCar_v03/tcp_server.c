@@ -51,7 +51,6 @@ void process_conn_server(struct icar_data *mycar)
 	ssize_t size = 0;
 	unsigned char recv_buf[BUFSIZE];
 	unsigned char send_buf[BUFSIZE];
-	unsigned char sql_buf[BUFSIZE];
 	unsigned int buf_index ;
 	unsigned int chk_count ;
 	time_t ticks=time(NULL); 
@@ -193,7 +192,7 @@ void process_conn_server(struct icar_data *mycar)
 								send_buf[6] =  cmd.chk ;
 	
 								if ( debug_flag ) {
-									fprintf(stderr, "CMD 0x%02X error, will send: ",cmd.pcb);
+									fprintf(stderr, "CMD: %c error, will send: ",cmd.pcb);
 									for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
 										fprintf(stderr, "%02X ",send_buf[chk_count]);
 									}
@@ -230,7 +229,7 @@ void process_conn_server(struct icar_data *mycar)
 								send_buf[6] =  cmd.chk ;
 	
 								if ( debug_flag ) {
-									fprintf(stderr, "CMD 0x%02X ok, will send: ",cmd.pcb);
+									fprintf(stderr, "CMD: %c ok, will send: ",cmd.pcb);
 									for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
 										fprintf(stderr, "%02X ",send_buf[chk_count]);
 									}
@@ -425,15 +424,36 @@ void process_conn_server(struct icar_data *mycar)
 						break;
 
 					case 0x53://'S', SN, HEAD SEQ CMD Length(2 bytes) OSTime SN(char 10) IP check
-						      //C9 01 53 00 1B 00 00 0D 99 
+						      //C9 01 53 00 1B 00 00 0D 99 //CMD + OSTime
 							  //30 32 50 31 43 30 44 32 41 37 //SN
 							  //31 30 2E 32 30 31 2E 31 33 37 2E 32 37 28 //IP+CHK
 						if ( strlen(mycar->sn) == 10 ) {
-							fprintf(stderr, "\r\nNo need update ");
+							if ( strncmp(mycar->sn,&recv_buf[9], 10) ) {
+								//no same
+								record_error(mycar,&recv_buf[buf_index]);
+								fprintf(stderr, "\r\nSN error! First SN: %s, ",\
+									mycar->sn);
+								strncpy(cmd.pro_sn, &recv_buf[9], 10);
+								cmd.pro_sn[10] = 0x0;
+								fprintf(stderr, "now is: %s\n\n",mycar->sn);
+								goto exit_process_conn_server;
+							}
+							else {
+								fprintf(stderr, "\r\nNo need update ");
+							}
 						}
 						else {	//record the product SN
 							strncpy(cmd.pro_sn, &recv_buf[9], 10);
 							cmd.pro_sn[10] = 0x0;
+
+							//Update IP to server's DB
+							if ( record_ip(mycar,&recv_buf[buf_index])) 
+							{//no error
+								if ( debug_flag ) {
+									fprintf(stderr, "Update GSM IP err= %d: %s",\
+										mycar->err_code,mycar->err_msg);
+								}
+							}
 						}
 						fprintf(stderr, "SN: %s\t",mycar->sn);
 						fprintf(stderr, "cmd.pro_sn: %s\r\n",cmd.pro_sn);
@@ -444,15 +464,6 @@ void process_conn_server(struct icar_data *mycar)
 								fprintf(stderr, "Record command err= %d: %s",\
 									mycar->err_code,mycar->err_msg);
 								}
-						}
-
-						//Update IP
-						if ( record_ip(mycar,&recv_buf[buf_index])) 
-						{//no error
-							if ( debug_flag ) {
-								fprintf(stderr, "Update GSM IP err= %d: %s",\
-									mycar->err_code,mycar->err_msg);
-							}
 						}
 
 						//send respond 
@@ -529,7 +540,7 @@ void process_conn_server(struct icar_data *mycar)
 							send_buf[9] =  cmd.chk ;
 
 							if ( debug_flag ) {
-								fprintf(stderr, "CMD is Time, will send: ");
+								fprintf(stderr, "CMD is SN, will send: ");
 								for ( chk_count = 0 ; chk_count < 10 ; chk_count++ ) {
 									fprintf(stderr, "%02X ",send_buf[chk_count]);
 								}
