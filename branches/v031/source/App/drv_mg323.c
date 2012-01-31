@@ -1130,7 +1130,7 @@ unsigned char gsm_check_gprs( )
 	return 0 ;
 }
 
-bool gsm_pwr_off(void)
+bool gsm_pwr_off( SHUTDOWN_REASON reason)
 {
 	u8 result_temp;
 
@@ -1161,8 +1161,22 @@ bool gsm_pwr_off(void)
 	}
 
 	OSTimeDlyHMSM(0, 0, 1, 0);//不能太长，否则会自动重开机
-	prompt("Turn off GSM power.\r\n");
+
 	GSM_PM_OFF;
 
+	my_icar.mg323.try_online = 0;
+	my_icar.mg323.gprs_count = 0 ;
+	my_icar.mg323.gprs_ready = false;
+	my_icar.mg323.tcp_online = false ;
+	my_icar.mg323.power_on = false;
+	memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
+
+	//save to BK reg
+	my_icar.mg323.power_off_reason = reason ;
+	my_icar.mg323.power_off_timer=RTC_GetCounter( );
+    BKP_WriteBackupRegister(BKP_DR2, my_icar.mg323.power_off_timer);
+    BKP_WriteBackupRegister(BKP_DR3, my_icar.mg323.power_off_reason);
+
+	prompt("Turn off GSM power.\r\n");
 	return true ;
 }
