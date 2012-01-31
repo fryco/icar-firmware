@@ -15,7 +15,9 @@ typedef enum
 	SIM_CARD_ERR = 2 ,//Pin? no SIM?
 	NO_RESPOND = 3, //if ( OSTime - mg323_status.at_timer > 10*AT_TIMEOUT )
 	TRY_ONLINE = 4, //if ( mg323_status.try_online > 15 )
-	NO_GPRS  = 5  //mg323_status.gprs_count > 180
+	NO_GPRS  = 5,  //mg323_status.gprs_count > 180
+	MODULE_REBOOT = 6, //if receive: SYSSTART
+	MODULE_ERROR = 7 
 } SHUTDOWN_REASON;
 
 struct GSM_STATUS {

@@ -169,10 +169,34 @@ void  App_TaskManager (void *p_arg)
 				prompt("Ask GSM online...\r\n");
 				my_icar.mg323.ask_online = true ;
 			}
+
 			if ( var_uchar == 'c' || var_uchar == 'C' ) {//close
 				prompt("Ask GSM off line...\r\n");
 				my_icar.mg323.ask_online = false ;
 			}
+
+			if ( var_uchar == 'g' ) {//Suspend GSM task for debug
+				os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+				if ( os_err == OS_NO_ERR ) {
+					prompt("Suspend GSM task ok.\r\n");
+				}
+				else {
+					prompt("Suspend GSM task err: %d\r\n",os_err);
+				}
+			}
+			if ( var_uchar == 'G' ) {//Resume GSM task for debug
+				//reset timer here, prevent reset GSM module
+				my_icar.mg323.at_timer = OSTime ;
+
+				os_err = OSTaskResume(APP_TASK_GSM_PRIO);
+				if ( os_err == OS_NO_ERR ) {
+					prompt("Resume GSM task ok.\r\n");
+				}
+				else {
+					prompt("Resume GSM task err: %d\r\n",os_err);
+				}
+			}
+
 		}
 
 		if( my_icar.stm32_adc.completed ) {//temperature convert complete
@@ -265,19 +289,19 @@ static void flash_led( unsigned int i )
 	led_off(ALARM_LED);
 	OSTimeDlyHMSM(0, 0,	0, i);
 
-	led_on(OBD_CAN20);
+	led_on(RELAY_LED);
 	OSTimeDlyHMSM(0, 0,	0, i);
-	led_off(OBD_CAN20);
-	OSTimeDlyHMSM(0, 0,	0, i);
-
-	led_on(OBD_CAN10);
-	OSTimeDlyHMSM(0, 0,	0, i);
-	led_off(OBD_CAN10);
+	led_off(RELAY_LED);
 	OSTimeDlyHMSM(0, 0,	0, i);
 
-	led_on(OBD_CAN20);
+	led_on(ONLINE_LED);
 	OSTimeDlyHMSM(0, 0,	0, i);
-	led_off(OBD_CAN20);
+	led_off(ONLINE_LED);
+	OSTimeDlyHMSM(0, 0,	0, i);
+
+	led_on(RELAY_LED);
+	OSTimeDlyHMSM(0, 0,	0, i);
+	led_off(RELAY_LED);
 	OSTimeDlyHMSM(0, 0,	0, i);
 
 	led_on(ALARM_LED);
@@ -616,9 +640,9 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 
 		if ( c2s_data.queue_sent[index].send_pcb == 0 ) { //no use
 
-			prompt("Send PCB: %c, tx_len: %d, tx_lock: %d, ",\
+			//prompt("Send PCB: %c, tx_len: %d, tx_lock: %d, ",\
 				out_pcb,c2s_data.tx_len,c2s_data.tx_lock);
-			printf("queue: %02d\r\n",index);
+			//printf("queue: %02d\r\n",index);
 
 			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
 
