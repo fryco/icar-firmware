@@ -8,7 +8,7 @@ extern unsigned char dest_server[];
 const unsigned char callback_phone[] = "13828431106";
 
 static unsigned char gsm_string_decode( unsigned char *, unsigned int *);
-static void read_tcp_data( unsigned char * );
+static unsigned char read_tcp_data( unsigned char * );
 static void send_tcp_data( unsigned char *, unsigned int * );
 
 void  App_TaskGsm (void *p_arg)
@@ -211,7 +211,10 @@ void  App_TaskGsm (void *p_arg)
 					|| ((OSTime-c2s_data.check_timer)>TCP_CHECK_PERIOD) \
 					|| (!my_icar.mg323.rx_empty)) { //has data
 	
-					read_tcp_data( rec_str );
+
+					if ( read_tcp_data( rec_str )) {
+						prompt("Rec TCP data error! Line: %d\r\n",__LINE__);
+					}
 					c2s_data.check_timer = OSTime ;//Update timer
 				}
 
@@ -277,131 +280,151 @@ void  App_TaskGsm (void *p_arg)
 	}
 }
 
-static void read_tcp_data( unsigned char *buf )
+//0: ok
+//others: failure
+static unsigned char read_tcp_data( unsigned char *buf )
 {
-	static unsigned char gsm_tcp_len=0, buf_len=0 ;
-	static unsigned int i ;
+	static unsigned char i, gsm_tcp_len, buf_len, retry;
 #if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
     static OS_CPU_SR  cpu_sr = 0;
 #endif
 
-	//get the buffer data
-	putstring(COM2,"AT^SISR=0,");
-	snprintf((char *)buf,AT_CMD_LENGTH-1,"%d\r\n",20);
-	//不知为何增大会出问题？
-	//each time can't get > AT_CMD_LENGTH, else overflow
-	putstring(COM2,buf);
+	gsm_tcp_len=0, buf_len=0 , retry = 0;
 
-	//data will be sent out after ^SISR: 0,xx
-	memset(buf, 0x0, AT_CMD_LENGTH);
+	//GPRS max. speed: 115kbit/s = 11KB/s, but GSM_BUF_LENGTH is 1K
+	//retry: 1K*1024/(AT_CMD_LENGTH-1) = 1*1024/47 = 21
+	//so if > 21, release cpu, let taskmanager to handle receive buf
 
-	c2s_data.rx_timer = OSTime ;
-
-	while ( !strstr((char *)buf,"^SISR: 0,") \
-			&& !c2s_data.rx_full \
-			&& (OSTime - c2s_data.rx_timer) < 5*AT_TIMEOUT ) {
-
-		while ( my_icar.stm32_u2_rx.empty && \
-			(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
-			OSTimeDlyHMSM(0, 0,	0, 100);
-		}
-
+	while ( retry < 20 ) {
+		//get the buffer data
+		putstring(COM2,"AT^SISR=0,");
+		snprintf((char *)buf,AT_CMD_LENGTH-1,"%d\r\n",AT_CMD_LENGTH-1);
+		//each time can't get > AT_CMD_LENGTH, else overflow
+		putstring(COM2,buf);
+	
+		//data will be sent out after ^SISR: 0,xx
 		memset(buf, 0x0, AT_CMD_LENGTH);
-		if ( get_respond(buf) ) {
-			gsm_tcp_len = 0 ;//set default value
-			if ( strstr((char *)buf,"^SISR: 0,") ) {//found
-				//^SISR: 0,10 收到数据10个 or 
-				//^SISR: 0,0  no data, update my_icar.mg323.rx_empty
-				//search first \r\n
-				buf_len=(strstr((char *)buf,"\r\n")-(char *)buf);
-				//prompt("buf:%s, len: %d\r\n",buf,buf_len);
-				//提取 buffer 长度
-				switch (buf_len) {
-
-				case 10://^SISR: 0,1
-					gsm_tcp_len = buf[9] - 0x30 ;
-					break;
-
-				case 11://^SISR: 0,12
-					gsm_tcp_len = (buf[10] - 0x30)+\
-									 ((buf[9] - 0x30)*10) ;
-					break;
-
-				case 12://^SISR: 0,123
-					gsm_tcp_len = (buf[11] - 0x30)+\
-									((buf[10] - 0x30)*10)+\
-									((buf[9]  - 0x30)*100) ;
-					break;
-
-				case 13://^SISR: 0,1234
-					gsm_tcp_len = (buf[12] - 0x30)+\
-									((buf[11] - 0x30)*10)+\
-									((buf[10] - 0x30)*100)+\
-									((buf[9]  - 0x30)*1000) ;
-					break;
-
-				default:
-					prompt("Buf: %s Illegal length %d, check %s: %d\r\n",\
-							buf,buf_len,__FILE__, __LINE__);
-					break;
-
-				}//end of switch
-
-				if ( gsm_tcp_len == 0 ) {//no data
-					my_icar.mg323.rx_empty = true ;
-					//prompt("\r\nGSM TCP no data. %s\tline: %d\r\n",__FILE__, __LINE__);
-				}
-				else {
-					//push data to c2s_data.rx
-					//prompt("Push to rx:\t");
-
-					for ( i = 0 ; i < gsm_tcp_len; i++ ) {
-						while ( my_icar.stm32_u2_rx.empty && \
-							(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
-							OSTimeDlyHMSM(0, 0,	0, 100);
-							prompt("Line: %d, gsm_tcp_len: %d, i: %d\r\n",\
-								__LINE__,gsm_tcp_len,i);
-						}
-
-						if ( my_icar.stm32_u2_rx.empty ) {//
-							prompt("Rec buf: %s\r\n",buf);
-							prompt("Wait TCP data timeout! check %s: %d\r\n",\
-								__FILE__,__LINE__);
-							i =  gsm_tcp_len; //end this loop
-						}
-						else {
-							*c2s_data.rx_in_last = getbyte( COM2 );
 	
-							//printf("%02X ",*c2s_data.rx_in_last);
+		c2s_data.rx_timer = OSTime ;
 	
-							c2s_data.rx_in_last++;
-						   	if (c2s_data.rx_in_last==c2s_data.rx+GSM_BUF_LENGTH) {
-								c2s_data.rx_in_last=c2s_data.rx;//地址到顶部回到底部
+		while ( !strstr((char *)buf,"^SISR: 0,") \
+				&& !c2s_data.rx_full \
+				&& (OSTime - c2s_data.rx_timer) < 5*AT_TIMEOUT ) {
+	
+			while ( my_icar.stm32_u2_rx.empty && \
+				(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
+				OSTimeDlyHMSM(0, 0,	0, 100);
+			}
+	
+			memset(buf, 0x0, AT_CMD_LENGTH);
+			if ( get_respond(buf) ) {
+				gsm_tcp_len = 0 ;//set default value
+				if ( strstr((char *)buf,"^SISR: 0,") ) {//found
+					//^SISR: 0,10 收到数据10个 or 
+					//^SISR: 0,0  no data, update my_icar.mg323.rx_empty
+					//search first \r\n
+					buf_len=(strstr((char *)buf,"\r\n")-(char *)buf);
+					//提取 buffer 长度
+					switch (buf_len) {
+	
+					case 10://^SISR: 0,1
+						gsm_tcp_len = buf[9] - 0x30 ;
+						break;
+	
+					case 11://^SISR: 0,12
+						gsm_tcp_len = (buf[10] - 0x30)+\
+										 ((buf[9] - 0x30)*10) ;
+						break;
+	
+					case 12://^SISR: 0,123
+						gsm_tcp_len = (buf[11] - 0x30)+\
+										((buf[10] - 0x30)*10)+\
+										((buf[9]  - 0x30)*100) ;
+						break;
+	
+					case 13://^SISR: 0,1234
+						gsm_tcp_len = (buf[12] - 0x30)+\
+										((buf[11] - 0x30)*10)+\
+										((buf[10] - 0x30)*100)+\
+										((buf[9]  - 0x30)*1000) ;
+						break;
+	
+					default:
+						prompt("Buf: %s Illegal length %d, check %s: %d\r\n",\
+								buf,buf_len,__FILE__, __LINE__);
+						break;
+	
+					}//end of switch
+	
+					if ( gsm_tcp_len == 0 ) {//no data
+						my_icar.mg323.rx_empty = true ;
+						return 0;
+						//prompt("\r\nGSM TCP no data. %s\tline: %d\r\n",__FILE__, __LINE__);
+					}
+					else {
+						if ( gsm_tcp_len == AT_CMD_LENGTH-1 ) {
+							//still have data in module
+							retry++ ;
+						}
+						else { //no more data
+							retry = 0xFF ;
+						}
+						//push data to c2s_data.rx
+						//prompt("Push to rx:\t");
+						//prompt("retry: %d gsm_tcp_len: %d\r\n",retry,gsm_tcp_len);
+						for ( i = 0 ; i < gsm_tcp_len; i++ ) {
+							while ( my_icar.stm32_u2_rx.empty && \
+								(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
+								OSTimeDlyHMSM(0, 0,	0, 100);
+								prompt("Line: %d, gsm_tcp_len: %d, i: %d\r\n",\
+									__LINE__,gsm_tcp_len,i);
 							}
 	
-							OS_ENTER_CRITICAL();
-							c2s_data.rx_empty = false ;
-				    		if (c2s_data.rx_in_last==c2s_data.rx_out_last)	{
-								c2s_data.rx_full = true;  //set buffer full flag
+							if ( my_icar.stm32_u2_rx.empty ) {//Still empty, no data
+								prompt("Rec buf: %s\r\n",buf);
+								prompt("Wait TCP data timeout! check %s: %d\r\n",\
+									__FILE__,__LINE__);
+								return 1;
 							}
-							OS_EXIT_CRITICAL();
-						}	
+							else {//have data
+								*c2s_data.rx_in_last = getbyte( COM2 );
+		
+								//printf("%02X ",*c2s_data.rx_in_last);
+		
+								c2s_data.rx_in_last++;
+							   	if (c2s_data.rx_in_last==c2s_data.rx+GSM_BUF_LENGTH) {
+									c2s_data.rx_in_last=c2s_data.rx;//地址到顶部回到底部
+								}
+		
+								OS_ENTER_CRITICAL();
+								c2s_data.rx_empty = false ;
+					    		if (c2s_data.rx_in_last==c2s_data.rx_out_last)	{
+									c2s_data.rx_full = true;  //set buffer full flag
+									i = gsm_tcp_len ;
+									retry = 0xFF ;
+								}
+								OS_EXIT_CRITICAL();
+							}	
+						}
 					}
 				}
+	
+				if ( strstr((char *)buf,"ERROR") ) {//Module report error
+					prompt("Rec err! %s: %d.\r\n",__FILE__, __LINE__);
+					my_icar.mg323.rx_empty = true ;
+					return 1 ;
+				}
 			}
-
-			if ( strstr((char *)buf,"ERROR") ) {//Module report error
-				my_icar.mg323.rx_empty = true ;
-			}
+			else {//may GSM module no respond, need to enquire
+				OSTimeDlyHMSM(0, 0, 0, 500);
+				putstring(COM2,"AT^SISI?\r\n");//enquire online?
+				prompt("No return %s: %d.\r\n",__FILE__, __LINE__);
+				OSTimeDlyHMSM(0, 0, 0, 500);
+				return 1 ;
+			}//end of if ( get_respond(buf) ) 
 		}
-		else {//may GSM module no respond, need to enquire
-			OSTimeDlyHMSM(0, 0, 0, 500);
-			putstring(COM2,"AT^SISI?\r\n");//enquire online?
-			prompt("No return %s\tline: %d.\r\n",__FILE__, __LINE__);
-			OSTimeDlyHMSM(0, 0, 0, 500);
-			c2s_data.rx_timer = 0 ;//make it timeout and end this while
-		}//end of if ( get_respond(buf) ) 
-	}
+	}//end while ( retry < 20 )
+	return 0 ;
 }
 
 static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
@@ -410,7 +433,7 @@ static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
 		//prompt("Wil send data %s\tline: %d.\r\n",__FILE__, __LINE__);
 		if ( gsm_send_tcp(buffer,*buf_len) ) {
 			//Check: ^SISW: 0,1 
-			prompt("Send %d bytes OK!\r\n",*buf_len);
+			printf(" send %d bytes OK!\r\n",*buf_len);
 			*buf_len = 0 ;
 			c2s_data.tx_timer = OSTime ;//update timer
 		}
@@ -625,9 +648,9 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 	//GSM TCP rec data: ^SISR: 0,0
 	if (strstr((char *)buf,"^SISR: 0,")) {//Rec tcp data
+		//prompt("TCP rec data: %s\r\n",buf);
 		//^SISR: 0,0  :no data
 		if ( buf[10] > 0x30 ) {//have data
-			//prompt("TCP rec data: %s\r\n",buf);
 			my_icar.mg323.rx_empty = false ;
 		}
 		else {
