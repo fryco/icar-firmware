@@ -86,8 +86,7 @@ bool test_at_uart(void)
 	u8 retry;
 	u8 respond_str[AT_CMD_LENGTH];
 
-	for ( retry = 0 ;retry < 10 ; retry++) {
-		//uart2_buf_clean( );
+	for ( retry = 0 ;retry < 50 ; retry++) {
 		putstring(COM2, "AT\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
 		if ( my_icar.stm32_u2_rx.empty ) {//no data...
@@ -1007,7 +1006,7 @@ unsigned char gsm_power_on( )
 	GSM_PM_ON;
 
 	//check module: mg323
-	OSTimeDlyHMSM(0, 0, 2, 0);//wait power stable
+	OSTimeDlyHMSM(0, 0, 1, 0);//wait power stable
 	if( !test_at_uart() )  {
 		//module no respond, need to reset
 		debug_gsm("\r\nGSM module no respond, force shutdown...\r\n");
@@ -1031,12 +1030,13 @@ unsigned char gsm_power_on( )
 	OSTimeDlyHMSM(0, 0, 1, 0);
 	close_ifc();//关闭硬件流控制
 
+	debug_gsm("Search GSM network...\r\n");
 	//check gsm network
 	set_at_echo(0);//设置禁止回显
 	if( !check_gsm_net() )  {
 		return 10 ; //no gsm network
 	}
-	debug_gsm("Check GSM net ok\r\n");
+	debug_gsm("Register to GSM network ok\r\n");
 	return 0 ;
 }
 
@@ -1145,15 +1145,13 @@ bool gsm_pwr_off( SHUTDOWN_REASON reason)
 
 	if ( result_temp != 2 ) { //error, force shutdown
 		close_tcp_conn( );
-		OSTimeDlyHMSM(0, 0, 3, 0);
-		close_tcp_conn( );
-		OSTimeDlyHMSM(0, 0, 3, 0);
+		OSTimeDlyHMSM(0, 0, 1, 0);
 	}
 
 	//shutdown module ... AT^SMSO
 	if( !shutdown_mg323( ) )  {
 		debug_gsm("shutdown error\r\n");
-		OSTimeDlyHMSM(0, 0, 3, 0);
+		OSTimeDlyHMSM(0, 0, 1, 0);
 		shutdown_mg323( );
 	}
 	else {
@@ -1164,7 +1162,7 @@ bool gsm_pwr_off( SHUTDOWN_REASON reason)
 
 	GSM_PM_OFF;
 
-	my_icar.mg323.try_online = 0;
+	my_icar.mg323.try_online = 1;
 	my_icar.mg323.gprs_count = 0 ;
 	my_icar.mg323.gprs_ready = false;
 	my_icar.mg323.tcp_online = false ;
