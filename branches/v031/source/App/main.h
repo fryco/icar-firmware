@@ -41,7 +41,7 @@
 #define DEBUG_GSM
 
 #define AT_CMD_LENGTH			48 //for GSM command, must < RX_BUF_SIZE
-#define MAX_ONLINE_TRY			30 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
+#define MAX_ONLINE_TRY			20 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
 #define MAX_MODULE_ERR			10 //reboot GSM module if err > MAX_MODULE_ERR
 
 #define AT_TIMEOUT				1*OS_TICKS_PER_SEC // 1 sec

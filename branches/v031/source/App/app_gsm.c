@@ -32,7 +32,7 @@ void  App_TaskGsm (void *p_arg)
 	my_icar.mg323.gprs_ready = false;
 	my_icar.mg323.tcp_online = false;
 	my_icar.mg323.ask_online = false;
-	my_icar.mg323.try_online = 0;
+	my_icar.mg323.try_online = 1;
 
 	my_icar.mg323.apn_index = NULL;
 	my_icar.mg323.roam = false;
@@ -75,12 +75,12 @@ void  App_TaskGsm (void *p_arg)
 				}
 				else { //error, maybe no GSM network
 					prompt("GSM power on failure:%d will try later.\r\n",my_icar.mg323.err_no);
-					OSTimeDlyHMSM(0, 0, 3, 0);
 					if ( my_icar.mg323.err_no == 8 ) {
 						gsm_pwr_off( SIM_CARD_ERR );
 					}
 					else {
 						gsm_pwr_off( POWER_ON_FAILURE );
+						OSTimeDlyHMSM(0, 0, 1, 0);
 					}					
 				}
 			}
@@ -108,10 +108,13 @@ void  App_TaskGsm (void *p_arg)
 					my_icar.mg323.gprs_count = 0 ;
 
 					if ( !my_icar.mg323.tcp_online ) { //no online
-
+						//try_online <= 3 if normal
 						if ( my_icar.mg323.try_online%7 == 0 ) {//Try close first
-							putstring(COM2,"AT^SISC=0\r\n");
-							OSTimeDlyHMSM(0, 0, 2, 0);
+							prompt("will re-init GSM again... try_online: %d\r\n",my_icar.mg323.try_online);
+							my_icar.mg323.gprs_count = 0 ;
+							my_icar.mg323.gprs_ready = false;
+							my_icar.mg323.tcp_online = false ;
+							my_icar.mg323.power_on = false;
 						}
 
 						//prompt("IP: %s\r\n",my_icar.mg323.ip_local);
@@ -140,7 +143,7 @@ void  App_TaskGsm (void *p_arg)
 					putstring(COM2, "AT+CGREG?\r\n");
 					my_icar.mg323.gprs_count++;
 					//wait... timeout => restart
-					if ( my_icar.mg323.gprs_count > 180 ) {//about 180s
+					if ( my_icar.mg323.gprs_count > 60 ) {//about 60s
 
 							gsm_pwr_off( NO_GPRS );
 
@@ -459,7 +462,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	//found GSM module reboot message
 	if (strstr((char *)buf,"SYSSTART")) {
 		prompt("MG323 report: %s\r\n",buf);
-		my_icar.mg323.try_online = 0;
+		my_icar.mg323.try_online = 1;
 		my_icar.mg323.gprs_count = 0 ;
 		my_icar.mg323.gprs_ready = false;
 		my_icar.mg323.tcp_online = false ;
@@ -494,7 +497,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 			my_icar.mg323.tcp_online = false ;
 			OSTimeDlyHMSM(0, 0, 0, 500);
 			putstring(COM2,"AT^SISC=0\r\n");
-			my_icar.mg323.try_online = 0 ;
+			my_icar.mg323.try_online = 1 ;
 
 			//maybe some problem
 			OSTimeDlyHMSM(0, 0, 0, 500);
@@ -570,7 +573,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		//^SISI: 0,5,0,0,0,0
 		if ( buf[9]== 0x34 ) {
 			my_icar.mg323.tcp_online = true ;
-			my_icar.mg323.try_online = 0 ;
+			my_icar.mg323.try_online = 1 ;
 		}
 		else {
 			OSTimeDlyHMSM(0, 0, 0, 500);
@@ -586,7 +589,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 				prompt("Close connection@ %d.\r\n",__LINE__);
 				OSTimeDlyHMSM(0, 0, 0, 500);
 				putstring(COM2,"AT^SISC=0\r\n");//close channel 0
-				my_icar.mg323.try_online = 0 ;
+				my_icar.mg323.try_online = 1 ;
 
 				//maybe some problem
 				OSTimeDlyHMSM(0, 0, 0, 500);
