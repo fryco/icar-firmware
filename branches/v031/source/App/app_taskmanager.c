@@ -120,12 +120,12 @@ void  App_TaskManager (void *p_arg)
 	flash_led( 80 );//100ms
 
 	//independent watchdog init
-	iwdg_init( );
+	//iwdg_init( );
 
 	while	(1)
 	{
 		/* Reload IWDG counter */
-		IWDG_ReloadCounter();  
+		//IWDG_ReloadCounter();  
 
 		if ( c2s_data.tx_len > 0 || !my_icar.login_timer ) {//have command, need online
 			my_icar.mg323.ask_online = true ;

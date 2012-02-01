@@ -143,7 +143,7 @@ bool check_sim_state(void)
 		while ( !my_icar.stm32_u2_rx.empty ) {//have data ...
 			if ( get_respond(respond_str) ) {
 				if (strstr((char *)respond_str,"ERROR")) {
-					return false;
+					OSTimeDlyHMSM(0, 0,	0, 200);
 				}
 
 				if (strstr((char *)respond_str,"CPIN: READY\r\n")) {//found
