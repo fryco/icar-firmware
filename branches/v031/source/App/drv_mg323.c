@@ -1130,9 +1130,42 @@ unsigned char gsm_check_gprs( )
 	return 0 ;
 }
 
+bool gprs_disconnect( DISCONNECT_REASON reason)
+{
+	u16 result_temp;
+
+	prompt("Close connection... ");
+	//close connect... AT^SISC=0
+	if( close_tcp_conn( ) )  {
+		prompt("ok.\r\n");
+	}
+	else {
+		prompt("failure.\r\n");
+	}
+
+	my_icar.mg323.tcp_online = false ;
+	my_icar.mg323.try_online = 1 ;
+
+	//save to BK reg
+	//BKP_DR4, GPRS disconnect time(UTC Time) high
+	//BKP_DR5, GPRS disconnect time(UTC Time) low
+    BKP_WriteBackupRegister(BKP_DR4, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+    BKP_WriteBackupRegister(BKP_DR5, (RTC_GetCounter( ))&0xFFFF);//low
+
+	//BKP_DR1, ERR index: 	15~12:reverse 
+	//						11~8:reverse
+	//						7~4:GPRS disconnect reason
+	//						3~0:GSM module poweroff reason
+	result_temp = (BKP_ReadBackupRegister(BKP_DR1))&0xFF0F;
+	result_temp = result_temp | ((reason<<4)&0xF0) ;
+    BKP_WriteBackupRegister(BKP_DR1, result_temp);
+
+	return true ;
+}
+
 bool gsm_pwr_off( SHUTDOWN_REASON reason)
 {
-	u8 result_temp;
+	u16 result_temp;
 
 	//close connect... AT^SISC=0
 	if( !close_tcp_conn( ) )  {
@@ -1170,10 +1203,18 @@ bool gsm_pwr_off( SHUTDOWN_REASON reason)
 	memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
 
 	//save to BK reg
-	my_icar.mg323.power_off_reason = reason ;
-	my_icar.mg323.power_off_timer=RTC_GetCounter( );
-    BKP_WriteBackupRegister(BKP_DR2, my_icar.mg323.power_off_timer);
-    BKP_WriteBackupRegister(BKP_DR3, my_icar.mg323.power_off_reason);
+	//BKP_DR2, GSM Module power off time(UTC Time) high
+	//BKP_DR3, GSM Module power off time(UTC Time) low
+    BKP_WriteBackupRegister(BKP_DR2, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+    BKP_WriteBackupRegister(BKP_DR3, (RTC_GetCounter( ))&0xFFFF);//low
+
+	//BKP_DR1, ERR index: 	15~12:reverse 
+	//						11~8:reverse
+	//						7~4:GPRS disconnect reason
+	//						3~0:GSM module poweroff reason
+	result_temp = (BKP_ReadBackupRegister(BKP_DR1))&0xFFF0;
+	result_temp = result_temp | reason ;
+    BKP_WriteBackupRegister(BKP_DR1, result_temp);
 
 	prompt("Turn off GSM power.\r\n");
 	return true ;

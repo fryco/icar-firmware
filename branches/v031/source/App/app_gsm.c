@@ -8,13 +8,13 @@ extern unsigned char dest_server[];
 const unsigned char callback_phone[] = "13828431106";
 
 static unsigned char gsm_string_decode( unsigned char *, unsigned int *);
-static unsigned char read_tcp_data( unsigned char * );
+static unsigned char read_tcp_data( unsigned char *,unsigned int * );
 static void send_tcp_data( unsigned char *, unsigned int * );
 
 void  App_TaskGsm (void *p_arg)
 {
 	unsigned char rec_str[AT_CMD_LENGTH], err_decode, module_err_count=0;
-	unsigned int  relay_timer=0;
+	unsigned int  relay_timer=0, rec_data_len = 0;
 #if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
     OS_CPU_SR  cpu_sr = 0;
 #endif
@@ -23,10 +23,6 @@ void  App_TaskGsm (void *p_arg)
 
 	my_icar.mg323.server_ip_port = dest_server;
 	my_icar.mg323.power_on = false;
-
-	//Does it need replace by BKP_DR2,3 value?
-	my_icar.mg323.power_off_reason = NO_ERR ;
-	my_icar.mg323.power_off_timer=0;
 
 	my_icar.mg323.gprs_count = 0 ;
 	my_icar.mg323.gprs_ready = false;
@@ -91,7 +87,7 @@ void  App_TaskGsm (void *p_arg)
 
 		if ( my_icar.mg323.power_on ) {//below action need power on
 
-			//should receive feedback < 10 seconds, because we enquire every 4 sec.
+			//should receive feedback < 10 seconds, because we enquire every sec.
 			if ( OSTime - my_icar.mg323.at_timer > 10*AT_TIMEOUT ) {
 				//GSM module no respond, reset it
 				prompt("\r\nGSM Module no respond, will be reset...%s\tline: %d\r\n",\
@@ -108,8 +104,8 @@ void  App_TaskGsm (void *p_arg)
 					my_icar.mg323.gprs_count = 0 ;
 
 					if ( !my_icar.mg323.tcp_online ) { //no online
-						//try_online <= 3 if normal
-						if ( my_icar.mg323.try_online%7 == 0 ) {//Try close first
+						//try_online <= 4 if normal
+						if ( my_icar.mg323.try_online%9 == 0 ) {//Try close first
 							prompt("will re-init GSM again... try_online: %d\r\n",my_icar.mg323.try_online);
 							my_icar.mg323.gprs_count = 0 ;
 							my_icar.mg323.gprs_ready = false;
@@ -214,9 +210,12 @@ void  App_TaskGsm (void *p_arg)
 					|| ((OSTime-c2s_data.check_timer)>TCP_CHECK_PERIOD) \
 					|| (!my_icar.mg323.rx_empty)) { //has data
 	
-
-					if ( read_tcp_data( rec_str )) {
+					rec_data_len = 0 ;
+					if ( read_tcp_data( rec_str, &rec_data_len )) {
 						prompt("Rec TCP data error! Line: %d\r\n",__LINE__);
+					}
+					else {
+						prompt("Rec %d bytes\r\n",rec_data_len);
 					}
 					c2s_data.check_timer = OSTime ;//Update timer
 				}
@@ -231,7 +230,7 @@ void  App_TaskGsm (void *p_arg)
 						|| c2s_data.tx_timer == 0 \
 						|| (OSTime-c2s_data.tx_timer) > TCP_SEND_PERIOD) {
 	
-						if ( !c2s_data.tx_lock ) {
+						if ( !c2s_data.tx_lock && !my_icar.need_sn) {
 							OS_ENTER_CRITICAL();
 							c2s_data.tx_lock = true ;
 							OS_EXIT_CRITICAL();
@@ -285,7 +284,7 @@ void  App_TaskGsm (void *p_arg)
 
 //0: ok
 //others: failure
-static unsigned char read_tcp_data( unsigned char *buf )
+static unsigned char read_tcp_data( unsigned char *buf, unsigned int *rec_len )
 {
 	static unsigned char i, gsm_tcp_len, buf_len, retry;
 #if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
@@ -375,6 +374,7 @@ static unsigned char read_tcp_data( unsigned char *buf )
 						//push data to c2s_data.rx
 						//prompt("Push to rx:\t");
 						//prompt("retry: %d gsm_tcp_len: %d\r\n",retry,gsm_tcp_len);
+						*rec_len = *rec_len + gsm_tcp_len ;
 						for ( i = 0 ; i < gsm_tcp_len; i++ ) {
 							while ( my_icar.stm32_u2_rx.empty && \
 								(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
@@ -438,6 +438,7 @@ static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
 			//Check: ^SISW: 0,1 
 			printf(" send %d bytes OK!\r\n",*buf_len);
 			*buf_len = 0 ;
+			c2s_data.check_timer = 0;//need check ASAP also
 			c2s_data.tx_timer = OSTime ;//update timer
 		}
 		else {
@@ -457,7 +458,7 @@ static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
 //return 1: unknow string
 static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer )
 {
-	static unsigned char i ;
+	static u16 i ;
 
 	//found GSM module reboot message
 	if (strstr((char *)buf,"SYSSTART")) {
@@ -469,10 +470,18 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		my_icar.mg323.power_on = false;
 	
 		//save to BK reg
-		my_icar.mg323.power_off_reason = MODULE_REBOOT ;
-		my_icar.mg323.power_off_timer=RTC_GetCounter( );
-	    BKP_WriteBackupRegister(BKP_DR2, my_icar.mg323.power_off_timer);
-	    BKP_WriteBackupRegister(BKP_DR3, my_icar.mg323.power_off_reason);
+		//BKP_DR2, GSM Module power off time(UTC Time) high
+		//BKP_DR3, GSM Module power off time(UTC Time) low
+	    BKP_WriteBackupRegister(BKP_DR2, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+	    BKP_WriteBackupRegister(BKP_DR3, (RTC_GetCounter( ))&0xFFFF);//low
+	
+		//BKP_DR1, ERR index: 	15~12:reverse 
+		//						11~8:reverse
+		//						7~4:GPRS disconnect reason
+		//						3~0:GSM module poweroff reason
+		i = (BKP_ReadBackupRegister(BKP_DR1))&0xFFF0;
+		i = i | MODULE_REBOOT ;
+	    BKP_WriteBackupRegister(BKP_DR1, i);
 
 		return 0;
 	}
@@ -493,14 +502,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 		if ( my_icar.mg323.tcp_online  ) {
 			//previous status is online, now is offline, close connect.
-			prompt("Close connection@ %d.\r\n",__LINE__);
-			my_icar.mg323.tcp_online = false ;
-			OSTimeDlyHMSM(0, 0, 0, 500);
-			putstring(COM2,"AT^SISC=0\r\n");
-			my_icar.mg323.try_online = 1 ;
-
-			//maybe some problem
-			OSTimeDlyHMSM(0, 0, 0, 500);
+			gprs_disconnect(PEER_CLOSED);
 		}
 		return 0;
 	}
@@ -585,14 +587,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 			if ( my_icar.mg323.tcp_online  ) {
 				//previous status is online, now is offline, close connect.
-				my_icar.mg323.tcp_online = false ;
-				prompt("Close connection@ %d.\r\n",__LINE__);
-				OSTimeDlyHMSM(0, 0, 0, 500);
-				putstring(COM2,"AT^SISC=0\r\n");//close channel 0
-				my_icar.mg323.try_online = 1 ;
-
-				//maybe some problem
-				OSTimeDlyHMSM(0, 0, 0, 500);
+				gprs_disconnect(PROFILE_NO_UP);
 			}
 		}
 		return 0;
@@ -606,9 +601,11 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 			case 0x30://0：Down 状态，Internet 连接已经定义但还没连接
 
-				//my_icar.mg323.tcp_online = false ;
 				prompt("!!!Connection is down!!! %d\r\n",__LINE__);
-
+				if ( my_icar.mg323.tcp_online  ) {
+					//previous status is online, now is offline, close connect.
+					gprs_disconnect(CONNECTION_DOWN);
+				}
 				break;
 
 			case 0x31://1：连接状态，服务已经打开，Internet 连接已经初始化
@@ -668,7 +665,6 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		//need to double check
 		prompt("TCP online: %s\r\n",buf);
 		my_icar.mg323.tcp_online = true ;
-		c2s_data.check_timer = 0 ;//need check GSM TCP buffer
 		//ask the IP, return:^SICI: 0,2,1,"10.156.174.147"
 		putstring(COM2,"AT^SICI?\r\n");
 		return 0;

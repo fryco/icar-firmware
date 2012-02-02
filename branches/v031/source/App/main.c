@@ -136,7 +136,7 @@ int	main(void)
 	GPS_PM_OFF;
 	SD_PM_OFF;
 
-	show_rst_flag( );
+	show_rst_flag( ), show_err_log( );
 
 	/*	Initialize "uC/OS-II, The Real-Time	Kernel".		 */
 	OSInit(); //include: OSTime = 0L;

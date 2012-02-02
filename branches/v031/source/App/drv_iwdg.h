@@ -25,5 +25,6 @@
 //void RTC_Configuration(void);
 void iwdg_init(void);
 void show_rst_flag( void );
+void show_err_log( void );
 
 #endif /* __DRV_IWDG_H */

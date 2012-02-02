@@ -10,12 +10,20 @@
 /* Exported types ------------------------------------------------------------*/
 typedef enum
 {
-	NO_ERR = 0 ,//normal, no error
+	DISCONNECT_NO_ERR = 0 ,//normal, no error
+	CONNECTION_DOWN = 1,//^SICI: 0,2,0
+	PEER_CLOSED = 2, //^SIS: 0, 0, 48, Remote Peer has closed the connection
+	PROFILE_NO_UP = 3 //AT^SISI return is not 4: up
+} DISCONNECT_REASON;
+
+typedef enum
+{
+	SHUTDOWN_NO_ERR = 0 ,//normal, no error
 	POWER_ON_FAILURE = 1, //
 	SIM_CARD_ERR = 2 ,//Pin? no SIM?
 	NO_RESPOND = 3, //if ( OSTime - mg323_status.at_timer > 10*AT_TIMEOUT )
 	TRY_ONLINE = 4, //if ( mg323_status.try_online > 15 )
-	NO_GPRS  = 5,  //mg323_status.gprs_count > 180
+	NO_GPRS  = 5,  //mg323_status.gprs_count > 60
 	MODULE_REBOOT = 6, //if receive: SYSSTART
 	MODULE_ERROR = 7 
 } SHUTDOWN_REASON;
@@ -24,8 +32,8 @@ struct GSM_STATUS {
 	bool ask_power ;
 	bool power_on ;
 
-	SHUTDOWN_REASON power_off_reason;
-	unsigned int power_off_timer;
+	//SHUTDOWN_REASON power_off_reason;
+	//unsigned int power_off_timer;
 
 	bool gprs_ready ;
 	unsigned char gprs_count;

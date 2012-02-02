@@ -41,12 +41,14 @@
 #define DEBUG_GSM
 
 #define AT_CMD_LENGTH			48 //for GSM command, must < RX_BUF_SIZE
-#define MAX_ONLINE_TRY			20 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
+#define MAX_LOG_LENGTH			64 //log message length, must < 64
+#define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
 #define MAX_MODULE_ERR			10 //reboot GSM module if err > MAX_MODULE_ERR
 
 #define AT_TIMEOUT				1*OS_TICKS_PER_SEC // 1 sec
 
-#define TCP_SEND_PERIOD			1*1*30*OS_TICKS_PER_SEC //60 secs
+#define TCP_RESPOND_TIMEOUT		1*1*30*OS_TICKS_PER_SEC //30 secs
+#define TCP_SEND_PERIOD			1*1*30*OS_TICKS_PER_SEC //30 secs
 #define TCP_CHECK_PERIOD		1*1*30*OS_TICKS_PER_SEC //30 secs
 #define CLEAN_QUEUE_PERIOD		1*2*60*OS_TICKS_PER_SEC //2  mins
 #define RELAY_ON_PERIOD			1*3*60*OS_TICKS_PER_SEC //3  mins
@@ -57,7 +59,8 @@
 
 //For GSM <==> Server protocol
 #define GSM_HEAD				0xC9
-#define GSM_CMD_RECORD			0x52 //'R', record
+#define GSM_CMD_ERROR			0x45 //'E', upload error log to server
+#define GSM_CMD_RECORD			0x52 //'R', record gsm/adc data
 #define GSM_CMD_SN				0x53 //'S', upload SN
 #define GSM_CMD_TIME			0x54 //'T', time
 
@@ -69,6 +72,7 @@
 /* Exported types ------------------------------------------------------------*/
 struct ICAR_DEVICE {
 	unsigned int login_timer;
+	unsigned int err_log_send_timer;
 	unsigned char *sn ;//serial number
 	bool need_sn;//server need SN
 
