@@ -13,6 +13,8 @@ struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
 
 extern struct ICAR_DEVICE my_icar;
 
+const unsigned char ERR_GSM[] = "GSM module power off, check app_gsm.h";//Length must < 64
+const unsigned char ERR_GPRS[] = "GPRS disconnect, check app_gsm.h";//Length must < 64
 static unsigned char pro_sn[]="02P1xxxxxx";
 //Last 6 bytes replace by MCU ID xor result
 /* SN, char(10): 0  2  P  1 1  A  H  0 0 0
@@ -99,6 +101,7 @@ void  App_TaskManager (void *p_arg)
 	DMA1_Channel1->CCR |= DMA_CCR1_EN;
 
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
+	my_icar.err_log_send_timer = 0 ;//
 	my_icar.need_sn = true ;
 	my_icar.mg323.ask_power = true ;
 
@@ -137,6 +140,7 @@ void  App_TaskManager (void *p_arg)
 		//Send command
 		if ( my_icar.need_sn && c2s_data.tx_sn_len == 0 ) {//no in sending process
 			gsm_send_sn( &gsm_sequence );//will be return time also
+			OSTimeDlyHMSM(0, 0, 5, 0);//let app_gsm send and wait return
 		}
 
 		if ( my_icar.login_timer ) {//send others CMD after login
@@ -146,10 +150,20 @@ void  App_TaskManager (void *p_arg)
 				gsm_send_pcb(&gsm_sequence, GSM_CMD_TIME,&record_sequence);
 			}
 
-			//if ( (OSTime/100)%3 == 0 ) {//record GSM signal, for testing
-				//gsm_send_record( &gsm_sequence, &record_sequence );
+			if ( (OSTime - my_icar.err_log_send_timer) > TCP_RESPOND_TIMEOUT \
+					&& BKP_ReadBackupRegister(BKP_DR1) ) {//ERR log index
+				//middle task 
+				if ( !gsm_send_pcb(&gsm_sequence, GSM_CMD_ERROR, &record_sequence)){
+					prompt("Upload err log and reset send_timer...\r\n");
+					my_icar.err_log_send_timer = OSTime ;
+					c2s_data.tx_timer = 0 ;//need send ASAP
+				}
+			}
+
+			if ( my_icar.mg323.tcp_online ) {//record GSM signal and ADC, for testing
+				//lowest task, just send when online
 				gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
-			//}
+			}
 		}
 
 		if ( !c2s_data.rx_empty ) {//receive some TCP data from GSM
@@ -173,6 +187,11 @@ void  App_TaskManager (void *p_arg)
 			if ( var_uchar == 'c' || var_uchar == 'C' ) {//close
 				prompt("Ask GSM off line...\r\n");
 				my_icar.mg323.ask_online = false ;
+			}
+
+			if ( var_uchar == 'b' || var_uchar == 'B' ) {//show Backup register
+				prompt("Print Backup register info ... \r\n");
+				show_err_log( );
 			}
 
 			if ( var_uchar == 'g' ) {//Suspend GSM task for debug
@@ -474,6 +493,75 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				case 0x4C://'L':
 					break;
 
+				case GSM_CMD_ERROR://0x45,'E'  C9 3B C5 00 01 00 36
+					//prompt("Record respond PCB @ %08X, %08X~%08X\r\n",\
+						//buf->start,c2s_data.rx,c2s_data.rx+GSM_BUF_LENGTH);
+					my_icar.err_log_send_timer = 0 ;//can send others
+					switch (*((buf->start)+5)) {
+
+					case 0x1://need upload SN first
+						prompt("Upload err log failure, need product SN first! CMD_seq: %02X\r\n",\
+							*((buf->start)+1));
+
+						break;
+
+					case 0x2://need upload SN first
+						prompt("Upload err log failure, insert into database error! \
+							CMD_seq: %02X\r\n",*((buf->start)+1));
+						break;
+
+					//BKP_DR1, ERR index: 	15~12:reverse 
+					//						11~8:reverse
+					//						7~4:GPRS disconnect reason
+					//						3~0:GSM module poweroff reason
+					case 0x10://record err log part 1: GSM module poweroff success
+						prompt("Upload GSM module poweroff err log success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						//Clear the error flag
+						//BKP_DR2, GSM Module power off time(UTC Time) high
+						//BKP_DR3, GSM Module power off time(UTC Time) low
+					    BKP_WriteBackupRegister(BKP_DR2, 0);//high
+					    BKP_WriteBackupRegister(BKP_DR3, 0);//low
+						BKP_WriteBackupRegister(BKP_DR1, \
+							((BKP_ReadBackupRegister(BKP_DR1))&0xFFF0));
+
+						break;
+
+					case 0x20://record err log part 2: GPRS disconnect success
+						prompt("Upload GPRS disconnect err log success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						//Clear the error flag
+						//BKP_DR4, GPRS disconnect time(UTC Time) high
+						//BKP_DR5, GPRS disconnect time(UTC Time) low
+					    BKP_WriteBackupRegister(BKP_DR4, 0);//high
+					    BKP_WriteBackupRegister(BKP_DR5, 0);//low
+						BKP_WriteBackupRegister(BKP_DR1, \
+							((BKP_ReadBackupRegister(BKP_DR1))&0xFF0F));
+
+						break;
+
+					case 0x30://record err log part 3: rev success
+						prompt("Upload rev err log success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						//Clear the error flag
+						BKP_WriteBackupRegister(BKP_DR1, \
+							((BKP_ReadBackupRegister(BKP_DR1))&0xF0FF));
+
+						break;
+
+					case 0x40://record err log part 4: rev success
+						prompt("Upload rev err log success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						//Clear the error flag
+						BKP_WriteBackupRegister(BKP_DR1, \
+							((BKP_ReadBackupRegister(BKP_DR1))&0x0FFF));
+
+						break;
+
+					default:
+						prompt("Upload err log failure, unknow error code: 0x%02X CMD_seq: %02X ",\
+								*((buf->start)+5),*((buf->start)+1));
+						printf("check %s: %d\r\n",__FILE__,__LINE__);
+						break;
+					}
+					break;
+
 				case GSM_CMD_RECORD://0x52,'R'
 					//C9 06 D2 00 01 01 1D
 					//prompt("Record respond PCB @ %08X, %08X~%08X\r\n",\
@@ -516,8 +604,10 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 					case 0x4://CMD success
 						//Update and calibrate RTC
+						prompt("Upload SN CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						RTC_update_calibrate(buf->start,c2s_data.rx) ;
 						my_icar.need_sn = false ;
+						c2s_data.tx_timer = 0 ;//need send others queue ASAP
 						break;
 
 					default:
@@ -629,12 +719,15 @@ static unsigned int calc_free_buffer(unsigned char *in,unsigned char *out,unsign
 //return 2: no free buffer or buffer busy
 static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pcb, unsigned int *record_seq)
 {
-	static unsigned char i, chkbyte, index;
-	static unsigned int seq = 0;
+	static unsigned char chkbyte, index, err_len;
+	static u16 i ;
+	static unsigned int seq ;
+
 #if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
     OS_CPU_SR  cpu_sr = 0;
 #endif
 
+	i = 0 , seq = 0 , err_len = 0;
 	//find a no use SENT_QUEUE to record the SEQ/CMD
 	for ( index = 0 ; index < MAX_CMD_QUEUE-4 ; index++) {
 
@@ -644,12 +737,10 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 				out_pcb,c2s_data.tx_len,c2s_data.tx_lock);
 			//printf("queue: %02d\r\n",index);
 
-			//HEAD SEQ CMD Length(2 bytes) SN(char 10) check
-
 			if ( !c2s_data.tx_lock \
-				&& c2s_data.tx_len < (GSM_BUF_LENGTH-20) ) {
+				&& c2s_data.tx_len < (GSM_BUF_LENGTH-MAX_LOG_LENGTH-13) ) {
 				//no process occupy && have enough buffer
-	
+				//Max len: Head+SEQ+CMD+Len+err_time+err_code+log_len +CHK
 				OS_ENTER_CRITICAL();
 				c2s_data.tx_lock = true ;
 				OS_EXIT_CRITICAL();
@@ -684,8 +775,95 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
 				}
 
-				if ( out_pcb == GSM_CMD_RECORD ) {
+				if ( out_pcb == GSM_CMD_ERROR ) {//upload error log to server
 					//HEAD SEQ PCB Length(2 bytes) DATA(var char) check
+					//DATA: err_time(4 bytes)+err_code(2 byte)+log(<128 bytes)
+	
+					//BKP_DR1, ERR index: 	15~12:reverse , high priority
+					//						11~8:reverse
+					//						7~4:GPRS disconnect reason
+					//						3~0:GSM module poweroff reason, low priority
+					//BKP_DR2, GSM Module power off time(UTC Time) high
+					//BKP_DR3, GSM Module power off time(UTC Time) low
+					//BKP_DR4, GPRS disconnect time(UTC Time) high
+					//BKP_DR5, GPRS disconnect time(UTC Time) low
+
+					i = BKP_ReadBackupRegister(BKP_DR1);
+					//err_code, 2 byte
+					c2s_data.tx[c2s_data.tx_len+9] = (i>>8)&0xFF;
+					c2s_data.tx[c2s_data.tx_len+10]= (i)&0xFF;
+					if ( i & 0xF000 ) { //highest priority, send first
+						;//reverse
+					}
+					else {
+						if ( i & 0x0F00 ) { //higher priority
+							;//reverse
+						}
+						else {	
+							if ( i & 0x00F0 ) { //GPRS disconnect err
+								err_len = strlen((char *)ERR_GPRS);
+								if ( err_len > MAX_LOG_LENGTH ) {//too long
+									err_len = MAX_LOG_LENGTH ;
+								}
+
+								//gprs disconnect time, 4 bytes
+								seq = BKP_ReadBackupRegister(BKP_DR4) ;
+								c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
+								c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//time high
+								seq = BKP_ReadBackupRegister(BKP_DR5) ;
+								c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
+								c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
+
+								//err log
+								strncpy((char *)&c2s_data.tx[c2s_data.tx_len+11], \
+									(char *)ERR_GPRS, err_len);
+
+							}
+							else {		
+								if ( i & 0x000F ) { //GSM module poweroff err
+									err_len = strlen((char *)ERR_GSM);
+									if ( err_len > MAX_LOG_LENGTH ) {//too long
+										err_len = MAX_LOG_LENGTH ;
+									}
+
+									//GSM power off time, 4 bytes
+									seq = BKP_ReadBackupRegister(BKP_DR2) ;
+									c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
+									c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//time high
+									seq = BKP_ReadBackupRegister(BKP_DR3) ;
+									c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
+									c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
+
+									//err log
+									strncpy((char *)&c2s_data.tx[c2s_data.tx_len+11], \
+										(char *)ERR_GSM, err_len);
+
+								}
+								else {//program logic error
+									prompt("firmware logic error, chk: %s: %d\r\n",\
+										__FILE__,__LINE__);			
+								}//end (i & 0x000F)
+							}//end (i & 0x00F0)
+						}//end (i & 0x0F00)
+					}//end (i & 0xF000)
+
+					c2s_data.tx[c2s_data.tx_len+3] = 0 ;//length high
+					c2s_data.tx[c2s_data.tx_len+4] = err_len+6 ;//length low
+	
+					//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+					chkbyte = GSM_HEAD ;
+					for ( i = 1 ; i < 11+err_len ; i++ ) {//calc chkbyte
+						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
+						//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+					}
+					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
+					//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+					//update buf length
+					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
+				}
+
+				if ( out_pcb == GSM_CMD_RECORD ) {
+					//HEAD SEQ PCB Length(2 bytes) DATA(5 bytes) check
 					//DATA: Record_seq(2 bytes)+GSM signal(1byte)+voltage(2 bytes)
 
 					c2s_data.tx[c2s_data.tx_len+3] = 0 ;//length high
@@ -790,14 +968,14 @@ static unsigned char gsm_send_sn( unsigned char *sequence)
 				strncpy((char *)&c2s_data.tx_sn[19], \
 						(char *)my_icar.mg323.ip_local, IP_LEN-1);
 
-				prompt("SN CMD: %02X ",c2s_data.tx_sn[0]);
+				//prompt("SN CMD: %02X ",c2s_data.tx_sn[0]);
 				chkbyte = GSM_HEAD ;
 				for ( i = 1 ; i < 19+ip_length ; i++ ) {//calc chkbyte
 					chkbyte ^= c2s_data.tx_sn[i];
-					printf("%02X ",c2s_data.tx_sn[i]);
+					//printf("%02X ",c2s_data.tx_sn[i]);
 				}
 				c2s_data.tx_sn[i] = chkbyte ;
-				printf("%02X\r\n",c2s_data.tx_sn[i]);
+				//printf("%02X\r\n",c2s_data.tx_sn[i]);
 				c2s_data.tx_sn_len = i+1 ;
 
 				return 0 ;

@@ -25,6 +25,7 @@
 unsigned char cmpmem(unsigned char *, unsigned char *,unsigned char );
 unsigned char gsm_power_on( void ) ;
 unsigned char gsm_check_gprs( void );
+bool gprs_disconnect( DISCONNECT_REASON );
 bool gsm_pwr_off( SHUTDOWN_REASON );
 unsigned char check_gsm_CSQ( void );
 unsigned char check_tcp_status( void );

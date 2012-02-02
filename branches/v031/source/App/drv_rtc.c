@@ -2,10 +2,20 @@
 
 extern struct ICAR_DEVICE my_icar;
 
-//Backup register list:
-//BKP_DR1, stm32_rtc.prescaler
-//BKP_DR2, GSM Module power off timer
+//Backup register, 16 bit = 2 bytes * 10 for STM32R8
+//BKP_DR1, ERR index: 	15~12:reverse 
+//						11~8:reverse
+//						7~4:GPRS disconnect reason
+//						3~0:GSM module poweroff reason
+//BKP_DR2, GSM Module power off time(UTC Time) high
+//BKP_DR3, GSM Module power off time(UTC Time) low
+//BKP_DR4, GPRS disconnect time(UTC Time) high
+//BKP_DR5, GPRS disconnect time(UTC Time) low
+
+
 //BKP_DR3, GSM Module power off reason
+//...
+//BKP_DR10, stm32_rtc.prescaler
 /*
 static unsigned int datetime_to_seconds (struct DATE_TIME *datetime)
 {
@@ -80,7 +90,7 @@ void rtc_init(void)	{
 	/* Allow access to BKP Domain */
 	PWR_BackupAccessCmd(ENABLE);
 
-	my_icar.stm32_rtc.prescaler = BKP_ReadBackupRegister(BKP_DR1) ;
+	my_icar.stm32_rtc.prescaler = BKP_ReadBackupRegister(BKP_DR10) ;
 
 	if (my_icar.stm32_rtc.prescaler == 0x0)
 	{
@@ -117,9 +127,10 @@ void rtc_init(void)	{
 	
 	    prompt("RTC configured.\r\n");
 	
-		my_icar.stm32_rtc.prescaler = ((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL ;
+		//my_icar.stm32_rtc.prescaler = ((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL ;
+		my_icar.stm32_rtc.prescaler = RTC->PRLL ;//BKP is 16 bit reg
+	    BKP_WriteBackupRegister(BKP_DR10, my_icar.stm32_rtc.prescaler);
 
-	    BKP_WriteBackupRegister(BKP_DR1, my_icar.stm32_rtc.prescaler);
 	}
 	else {
     	prompt("No need to configure RTC....%X\r\n",my_icar.stm32_rtc.prescaler);
@@ -194,8 +205,7 @@ void RTC_update_calibrate( unsigned char *p1, unsigned char *p2)
 		/* Wait until last write operation on RTC registers has finished */
 		RTC_WaitForLastTask();
 	
-		BKP_WriteBackupRegister(BKP_DR1, my_icar.stm32_rtc.prescaler);
-		//printf("%d\r\n",((uint32_t)RTC->PRLH << 16 ) | RTC->PRLL);
+		BKP_WriteBackupRegister(BKP_DR10, my_icar.stm32_rtc.prescaler);
 
 		seconds_to_datetime(RTC_GetCounter() , &datetime);
 		prompt("UTC: %d-%02d-%02d  ", datetime.year, datetime.month, datetime.day);
@@ -220,5 +230,7 @@ void RTC_show_time( unsigned int seconds)
 {
 	struct DATE_TIME datetime;
 	seconds_to_datetime(seconds , &datetime);
-	printf("UTC: %02d:%02d:%02d\r\n", datetime.hour, datetime.minute, datetime.second);
+	printf("UTC: %04d/%02d/%02d %02d:%02d:%02d\r\n", \
+		datetime.year, datetime.month, datetime.day,\
+		datetime.hour, datetime.minute, datetime.second);
 }
