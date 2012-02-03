@@ -9,30 +9,44 @@
 #define IP_LEN			16 //123.123.123.123
 /* Exported types ------------------------------------------------------------*/
 typedef enum
-{
-	DISCONNECT_NO_ERR = 0 ,//normal, no error
-	CONNECTION_DOWN = 1,//^SICI: 0,2,0
-	PEER_CLOSED = 2, //^SIS: 0, 0, 48, Remote Peer has closed the connection
-	PROFILE_NO_UP = 3 //AT^SISI return is not 4: up
-} DISCONNECT_REASON;
+{//same as define in drv_mg323.c
+	DISCONNECT_NO_ERR = 0,	//normal, no error
+
+	CONNECTION_DOWN	=	1,	//^SICI: 0,2,0
+	PEER_CLOSED 	= 	2,	//^SIS: 0, 0, 48, Remote Peer has closed the connection
+	PROFILE_NO_UP 	=	3,	//AT^SISI return is not 4: up
+
+	NO_GPRS_IN_INIT	=	6,	//no gprs network
+	GPRS_ATT_ERR	=	7,	//gprs attach failure
+	CONN_TYPE_ERR	=	8,	//set connect type error
+	GET_APN_ERR		=	9,	//get APN error
+	SET_APN_ERR		=	10,	//set APN error
+	SET_CONN_ERR	=	11,	//set conID error
+	SVR_TYPE_ERR	=	12,	//set svr type error
+	DEST_IP_ERR		=	13	//set dest IP and port error
+} DISCONNECT_REASON;//enum must < 15
 
 typedef enum
-{
-	SHUTDOWN_NO_ERR = 0 ,//normal, no error
-	POWER_ON_FAILURE = 1, //
-	SIM_CARD_ERR = 2 ,//Pin? no SIM?
-	NO_RESPOND = 3, //if ( OSTime - mg323_status.at_timer > 10*AT_TIMEOUT )
-	TRY_ONLINE = 4, //if ( mg323_status.try_online > 15 )
-	NO_GPRS  = 5,  //mg323_status.gprs_count > 60
-	MODULE_REBOOT = 6, //if receive: SYSSTART
-	MODULE_ERROR = 7 
-} SHUTDOWN_REASON;
+{//same as define in drv_mg323.c
+	SHUTDOWN_NO_ERR	=	0,	//normal, no error
+	NO_RESPOND		=	1, 	//if ( OSTime - mg323_status.at_timer > 10*AT_TIMEOUT )
+							//or send AT no return
+	SIM_CARD_ERR	=	2,	//Pin? no SIM?
+	NO_GSM_NET		=	3,	//no GSM net or can't register
+	NO_CARRIER_INFO	=	4,	//Get GSM carrier info failure
+	SIGNAL_WEAK		=	5,	//gsm signal < MIN_GSM_SIGNAL
+	NO_GPRS			=	6,	//mg323_status.gprs_count > 60
+
+	TRY_ONLINE		=	13,	//if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
+	RETURN_TOO_ERR	= 	14,	//if ( module_err_count > MAX_MODULE_ERR ) {//reboot
+	MODULE_REBOOT	=	15	//if receive: SYSSTART
+} POWEROFF_REASON; //enum must < 15
 
 struct GSM_STATUS {
 	bool ask_power ;
 	bool power_on ;
 
-	//SHUTDOWN_REASON power_off_reason;
+	//POWEROFF_REASON power_off_reason;
 	//unsigned int power_off_timer;
 
 	bool gprs_ready ;
@@ -49,7 +63,6 @@ struct GSM_STATUS {
 	unsigned char *server_ip_port;
 	unsigned int apn_index;
 	unsigned char signal;
-	unsigned char err_no;
 	bool roam;
 	bool cgatt;
 	bool rx_empty;//GSM Module rx buffer

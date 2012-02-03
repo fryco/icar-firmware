@@ -44,6 +44,7 @@
 #define MAX_LOG_LENGTH			64 //log message length, must < 64
 #define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
 #define MAX_MODULE_ERR			10 //reboot GSM module if err > MAX_MODULE_ERR
+#define MIN_GSM_SIGNAL			8  //Min. GSM Signal require
 
 #define AT_TIMEOUT				1*OS_TICKS_PER_SEC // 1 sec
 
@@ -71,6 +72,7 @@
 
 /* Exported types ------------------------------------------------------------*/
 struct ICAR_DEVICE {
+	bool debug ;//debug flag
 	unsigned int login_timer;
 	unsigned int err_log_send_timer;
 	unsigned char *sn ;//serial number
@@ -89,7 +91,6 @@ struct ICAR_DEVICE {
 	struct UART_RX stm32_u3_rx;
 
 	struct GSM_STATUS mg323;
-
 };
 
 #endif /* __MAIN_H */

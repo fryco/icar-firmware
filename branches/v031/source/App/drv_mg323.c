@@ -980,26 +980,12 @@ bool shutdown_mg323( )
 }
 
 //Function: connect to server by tcp
-//return: 0 success
-//        4  failure, GSM module: ME3000 no respond
-//        8  failure, SIM card error
-//        10 failure, no gsm network
-//        15 failure, get gsm carrier error
-//        18 failure, gsm signal too week
-//        20 failure, no gprs network
-//        25 failure, gprs attached failure
-//        30 failure, set connect type error
-//        32 failure, get APN error
-//        34 failure, set APN error
-//        36 failure, set APN user error
-//        38 failure, set APN pwd error
-//        40 failure, set conID error
-//        45 failure, set svr type error
-//        50 failure, set dest IP and port error
-//        60 failure, start connection error
-//        70 failure, get IP error
-
-//        90 failure, connect to server error, check network or server
+//return: 0 success, same as POWEROFF_REASON define in app_gsm.h
+//        1  failure, GSM module: MG323 no respond
+//        2  failure, SIM card error
+//        3  failure, no gsm network
+//        4  failure, get gsm carrier error
+//        5  failure, gsm signal too week
 unsigned char gsm_power_on( )
 {
 	prompt("Turn on GSM power...\r\n");
@@ -1013,7 +999,7 @@ unsigned char gsm_power_on( )
 		GSM_PM_OFF;
 		my_icar.mg323.power_on = false;
 		OSTimeDlyHMSM(0, 0, 10, 0);
-		return 4 ; //mg323 no respond
+		return 1 ; //mg323 no respond
 	}
 
 	OSTimeDlyHMSM(0, 0, 0, 100);
@@ -1022,7 +1008,7 @@ unsigned char gsm_power_on( )
 	//check SIM card status
 	OSTimeDlyHMSM(0, 0, 0, 100);
 	if( !check_sim_state() )  {
-		return 8 ; //SIM Card error
+		return 2 ; //SIM Card error
 	}
 	prompt("Check SIM card status ok.\r\n");
 
@@ -1034,56 +1020,73 @@ unsigned char gsm_power_on( )
 	//check gsm network
 	set_at_echo(0);//设置禁止回显
 	if( !check_gsm_net() )  {
-		return 10 ; //no gsm network
+		return 3 ; //no gsm network
 	}
 	debug_gsm("Register to GSM network ok\r\n");
-	return 0 ;
-}
 
-unsigned char gsm_check_gprs( )
-{
 	//check carrier
 	set_at_echo(0);//设置禁止回显
 	if( !check_gsm_cops() )  {
-		return 15 ; //get carrier error
+		prompt("Get GSM carrier info failure!");
+		return 4 ; //get carrier error
 	}
 	prompt("Carrier is %s\r\n",my_icar.mg323.carrier);
 
 	//来电显示 AT+CLIP=1
 	show_income_number( );
 
-	//检测网络信号强度 <12 不登陆
+	//检测网络信号强度 < MIN_GSM_SIGNAL 不登陆
 	my_icar.mg323.signal = check_gsm_CSQ();
 
-	debug_gsm("Current singal is: %d\r\n",my_icar.mg323.signal);
-	if( my_icar.mg323.signal < 12) {
+	debug_gsm("GSM signal is: %d\r\n",my_icar.mg323.signal);
+	if( my_icar.mg323.signal < MIN_GSM_SIGNAL) {
 		prompt("GSM Signal too weak:%d\r\n",my_icar.mg323.signal);
-		return 18 ;
+		return 5 ;
 	}
 
+	return 0 ;
+}
+
+//        6  failure, no gprs network
+//        7  failure, gprs attached failure
+//        8  failure, set connect type error
+//        9	 failure, get APN error
+//        10 failure, set APN error
+//        10 failure, set APN user error
+//        10 failure, set APN pwd error
+//        11 failure, set conID error
+//        12 failure, set svr type error
+//        13 failure, set dest IP and port error
+
+//        60 failure, start connection error
+//        70 failure, get IP error
+//        90 failure, connect to server error, check network or server
+
+unsigned char gsm_check_gprs( )
+{
 	//check gprs
 	set_at_echo(0);//设置禁止回显
 	if( !check_gprs_net() )  {
-		return 20 ; //no gprs network
+		return 6 ; //no gprs network
 	}
 
 	//check gprs attached
 	set_at_echo(0);//设置禁止回显
 	if( !check_gprs_att() )  {
-		return 25 ; //gprs attach failure
+		prompt("GPRS attache failure! mg323.cgatt: %d\r\n", my_icar.mg323.cgatt);
+		return 7 ; //gprs attach failure
 	}
-	debug_gsm("GPRS attache status is: %d\r\n", my_icar.mg323.cgatt);
 
 	//set connect type
 	if( !set_conn_type( ) )  {
-		debug_gsm("Set connect type error\r\n");
-		return 30 ; //set connect type error
+		prompt("Set connect type error\r\n");
+		return 8 ; //set connect type error
 	}
 
 	//check apn
 	if( !get_apn_by_imsi( ) )  {
-		debug_gsm("Get APN error\r\n");
-		return 32 ; //get apn error
+		prompt("Get APN error\r\n");
+		return 9 ; //get apn error
 	}
 	debug_gsm("Get APN ok: %s %s %s\r\n", apn_list[my_icar.mg323.apn_index][1],\
 									apn_list[my_icar.mg323.apn_index][2],\
@@ -1092,41 +1095,43 @@ unsigned char gsm_check_gprs( )
 	//set APN
 	if( !set_gprs_apn( ) )  {
 		debug_gsm("Set APN error\r\n");
-		return 34 ; //set apn error
+		return 10 ; //set apn error
 	}
 	prompt("Set APN ok.\r\n");
 
 	if ( *(apn_list[my_icar.mg323.apn_index][2]) ) {	
 		if( !set_gprs_user( ) )  {
 			debug_gsm("Set APN user error\r\n");
-			return 36 ; //set apn user error
+			return 10 ; //set apn user error
 		}
 	}
 
 	if ( *(apn_list[my_icar.mg323.apn_index][3]) ) {	
 		if( !set_gprs_passwd( ) )  {
 			debug_gsm("Set APN passwd error\r\n");
-			return 38 ; //set apn passwd error
+			return 10 ; //set apn passwd error
 		}
 	}
 
 	//set connect ID
 	if( !set_conn_id( ) )  {
-		debug_gsm("Set connect id error\r\n");
-		return 40 ; //set connect type error
+		prompt("Set connect id error\r\n");
+		return 11 ; //set connect type error
 	}
 
 	//set service type, only support socket
 	if( !set_svr_type( ) )  {
-		debug_gsm("Set service type error\r\n");
-		return 45 ; //set svr type error
+		prompt("Set service type error\r\n");
+		return 12 ; //set svr type error
 	}
 
 	//set destination IP and port
 	if( !set_dest_ip( ) )  {
-		debug_gsm("Set dest IP and port error\r\n");
-		return 50 ; //set dest IP and port error
+		prompt("Set dest IP and port error\r\n");
+		return 13 ; //set dest IP and port error
 	}
+
+	prompt("initiate GPRS setting ok\r\n");
 	return 0 ;
 }
 
@@ -1163,7 +1168,7 @@ bool gprs_disconnect( DISCONNECT_REASON reason)
 	return true ;
 }
 
-bool gsm_pwr_off( SHUTDOWN_REASON reason)
+bool gsm_pwr_off( POWEROFF_REASON reason)
 {
 	u16 result_temp;
 
