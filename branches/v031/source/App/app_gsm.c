@@ -13,8 +13,8 @@ static void send_tcp_data( unsigned char *, unsigned int * );
 
 void  App_TaskGsm (void *p_arg)
 {
-	unsigned char rec_str[AT_CMD_LENGTH], err_decode, module_err_count=0;
-	unsigned int  relay_timer=0, rec_data_len = 0;
+	unsigned char rec_str[AT_CMD_LENGTH], err_code, module_err_count=0;
+	unsigned int  relay_timer=0, var_int_data = 0;
 #if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
     OS_CPU_SR  cpu_sr = 0;
 #endif
@@ -51,33 +51,41 @@ void  App_TaskGsm (void *p_arg)
 
 		if ( my_icar.mg323.ask_power ) {//ask power on the GSM module
 			if ( !my_icar.mg323.power_on ) {
-				my_icar.mg323.err_no = gsm_power_on() ;
-				if ( my_icar.mg323.err_no == 0 ) {
+				err_code = gsm_power_on() ;
+				if ( err_code == 0 ) {
 					my_icar.mg323.power_on = true;
 					my_icar.mg323.at_timer = OSTime ;
 
 					//check gprs network also
 					if ( !my_icar.mg323.gprs_ready ) {
-						my_icar.mg323.err_no = gsm_check_gprs( );
-						if ( my_icar.mg323.err_no == 0 ) {
+						err_code = gsm_check_gprs( );
+						if ( err_code == 0 ) {
 							my_icar.mg323.gprs_ready = true;
 						}
 						else { //error, maybe no gprs network or APN error
-							prompt("Reg gprs failure:%d will try later.\r\n",my_icar.mg323.err_no);
+							prompt("Reg gprs failure:%d will try later.\r\n",err_code);
 							my_icar.mg323.gprs_ready = false;
 							my_icar.mg323.tcp_online = false ;
+
+							//save to BK reg
+							//BKP_DR4, GPRS disconnect time(UTC Time) high
+							//BKP_DR5, GPRS disconnect time(UTC Time) low
+						    BKP_WriteBackupRegister(BKP_DR4, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+						    BKP_WriteBackupRegister(BKP_DR5, (RTC_GetCounter( ))&0xFFFF);//low
+						
+							//BKP_DR1, ERR index: 	15~12:reverse 
+							//						11~8:reverse
+							//						7~4:GPRS disconnect reason
+							//						3~0:GSM module poweroff reason
+							var_int_data = (BKP_ReadBackupRegister(BKP_DR1))&0xFF0F;
+							var_int_data = var_int_data | ((err_code<<4)&0xF0) ;
+						    BKP_WriteBackupRegister(BKP_DR1, var_int_data);
 						}
 					}
 				}
 				else { //error, maybe no GSM network
-					prompt("GSM power on failure:%d will try later.\r\n",my_icar.mg323.err_no);
-					if ( my_icar.mg323.err_no == 8 ) {
-						gsm_pwr_off( SIM_CARD_ERR );
-					}
-					else {
-						gsm_pwr_off( POWER_ON_FAILURE );
-						OSTimeDlyHMSM(0, 0, 1, 0);
-					}					
+					prompt("GSM power on failure:%d will try later.\r\n",err_code);
+					gsm_pwr_off( (POWEROFF_REASON)err_code );
 				}
 			}
 		}
@@ -142,7 +150,6 @@ void  App_TaskGsm (void *p_arg)
 					if ( my_icar.mg323.gprs_count > 60 ) {//about 60s
 
 							gsm_pwr_off( NO_GPRS );
-
 							prompt("Find GPRS network timeout! check %s: %d\r\n",\
 								__FILE__, __LINE__);
 							//will be auto power on because ask_power is true
@@ -190,14 +197,14 @@ void  App_TaskGsm (void *p_arg)
 				if ( get_respond(rec_str) ) {
 					;//prompt("Rec:%s\r\n",rec_str);
 
-					err_decode = gsm_string_decode( rec_str ,&relay_timer );
-					if ( err_decode == 2 ) {//module error
+					err_code = gsm_string_decode( rec_str ,&relay_timer );
+					if ( err_code == 2 ) {//module error
 						module_err_count++;
 						if ( module_err_count > MAX_MODULE_ERR ) {//reboot
 							prompt("\r\nGSM Module error, will be reset... %s: %d\r\n",\
 								__FILE__, __LINE__);
 							module_err_count=0 ;
-							gsm_pwr_off( MODULE_ERROR );
+							gsm_pwr_off( RETURN_TOO_ERR );
 						}
 					}
 				}
@@ -210,12 +217,14 @@ void  App_TaskGsm (void *p_arg)
 					|| ((OSTime-c2s_data.check_timer)>TCP_CHECK_PERIOD) \
 					|| (!my_icar.mg323.rx_empty)) { //has data
 	
-					rec_data_len = 0 ;
-					if ( read_tcp_data( rec_str, &rec_data_len )) {
+					var_int_data = 0 ;
+					if ( read_tcp_data( rec_str, &var_int_data )) {
 						prompt("Rec TCP data error! Line: %d\r\n",__LINE__);
 					}
 					else {
-						prompt("Rec %d bytes\r\n",rec_data_len);
+						if ( my_icar.debug ) {
+							prompt("Rec %d bytes\r\n",var_int_data);
+						}
 					}
 					c2s_data.check_timer = OSTime ;//Update timer
 				}
@@ -230,7 +239,7 @@ void  App_TaskGsm (void *p_arg)
 						|| c2s_data.tx_timer == 0 \
 						|| (OSTime-c2s_data.tx_timer) > TCP_SEND_PERIOD) {
 	
-						if ( !c2s_data.tx_lock && !my_icar.need_sn) {
+						if ( !c2s_data.tx_lock && !my_icar.need_sn && c2s_data.tx_len ) {
 							OS_ENTER_CRITICAL();
 							c2s_data.tx_lock = true ;
 							OS_EXIT_CRITICAL();
@@ -442,7 +451,7 @@ static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
 			c2s_data.tx_timer = OSTime ;//update timer
 		}
 		else {
-			printf("\r\nGSM send TCP data error.\t");
+			printf("GSM send err, len:%d\t",*buf_len);
 			prompt("Check %s, line:	%d\r\n",__FILE__, __LINE__);
 		}
 	}
@@ -495,14 +504,15 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	//^SIS: 0, 0, 48, Remote Peer has closed the connection
 	if (strstr((char *)buf,"^SIS: 0, 0, 48")) {
 
-		putstring(COM2,"AT^SICI?\r\n");//enquire for further info
-		prompt("MG323 report: %s\r\n",buf);
-		OSTimeDlyHMSM(0, 0, 0, 500);
-		putstring(COM2, "AT+CGREG?\r\n");
-
 		if ( my_icar.mg323.tcp_online  ) {
 			//previous status is online, now is offline, close connect.
 			gprs_disconnect(PEER_CLOSED);
+		}
+		else {
+			putstring(COM2,"AT^SICI?\r\n");//enquire for further info
+			prompt("MG323 report: %s\r\n",buf);
+			OSTimeDlyHMSM(0, 0, 0, 500);
+			putstring(COM2, "AT+CGREG?\r\n");
 		}
 		return 0;
 	}
@@ -578,13 +588,8 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 			my_icar.mg323.try_online = 1 ;
 		}
 		else {
-			OSTimeDlyHMSM(0, 0, 0, 500);
-			putstring(COM2,"AT^SICI?\r\n");//enquire for further info
 			prompt("SISI return: %s, check %s: %d\r\n",\
 							buf,__FILE__, __LINE__);
-			OSTimeDlyHMSM(0, 0, 0, 500);
-			putstring(COM2, "AT+CGREG?\r\n");
-
 			if ( my_icar.mg323.tcp_online  ) {
 				//previous status is online, now is offline, close connect.
 				gprs_disconnect(PROFILE_NO_UP);

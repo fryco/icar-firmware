@@ -100,6 +100,7 @@ void  App_TaskManager (void *p_arg)
 	//DMA_Cmd(DMA1_Channel1, ENABLE);
 	DMA1_Channel1->CCR |= DMA_CCR1_EN;
 
+	my_icar.debug = false ;
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
 	my_icar.err_log_send_timer = 0 ;//
 	my_icar.need_sn = true ;
@@ -140,7 +141,7 @@ void  App_TaskManager (void *p_arg)
 		//Send command
 		if ( my_icar.need_sn && c2s_data.tx_sn_len == 0 ) {//no in sending process
 			gsm_send_sn( &gsm_sequence );//will be return time also
-			OSTimeDlyHMSM(0, 0, 5, 0);//let app_gsm send and wait return
+			OSTimeDlyHMSM(0, 0, 3, 0);//let app_gsm send and wait return
 		}
 
 		if ( my_icar.login_timer ) {//send others CMD after login
@@ -179,6 +180,12 @@ void  App_TaskManager (void *p_arg)
 		while ( !my_icar.stm32_u1_rx.empty ) {//receive some data from console...
 			var_uchar = getbyte( COM1 ) ;
 			putbyte( COM1, var_uchar );
+
+			if ( var_uchar == 'b' || var_uchar == 'B' ) {//show Backup register
+				prompt("Print Backup register info ... \r\n");
+				show_err_log( );
+			}
+
 			if ( var_uchar == 'o' || var_uchar == 'O' ) {//online
 				prompt("Ask GSM online...\r\n");
 				my_icar.mg323.ask_online = true ;
@@ -189,9 +196,14 @@ void  App_TaskManager (void *p_arg)
 				my_icar.mg323.ask_online = false ;
 			}
 
-			if ( var_uchar == 'b' || var_uchar == 'B' ) {//show Backup register
-				prompt("Print Backup register info ... \r\n");
-				show_err_log( );
+			if ( var_uchar == 'd' ) {//set debug flag
+				my_icar.debug = true ;
+				prompt("Set debug flag... my_icar.debug:%d\r\n",my_icar.debug);
+			}
+
+			if ( var_uchar == 'D' ) {//reset debug flag
+				my_icar.debug = false ;
+				prompt("Reset debug flag... my_icar.debug:%d\r\n",my_icar.debug);
 			}
 
 			if ( var_uchar == 'g' ) {//Suspend GSM task for debug
@@ -471,13 +483,16 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 			if ( chkbyte == buf->chk ) {//data correct
 
-				//prompt("buf->pcb: %02X\r\n",buf->pcb);
+				if ( my_icar.debug ) {
+					prompt("CMD: %c ,  ",(buf->pcb)&0x7F);
+				}
 				//find the sent record in c2s_data.queue_sent by SEQ
 				for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
 					if ( c2s_data.queue_sent[queue_index].send_seq == buf->seq \
 						&& buf->pcb==(c2s_data.queue_sent[queue_index].send_pcb | 0x80)) { 
-
-						//prompt("queue %d is correct record.\r\n",queue_index);
+						if ( my_icar.debug ) {
+							printf("queue: %d seq: %d match.\r\n",queue_index,buf->seq);
+						}
 						//found, free this record
 						c2s_data.queue_sent[queue_index].send_pcb = 0 ;
 						if ( c2s_data.queue_count > 0 ) {
