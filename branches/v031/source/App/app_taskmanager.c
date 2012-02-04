@@ -13,8 +13,6 @@ struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
 
 extern struct ICAR_DEVICE my_icar;
 
-const unsigned char ERR_GSM[] = "GSM module power off, check app_gsm.h";//Length must < 64
-const unsigned char ERR_GPRS[] = "GPRS disconnect, check app_gsm.h";//Length must < 64
 static unsigned char pro_sn[]="02P1xxxxxx";
 //Last 6 bytes replace by MCU ID xor result
 /* SN, char(10): 0  2  P  1 1  A  H  0 0 0
@@ -124,12 +122,12 @@ void  App_TaskManager (void *p_arg)
 	flash_led( 80 );//100ms
 
 	//independent watchdog init
-	//iwdg_init( );
+	iwdg_init( );
 
 	while	(1)
 	{
 		/* Reload IWDG counter */
-		//IWDG_ReloadCounter();  
+		IWDG_ReloadCounter();  
 
 		if ( c2s_data.tx_len > 0 || !my_icar.login_timer ) {//have command, need online
 			my_icar.mg323.ask_online = true ;
@@ -141,6 +139,7 @@ void  App_TaskManager (void *p_arg)
 		//Send command
 		if ( my_icar.need_sn && c2s_data.tx_sn_len == 0 ) {//no in sending process
 			gsm_send_sn( &gsm_sequence );//will be return time also
+			//cause IWDG reset, set IWDG to 4s
 			OSTimeDlyHMSM(0, 0, 3, 0);//let app_gsm send and wait return
 		}
 
@@ -155,7 +154,7 @@ void  App_TaskManager (void *p_arg)
 					&& BKP_ReadBackupRegister(BKP_DR1) ) {//ERR log index
 				//middle task 
 				if ( !gsm_send_pcb(&gsm_sequence, GSM_CMD_ERROR, &record_sequence)){
-					prompt("Upload err log and reset send_timer...\r\n");
+					//prompt("Upload err log and reset send_timer...\r\n");
 					my_icar.err_log_send_timer = OSTime ;
 					c2s_data.tx_timer = 0 ;//need send ASAP
 				}
@@ -525,7 +524,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 							CMD_seq: %02X\r\n",*((buf->start)+1));
 						break;
 
-					//BKP_DR1, ERR index: 	15~12:reverse 
+					//BKP_DR1, ERR index: 	15~12:MCU reset 
 					//						11~8:reverse
 					//						7~4:GPRS disconnect reason
 					//						3~0:GSM module poweroff reason
@@ -561,9 +560,13 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 						break;
 
-					case 0x40://record err log part 4: rev success
-						prompt("Upload rev err log success, CMD_seq: %02X\r\n",*((buf->start)+1));
+					case 0x40://record err log part 4: MCU reset
+						prompt("Upload MCU reset err log success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						//Clear the error flag
+						//BKP_DR8, MCU reset time(UTC Time) high
+						//BKP_DR9, MCU reset time(UTC Time) low
+					    BKP_WriteBackupRegister(BKP_DR8, 0);//high
+					    BKP_WriteBackupRegister(BKP_DR9, 0);//low
 						BKP_WriteBackupRegister(BKP_DR1, \
 							((BKP_ReadBackupRegister(BKP_DR1))&0x0FFF));
 
@@ -734,7 +737,7 @@ static unsigned int calc_free_buffer(unsigned char *in,unsigned char *out,unsign
 //return 2: no free buffer or buffer busy
 static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pcb, unsigned int *record_seq)
 {
-	static unsigned char chkbyte, index, err_len;
+	static unsigned char chkbyte, index;
 	static u16 i ;
 	static unsigned int seq ;
 
@@ -742,7 +745,7 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
     OS_CPU_SR  cpu_sr = 0;
 #endif
 
-	i = 0 , seq = 0 , err_len = 0;
+	i = 0 , seq = 0 ;
 	//find a no use SENT_QUEUE to record the SEQ/CMD
 	for ( index = 0 ; index < MAX_CMD_QUEUE-4 ; index++) {
 
@@ -753,9 +756,9 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 			//printf("queue: %02d\r\n",index);
 
 			if ( !c2s_data.tx_lock \
-				&& c2s_data.tx_len < (GSM_BUF_LENGTH-MAX_LOG_LENGTH-13) ) {
+				&& c2s_data.tx_len < (GSM_BUF_LENGTH-13) ) {
 				//no process occupy && have enough buffer
-				//Max len: Head+SEQ+CMD+Len+err_time+err_code+log_len +CHK
+				//Max len: Head+SEQ+CMD+Len+err_time+err_code+CHK
 				OS_ENTER_CRITICAL();
 				c2s_data.tx_lock = true ;
 				OS_EXIT_CRITICAL();
@@ -772,7 +775,7 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 				*sequence = c2s_data.tx[c2s_data.tx_len+1]+1;//increase seq
 				c2s_data.tx[c2s_data.tx_len+2] = out_pcb ;//PCB
 
-				if ( out_pcb == GSM_CMD_TIME ) {
+				if ( out_pcb == GSM_CMD_TIME ) {//Max. 6 Bytes
 					my_icar.stm32_rtc.update_timer = RTC_GetCounter( );
 
 					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
@@ -790,25 +793,39 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
 				}
 
-				if ( out_pcb == GSM_CMD_ERROR ) {//upload error log to server
-					//HEAD SEQ PCB Length(2 bytes) DATA(var char) check
-					//DATA: err_time(4 bytes)+err_code(2 byte)+log(<128 bytes)
+				if ( out_pcb == GSM_CMD_ERROR ) {//Max. 13 Bytes
+					//HEAD SEQ PCB Length(2 bytes) DATA(6 Bytes) check
+					//DATA: err_time(4 bytes)+err_code(2 byte)
 	
-					//BKP_DR1, ERR index: 	15~12:reverse , high priority
+					//Backup register, 16 bit = 2 bytes * 10 for STM32R8
+					//BKP_DR1, ERR index: 	15~12:MCU reset 
 					//						11~8:reverse
 					//						7~4:GPRS disconnect reason
-					//						3~0:GSM module poweroff reason, low priority
+					//						3~0:GSM module poweroff reason
 					//BKP_DR2, GSM Module power off time(UTC Time) high
 					//BKP_DR3, GSM Module power off time(UTC Time) low
 					//BKP_DR4, GPRS disconnect time(UTC Time) high
 					//BKP_DR5, GPRS disconnect time(UTC Time) low
+					//BKP_DR6, reverse time(UTC Time) high
+					//BKP_DR7, reverse time(UTC Time) low
+					//BKP_DR8, MCU reset time(UTC Time) high
+					//BKP_DR9, MCU reset time(UTC Time) low
+
+					c2s_data.tx[c2s_data.tx_len+3] = 0 ;//length high
+					c2s_data.tx[c2s_data.tx_len+4] = 6 ;//length low
 
 					i = BKP_ReadBackupRegister(BKP_DR1);
 					//err_code, 2 byte
 					c2s_data.tx[c2s_data.tx_len+9] = (i>>8)&0xFF;
 					c2s_data.tx[c2s_data.tx_len+10]= (i)&0xFF;
 					if ( i & 0xF000 ) { //highest priority, send first
-						;//reverse
+						//MCU reset time, 4 bytes
+						seq = BKP_ReadBackupRegister(BKP_DR8) ;
+						c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
+						c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//time high
+						seq = BKP_ReadBackupRegister(BKP_DR9) ;
+						c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
+						c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
 					}
 					else {
 						if ( i & 0x0F00 ) { //higher priority
@@ -816,11 +833,6 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 						}
 						else {	
 							if ( i & 0x00F0 ) { //GPRS disconnect err
-								err_len = strlen((char *)ERR_GPRS);
-								if ( err_len > MAX_LOG_LENGTH ) {//too long
-									err_len = MAX_LOG_LENGTH ;
-								}
-
 								//gprs disconnect time, 4 bytes
 								seq = BKP_ReadBackupRegister(BKP_DR4) ;
 								c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
@@ -828,19 +840,9 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 								seq = BKP_ReadBackupRegister(BKP_DR5) ;
 								c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
 								c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
-
-								//err log
-								strncpy((char *)&c2s_data.tx[c2s_data.tx_len+11], \
-									(char *)ERR_GPRS, err_len);
-
 							}
 							else {		
 								if ( i & 0x000F ) { //GSM module poweroff err
-									err_len = strlen((char *)ERR_GSM);
-									if ( err_len > MAX_LOG_LENGTH ) {//too long
-										err_len = MAX_LOG_LENGTH ;
-									}
-
 									//GSM power off time, 4 bytes
 									seq = BKP_ReadBackupRegister(BKP_DR2) ;
 									c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
@@ -848,11 +850,6 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 									seq = BKP_ReadBackupRegister(BKP_DR3) ;
 									c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
 									c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
-
-									//err log
-									strncpy((char *)&c2s_data.tx[c2s_data.tx_len+11], \
-										(char *)ERR_GSM, err_len);
-
 								}
 								else {//program logic error
 									prompt("firmware logic error, chk: %s: %d\r\n",\
@@ -862,12 +859,10 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 						}//end (i & 0x0F00)
 					}//end (i & 0xF000)
 
-					c2s_data.tx[c2s_data.tx_len+3] = 0 ;//length high
-					c2s_data.tx[c2s_data.tx_len+4] = err_len+6 ;//length low
 	
 					//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 					chkbyte = GSM_HEAD ;
-					for ( i = 1 ; i < 11+err_len ; i++ ) {//calc chkbyte
+					for ( i = 1 ; i < 11 ; i++ ) {//calc chkbyte
 						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
 						//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
 					}
@@ -877,7 +872,7 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
 				}
 
-				if ( out_pcb == GSM_CMD_RECORD ) {
+				if ( out_pcb == GSM_CMD_RECORD ) {//Max. 9 Bytes
 					//HEAD SEQ PCB Length(2 bytes) DATA(5 bytes) check
 					//DATA: Record_seq(2 bytes)+GSM signal(1byte)+voltage(2 bytes)
 

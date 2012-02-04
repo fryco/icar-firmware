@@ -3,7 +3,7 @@
 extern struct ICAR_DEVICE my_icar;
 
 //Backup register, 16 bit = 2 bytes * 10 for STM32R8
-//BKP_DR1, ERR index: 	15~12:reverse 
+//BKP_DR1, ERR index: 	15~12:MCU reset 
 //						11~8:reverse
 //						7~4:GPRS disconnect reason
 //						3~0:GSM module poweroff reason
@@ -11,10 +11,10 @@ extern struct ICAR_DEVICE my_icar;
 //BKP_DR3, GSM Module power off time(UTC Time) low
 //BKP_DR4, GPRS disconnect time(UTC Time) high
 //BKP_DR5, GPRS disconnect time(UTC Time) low
-
-
-//BKP_DR3, GSM Module power off reason
-//...
+//BKP_DR6, reverse time(UTC Time) high
+//BKP_DR7, reverse time(UTC Time) low
+//BKP_DR8, MCU reset time(UTC Time) high
+//BKP_DR9, MCU reset time(UTC Time) low
 //BKP_DR10, stm32_rtc.prescaler
 /*
 static unsigned int datetime_to_seconds (struct DATE_TIME *datetime)

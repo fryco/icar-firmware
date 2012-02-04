@@ -73,7 +73,7 @@ void  App_TaskGsm (void *p_arg)
 						    BKP_WriteBackupRegister(BKP_DR4, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
 						    BKP_WriteBackupRegister(BKP_DR5, (RTC_GetCounter( ))&0xFFFF);//low
 						
-							//BKP_DR1, ERR index: 	15~12:reverse 
+							//BKP_DR1, ERR index: 	15~12:MCU reset 
 							//						11~8:reverse
 							//						7~4:GPRS disconnect reason
 							//						3~0:GSM module poweroff reason
@@ -231,7 +231,7 @@ void  App_TaskGsm (void *p_arg)
 
 				//Check c2s_data.tx_len, if > 0, then send it
 				if ( c2s_data.tx_sn_len > 0 && my_icar.need_sn ) {
-					prompt("Sending SN...\t");
+					//prompt("Sending SN...\t");
 					send_tcp_data(c2s_data.tx_sn,&c2s_data.tx_sn_len );
 				}
 				else {
@@ -445,7 +445,7 @@ static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
 		//prompt("Wil send data %s\tline: %d.\r\n",__FILE__, __LINE__);
 		if ( gsm_send_tcp(buffer,*buf_len) ) {
 			//Check: ^SISW: 0,1 
-			printf(" send %d bytes OK!\r\n",*buf_len);
+			prompt("Send %d bytes OK!\r\n",*buf_len);
 			*buf_len = 0 ;
 			c2s_data.check_timer = 0;//need check ASAP also
 			c2s_data.tx_timer = OSTime ;//update timer
@@ -484,7 +484,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	    BKP_WriteBackupRegister(BKP_DR2, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
 	    BKP_WriteBackupRegister(BKP_DR3, (RTC_GetCounter( ))&0xFFFF);//low
 	
-		//BKP_DR1, ERR index: 	15~12:reverse 
+		//BKP_DR1, ERR index: 	15~12:MCU reset 
 		//						11~8:reverse
 		//						7~4:GPRS disconnect reason
 		//						3~0:GSM module poweroff reason

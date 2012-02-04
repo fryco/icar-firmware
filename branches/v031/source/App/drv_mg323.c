@@ -1131,7 +1131,7 @@ unsigned char gsm_check_gprs( )
 		return 13 ; //set dest IP and port error
 	}
 
-	prompt("initiate GPRS setting ok\r\n");
+	prompt("Initiate GPRS setting ok\r\n");
 	return 0 ;
 }
 
@@ -1157,7 +1157,7 @@ bool gprs_disconnect( DISCONNECT_REASON reason)
     BKP_WriteBackupRegister(BKP_DR4, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
     BKP_WriteBackupRegister(BKP_DR5, (RTC_GetCounter( ))&0xFFFF);//low
 
-	//BKP_DR1, ERR index: 	15~12:reverse 
+	//BKP_DR1, ERR index: 	15~12:MCU reset 
 	//						11~8:reverse
 	//						7~4:GPRS disconnect reason
 	//						3~0:GSM module poweroff reason
@@ -1213,7 +1213,7 @@ bool gsm_pwr_off( POWEROFF_REASON reason)
     BKP_WriteBackupRegister(BKP_DR2, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
     BKP_WriteBackupRegister(BKP_DR3, (RTC_GetCounter( ))&0xFFFF);//low
 
-	//BKP_DR1, ERR index: 	15~12:reverse 
+	//BKP_DR1, ERR index: 	15~12:MCU reset 
 	//						11~8:reverse
 	//						7~4:GPRS disconnect reason
 	//						3~0:GSM module poweroff reason
