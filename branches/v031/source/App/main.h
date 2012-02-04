@@ -41,7 +41,6 @@
 #define DEBUG_GSM
 
 #define AT_CMD_LENGTH			48 //for GSM command, must < RX_BUF_SIZE
-#define MAX_LOG_LENGTH			64 //log message length, must < 64
 #define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
 #define MAX_MODULE_ERR			10 //reboot GSM module if err > MAX_MODULE_ERR
 #define MIN_GSM_SIGNAL			8  //Min. GSM Signal require

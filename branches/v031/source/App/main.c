@@ -121,9 +121,10 @@ int	main(void)
 	/* Output	a message on Hyperterminal using printf	function */
 	printf("\r\n\r\n%s",BUILD_DATE);
 
-	uart3_init( );
-
 	rtc_init();
+	show_rst_flag( ), show_err_log( );
+
+	uart3_init( );
 
 	ADCTEMP_Configuration( );
 
@@ -135,8 +136,6 @@ int	main(void)
 	GSM_PM_OFF;
 	GPS_PM_OFF;
 	SD_PM_OFF;
-
-	show_rst_flag( ), show_err_log( );
 
 	/*	Initialize "uC/OS-II, The Real-Time	Kernel".		 */
 	OSInit(); //include: OSTime = 0L;
