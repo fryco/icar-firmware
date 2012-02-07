@@ -9,7 +9,7 @@ const unsigned char callback_phone[] = "13828431106";
 
 static unsigned char gsm_string_decode( unsigned char *, unsigned int *);
 static unsigned char read_tcp_data( unsigned char *,unsigned int * );
-static void send_tcp_data( unsigned char *, unsigned int * );
+static unsigned char send_tcp_data( unsigned char *, unsigned int * );
 
 void  App_TaskGsm (void *p_arg)
 {
@@ -174,7 +174,7 @@ void  App_TaskGsm (void *p_arg)
 			}
 
 			//waiting GSM respond
-			OSTimeDlyHMSM(0, 0, 0, 20);
+			OSTimeDlyHMSM(0, 0, 0, 100);
 
 			//if need dial
 			if ( my_icar.mg323.need_dial && !my_icar.mg323.voice_confirm) {
@@ -195,7 +195,9 @@ void  App_TaskGsm (void *p_arg)
 
 				memset(rec_str, 0x0, AT_CMD_LENGTH);
 				if ( get_respond(rec_str) ) {
-					;//prompt("Rec:%s\r\n",rec_str);
+					if ( my_icar.debug > 3) {
+						prompt("Rec:%s\r\n",rec_str);
+					}
 
 					err_code = gsm_string_decode( rec_str ,&relay_timer );
 					if ( err_code == 2 ) {//module error
@@ -232,7 +234,12 @@ void  App_TaskGsm (void *p_arg)
 				//Check c2s_data.tx_len, if > 0, then send it
 				if ( c2s_data.tx_sn_len > 0 && my_icar.need_sn ) {
 					//prompt("Sending SN...\t");
-					send_tcp_data(c2s_data.tx_sn,&c2s_data.tx_sn_len );
+					if ( !send_tcp_data(c2s_data.tx_sn,&c2s_data.tx_sn_len )){
+						//success
+						if ( my_icar.need_sn ) {
+							my_icar.need_sn-- ;
+						}
+					}
 				}
 				else {
 					if ( (c2s_data.tx_len > GSM_BUF_LENGTH/2) \
@@ -287,7 +294,7 @@ void  App_TaskGsm (void *p_arg)
 
 		//1, release CPU
 		//2, GSM module can't respond if enquire too fast
-		OSTimeDlyHMSM(0, 0, 1, 0);
+		OSTimeDlyHMSM(0, 0, 0, 950);
 	}
 }
 
@@ -439,20 +446,27 @@ static unsigned char read_tcp_data( unsigned char *buf, unsigned int *rec_len )
 	return 0 ;
 }
 
-static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
+//0: ok
+//others: err
+static unsigned char send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
 {
 	if ( gsm_ask_tcp(*buf_len) ) {//GSM buffer ready
 		//prompt("Wil send data %s\tline: %d.\r\n",__FILE__, __LINE__);
 		if ( gsm_send_tcp(buffer,*buf_len) ) {
 			//Check: ^SISW: 0,1 
-			prompt("Send %d bytes OK!\r\n",*buf_len);
+			if ( my_icar.debug ) {
+				prompt("Send %d bytes OK!\r\n",*buf_len);
+			}
+
 			*buf_len = 0 ;
 			c2s_data.check_timer = 0;//need check ASAP also
 			c2s_data.tx_timer = OSTime ;//update timer
+			return 0 ;
 		}
 		else {
 			printf("GSM send err, len:%d\t",*buf_len);
 			prompt("Check %s, line:	%d\r\n",__FILE__, __LINE__);
+			return 1 ;
 		}
 	}
 	else {//may GSM module no respond, need to enquire
@@ -460,7 +474,8 @@ static void send_tcp_data(unsigned char *buffer, unsigned int *buf_len )
 		putstring(COM2,"AT^SISI?\r\n");//enquire online or not
 		prompt("Can not send data %s\tline: %d.\r\n",__FILE__, __LINE__);
 		OSTimeDlyHMSM(0, 0, 0, 500);
-	}	
+		return 2 ;
+	}
 }
 
 //return 0:	ok

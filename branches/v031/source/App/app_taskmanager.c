@@ -98,10 +98,10 @@ void  App_TaskManager (void *p_arg)
 	//DMA_Cmd(DMA1_Channel1, ENABLE);
 	DMA1_Channel1->CCR |= DMA_CCR1_EN;
 
-	my_icar.debug = false ;
+	my_icar.debug = 0 ;
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
 	my_icar.err_log_send_timer = 0 ;//
-	my_icar.need_sn = true ;
+	my_icar.need_sn = 3 ;
 	my_icar.mg323.ask_power = true ;
 
 	mg323_rx_cmd.timer = OSTime ;
@@ -139,8 +139,6 @@ void  App_TaskManager (void *p_arg)
 		//Send command
 		if ( my_icar.need_sn && c2s_data.tx_sn_len == 0 ) {//no in sending process
 			gsm_send_sn( &gsm_sequence );//will be return time also
-			//cause IWDG reset, set IWDG to 4s
-			OSTimeDlyHMSM(0, 0, 3, 0);//let app_gsm send and wait return
 		}
 
 		if ( my_icar.login_timer ) {//send others CMD after login
@@ -196,12 +194,12 @@ void  App_TaskManager (void *p_arg)
 			}
 
 			if ( var_uchar == 'd' ) {//set debug flag
-				my_icar.debug = true ;
-				prompt("Set debug flag... my_icar.debug:%d\r\n",my_icar.debug);
+				my_icar.debug++ ;
+				prompt("Increase debug lever, my_icar.debug:%d\r\n",my_icar.debug);
 			}
 
 			if ( var_uchar == 'D' ) {//reset debug flag
-				my_icar.debug = false ;
+				my_icar.debug = 0 ;
 				prompt("Reset debug flag... my_icar.debug:%d\r\n",my_icar.debug);
 			}
 
@@ -270,9 +268,10 @@ void  App_TaskManager (void *p_arg)
 			}
 		}//end of check every 30 sec
 
-		/* Insert delay	*/
-		OSTimeDlyHMSM(0, 0,	0, 800);
-		//printf("L%010d\r\n",OSTime);
+		/* Insert delay, IWDG set to 2 second
+		App_taskmanger: longest time, but highest priority 
+		Othoers: shorter time, but lower priority */
+		OSTimeDlyHMSM(0, 0,	1, 0);
 		led_toggle( POWER_LED ) ;
 	}
 }
@@ -363,7 +362,9 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				buf->start = c2s_data.rx_out_last ;//mark the start
 				buf->status = S_PCB ;//search protocol control byte
 				buf->timer = OSTime ;
-				//prompt("Found HEAD: %X\r\n",buf->start);
+				if ( my_icar.debug > 3) {
+					prompt("Found HEAD: %X\r\n",buf->start);
+				}
 			}
 			else { //no found
 				c2s_data.rx_out_last++;//search next byte
@@ -379,7 +380,6 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				OS_EXIT_CRITICAL();
 
 			}
-			//printf(">%02X  ",*c2s_data.rx_out_last);
 		}
 	}
 
@@ -404,7 +404,10 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			else { //PCB in the end of buffer
 				buf->pcb = *(buf->start + 2 - GSM_BUF_LENGTH);
 			}//end of (buf->start + 2)  < (c2s_data.rx+GSM_BUF_LENGTH)
-			//printf("\r\nrespond PCB is %02X\t",buf->pcb);
+
+			if ( my_icar.debug > 3) {
+				printf("\r\nrespond PCB is %02X\t",buf->pcb);
+			}
 
 			//get sequence
 			if ( (buf->start + 1)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
@@ -482,14 +485,14 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 			if ( chkbyte == buf->chk ) {//data correct
 
-				if ( my_icar.debug ) {
+				if ( my_icar.debug > 1) {
 					prompt("CMD: %c ,  ",(buf->pcb)&0x7F);
 				}
 				//find the sent record in c2s_data.queue_sent by SEQ
 				for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
 					if ( c2s_data.queue_sent[queue_index].send_seq == buf->seq \
 						&& buf->pcb==(c2s_data.queue_sent[queue_index].send_pcb | 0x80)) { 
-						if ( my_icar.debug ) {
+						if ( my_icar.debug > 1 ) {
 							printf("queue: %d seq: %d match.\r\n",queue_index,buf->seq);
 						}
 						//found, free this record
@@ -514,12 +517,13 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					switch (*((buf->start)+5)) {
 
 					case 0x1://need upload SN first
+						my_icar.need_sn = 3 ;
 						prompt("Upload err log failure, need product SN first! CMD_seq: %02X\r\n",\
 							*((buf->start)+1));
 
 						break;
 
-					case 0x2://need upload SN first
+					case 0x2://Insert DB err
 						prompt("Upload err log failure, insert into database error! \
 							CMD_seq: %02X\r\n",*((buf->start)+1));
 						break;
@@ -588,16 +592,19 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					switch (*((buf->start)+5)) {
 
 					case 0x0://record success
-						//prompt("Record CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						if ( my_icar.debug > 2) {
+							prompt("Record GSM signal success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						}
 						break;
 
 					case 0x1://need upload SN first
+						my_icar.need_sn = 3 ;
 						prompt("Record CMD failure, need product SN first! CMD_seq: %02X\r\n",\
 							*((buf->start)+1));
 
 						break;
 
-					case 0x2://need upload SN first
+					case 0x2://Insert DB err
 						prompt("Record CMD failure, insert into database error! \
 							CMD_seq: %02X\r\n",*((buf->start)+1));
 						break;
@@ -616,15 +623,17 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					switch (*((buf->start)+4)) {
 
 					case 0x1://need upload SN first
+						my_icar.need_sn = 3 ;
 						prompt("SN CMD failure! CMD_seq: %02X\r\n",\
 							*((buf->start)+1));
 						break;
 
 					case 0x4://CMD success
+						my_icar.need_sn = 0 ;
 						//Update and calibrate RTC
 						prompt("Upload SN CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						RTC_update_calibrate(buf->start,c2s_data.rx) ;
-						my_icar.need_sn = false ;
+						my_icar.need_sn = 0 ;
 						c2s_data.tx_timer = 0 ;//need send others queue ASAP
 						break;
 
@@ -643,12 +652,16 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					switch (*((buf->start)+4)) {
 
 					case 0x1://need upload SN first
+						my_icar.need_sn = 3 ;
 						prompt("Time CMD failure, need product SN first! CMD_seq: %02X\r\n",\
 							*((buf->start)+1));
 
 						break;
 
 					case 0x4://CMD success
+						if ( my_icar.debug > 2) {
+							prompt("Time CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						}
 						//Update and calibrate RTC, update my_icar.login_timer also
 						RTC_update_calibrate(buf->start,c2s_data.rx) ;
 
@@ -700,16 +713,20 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			}
 			OS_EXIT_CRITICAL();
 
-			//prompt("Next add: %X\t",c2s_data.rx_out_last);
-			//printf("In last: %X\t",c2s_data.rx_in_last);
-			//printf("rx_empty: %X\r\n",c2s_data.rx_empty);
+			if ( my_icar.debug > 3) {
+				prompt("Next add: %X\t",c2s_data.rx_out_last);
+				printf("In last: %X\t",c2s_data.rx_in_last);
+				printf("rx_empty: %X\r\n",c2s_data.rx_empty);
+			}
 
 			//update the next status
 			buf->status = S_HEAD;
 
 		}//end of (c2s_data.rx_in_last > c2s_data.rx_out_last) ...
 		else { //
-			;//prompt("Buffer no enough.\r\n");
+			if ( my_icar.debug > 3) {
+				prompt("Buffer no enough.\r\n");
+			}
 		}
 	}//end of if ( buf->status == S_CHK )
 
@@ -781,14 +798,20 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
 					c2s_data.tx[c2s_data.tx_len+4] = 0;//length low
 
-					//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+					if ( my_icar.debug > 3) {
+						prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+					}
 					chkbyte = GSM_HEAD ;
 					for ( i = 1 ; i < 5 ; i++ ) {//calc chkbyte
 						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
-						//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+						if ( my_icar.debug > 3) {
+							printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+						}
 					}
 					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
-					//printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+i]);
+					if ( my_icar.debug > 3) {
+						printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+i]);
+					}
 					//update buf length
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
 				}
