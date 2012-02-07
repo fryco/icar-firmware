@@ -71,11 +71,11 @@
 
 /* Exported types ------------------------------------------------------------*/
 struct ICAR_DEVICE {
-	bool debug ;//debug flag
+	unsigned char debug ;//debug flag
 	unsigned int login_timer;
 	unsigned int err_log_send_timer;
 	unsigned char *sn ;//serial number
-	bool need_sn;//server need SN
+	unsigned char need_sn;//server need SN
 
 	struct RTC_STATUS stm32_rtc;
 	struct ADC_STATUS stm32_adc;

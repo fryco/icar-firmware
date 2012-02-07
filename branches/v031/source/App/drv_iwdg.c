@@ -16,7 +16,7 @@ void iwdg_init(void)
                             = 4s / (256/LSI)
                             = LsiFreq*4/256
 	*/
-	IWDG_SetReload(LsiFreq*4/256);
+	IWDG_SetReload(LsiFreq*2/256);
 
 	/* Reload IWDG counter */
 	IWDG_ReloadCounter();
