@@ -1,13 +1,12 @@
 /**
   ******************************************************************************
-  * @file    source/App/main.h 
-  * @author  cn0086@139.com
-  * @version V00
-  * @date    2011/10/27 9:54:35
+  * SVN revision information:
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file contains all necessary *.h and global define.
   ******************************************************************************
-  * @history v00: 2011/10/27, draft, by cn0086@139.com
-  * @        v01:
   */ 
 
 /* Define to prevent recursive inclusion -------------------------------------*/
