@@ -1,13 +1,12 @@
 /**
   ******************************************************************************
-  * @file    source/App/drv_gpio.h 
-  * @author  cn0086@139.com
-  * @version V00
-  * @date    2011/10/27 9:54:35
-  * @brief   This file contains global function
+  * SVN revision information:
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
+  * @brief   This file is for general purpose input/output define in STM32
   ******************************************************************************
-  * @history v00: 2011/10/27, draft, by cn0086@139.com
-  * @        v01:
   */ 
 
 /* Define to prevent recursive inclusion -------------------------------------*/

@@ -1,13 +1,12 @@
 /**
   ******************************************************************************
-  * @file    source/App/drv_adc.h 
-  * @author  cn0086@139.com
-  * @version V00
-  * @date    2011/10/31 17:57:35
-  * @brief   This file contains global function
+  * SVN revision information:
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
+  * @brief   This file is for analog-digital converter define in STM32
   ******************************************************************************
-  * @history v00: 2011/10/31, draft, by cn0086@139.com
-  * @        v01:
   */ 
 
 /* Define to prevent recursive inclusion -------------------------------------*/

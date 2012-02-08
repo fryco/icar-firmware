@@ -1,3 +1,13 @@
+/**
+  ******************************************************************************
+  * SVN revision information:
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
+  ******************************************************************************
+**/
+
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __APP_TASKMANAGER_H
 #define __APP_TASKMANAGER_H

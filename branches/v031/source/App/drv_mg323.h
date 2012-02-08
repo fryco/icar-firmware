@@ -1,13 +1,12 @@
 /**
   ******************************************************************************
-  * @file    source/App/drv_mg323.h
-  * @author  cn0086@139.com
-  * @version v01
-  * @date    2011/11/24 14:25:15
-  * @brief   This file contains GSM module: MG323 driver
+  * SVN revision information:
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
+  * @brief   This is GSM module: MG323 driver
   ******************************************************************************
-  * @history v00: 2011/11/24 14:25:28, draft, by cn0086@139.com
-  * @        v01: 
   */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
