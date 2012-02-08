@@ -1,14 +1,12 @@
 /**
   ******************************************************************************
-  * @file    source/App/drv_uart.h
-  * @author  cn0086@139.com
-  * @version V02
-  * @date    2011/11/24 10:34:18
-  * @brief   This file contains uart driver
+  * SVN revision information:
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
+  * @brief   This is uart driver in STM32
   ******************************************************************************
-  * @history v00: 2011/10/27, draft, by cn0086@139.com
-  * @        v01: 2011/10/29, u1 tx use DMA, rx use interrupt
-  * @        v01: 2011/11/24, uart tx/rx use interrupt
   */
 
 /* Define to prevent recursive inclusion -------------------------------------*/

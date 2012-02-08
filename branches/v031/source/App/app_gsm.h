@@ -1,3 +1,14 @@
+/**
+  ******************************************************************************
+  * SVN revision information:
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
+  * @brief   This is GSM applicaion
+  ******************************************************************************
+  */ 
+
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __APP_GSM_H
 #define __APP_GSM_H
