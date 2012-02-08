@@ -1,6 +1,7 @@
 #include "main.h"
 
 #define	BUILD_DATE "Built by Jack Li at	" __DATE__"	"__TIME__ "\r\n" 
+#define	Rev		$Rev$
 
 static	OS_STK		   App_TaskManagerStk[APP_TASK_MANAGER_STK_SIZE];
 
