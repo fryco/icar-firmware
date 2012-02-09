@@ -1,8 +1,5 @@
 #include "main.h"
 
-#define	BUILD_DATE "Built by Jack Li at	" __DATE__"	"__TIME__ "\r\n" 
-#define	Rev		$Rev$
-
 static	OS_STK		   App_TaskManagerStk[APP_TASK_MANAGER_STK_SIZE];
 
 struct ICAR_DEVICE my_icar;
@@ -119,8 +116,6 @@ int	main(void)
 	
 	gpio_init( ) ;
 	uart1_init( );
-	/* Output	a message on Hyperterminal using printf	function */
-	printf("\r\n\r\n%s",BUILD_DATE);
 
 	rtc_init();
 	show_rst_flag( ), show_err_log( );
