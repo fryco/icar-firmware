@@ -1,5 +1,8 @@
 #include "main.h"
 
+#define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__ "\r\n" 
+static unsigned char rev[]="$Rev$";
+
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static void calc_sn( void );
 static void flash_led( unsigned int );
@@ -46,6 +49,9 @@ void  App_TaskManager (void *p_arg)
 	u16 adc;
 
 	(void)p_arg;
+
+
+	prompt("%s\r\n",BUILD_DATE);
 
 	/* Initialize the queue.	*/
 	for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
