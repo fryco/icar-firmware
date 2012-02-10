@@ -118,7 +118,6 @@ int	main(void)
 	uart1_init( );
 
 	rtc_init();
-	show_rst_flag( ), show_err_log( );
 
 	uart3_init( );
 

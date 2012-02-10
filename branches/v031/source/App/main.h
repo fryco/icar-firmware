@@ -70,6 +70,7 @@
 
 /* Exported types ------------------------------------------------------------*/
 struct ICAR_DEVICE {
+	u16 rev ;//iCar revision, up to 65535
 	unsigned char debug ;//debug flag
 	unsigned int login_timer;
 	unsigned int err_log_send_timer;
