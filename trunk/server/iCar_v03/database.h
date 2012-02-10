@@ -8,6 +8,9 @@
 
 #define BUFSIZE 1024*2
 
+//log message length, same as main.c in STM32 firmware
+#define MAX_LOG_LENGTH			64
+
 #define RESULT_NO_ERR			0
 #define RESULT_NO_SN			1
 #define RESULT_INS_DB_FAIL		2
@@ -54,7 +57,7 @@ int check_sn(struct icar_data * );
 int record_command(struct icar_data *, unsigned char *, unsigned char *, unsigned int);
 int record_signal(struct icar_data *, unsigned char *);
 int record_ip(struct icar_data *, unsigned char *);
-int record_error(struct icar_data *, unsigned char *);
+int record_error(struct icar_data *, unsigned char *, unsigned char *);
 
 //error code:
 //10:  iCar serial numble error.

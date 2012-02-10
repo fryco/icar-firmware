@@ -58,6 +58,12 @@ void process_conn_server(struct icar_data *mycar)
 	int cmd_err_cnt = 0 ;//command error count
 	struct icar_command cmd ;
 
+	//BKP_DR1, ERR index: 	15~12:reverse 
+	//						11~8:reverse
+	//						7~4:GPRS disconnect reason
+	//						3~0:GSM module poweroff reason
+	unsigned char err_part=0;//1: 3~0, 2:7~4, 3: 11~8, 4:15~12
+
 	memset(cmd.pro_sn, 0x0, 10);
 	mycar->sn = cmd.pro_sn ;
 
@@ -150,25 +156,23 @@ void process_conn_server(struct icar_data *mycar)
 						break;
 			
 
-					case 0x49://'I' IP, C9 SEQ 49 LEN IP CHK
+					case 0x45://'E' Error, C9 SEQ 45 LEN DATA CHK
 
 						if ( debug_flag ) {
-							fprintf(stderr, "CMD is update GSM IP...\n");
+							fprintf(stderr, "CMD is error log...\n");
 						}
 
 						if ( strlen(mycar->sn) == 10 ) {
 
-							if ( 1 ) 
-							{//no error
+							if ( record_error(mycar,&recv_buf[buf_index],&err_part)){//error
 								if ( debug_flag ) {
-									fprintf(stderr, "Update GSM IP err= %d: %s",\
+									fprintf(stderr, "Insert error log err= %d: %s",\
 										mycar->err_code,mycar->err_msg);
 								}
 				
-
 								if ( record_command(mycar,&recv_buf[buf_index],"DB_ERR",7)) {
 									if ( debug_flag ) {
-										fprintf(stderr, "Update GSM IP err= %d: %s",\
+										fprintf(stderr, "Insert err CMD err= %d: %s",\
 											mycar->err_code,mycar->err_msg);
 										}
 								}
@@ -205,7 +209,7 @@ void process_conn_server(struct icar_data *mycar)
 
 								if ( record_command(mycar,&recv_buf[buf_index],"NO_ERR",7)) {//error
 									if ( debug_flag ) {
-										fprintf(stderr, "GSM IP command err= %d: %s",\
+										fprintf(stderr, "Insert err CMD err= %d: %s",\
 											mycar->err_code,mycar->err_msg);
 										}
 								}
@@ -217,7 +221,7 @@ void process_conn_server(struct icar_data *mycar)
 								send_buf[2] = cmd.pcb | 0x80 ;
 								send_buf[3] =  00;//len high
 								send_buf[4] =  01;//len low
-								send_buf[5] =  00;//ok
+								send_buf[5] =  00 | (err_part<<4);//ok
 	
 								//Calc chk
 								cmd.chk = HEAD ;
@@ -245,7 +249,7 @@ void process_conn_server(struct icar_data *mycar)
 							//record this command
 							if ( record_command(mycar,&recv_buf[buf_index],"NEED_SN",7)) {//error
 								if ( debug_flag ) {
-									fprintf(stderr, "GSM IP command err= %d: %s",\
+									fprintf(stderr, "ERR log command err= %d: %s",\
 										mycar->err_code,mycar->err_msg);
 									}
 							}
@@ -263,7 +267,6 @@ void process_conn_server(struct icar_data *mycar)
 							cmd.chk = HEAD ;
 							for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
 								cmd.chk ^= send_buf[chk_count] ;
-								//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
 							}
 
 							send_buf[6] =  cmd.chk ;
@@ -430,7 +433,8 @@ void process_conn_server(struct icar_data *mycar)
 						if ( strlen(mycar->sn) == 10 ) {
 							if ( strncmp(mycar->sn,&recv_buf[9], 10) ) {
 								//no same
-								record_error(mycar,&recv_buf[buf_index]);
+								//record_error(mycar,&recv_buf[buf_index]); 
+//Need change
 								fprintf(stderr, "\r\nSN error! First SN: %s, ",\
 									mycar->sn);
 								strncpy(cmd.pro_sn, &recv_buf[9], 10);

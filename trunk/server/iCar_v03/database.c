@@ -7,6 +7,111 @@
 
 extern int debug_flag ;
 
+const unsigned char *ERR_GSM[][1]= {\
+//	SHUTDOWN_NO_ERR	=	0,	//normal, no error
+	"SHUTDOWN NO ERR",\
+//	NO RESPOND		=	1, 	//if ( OSTime - mg323 status.at timer > 10*AT_TIMEOUT )
+	"GSM Module no respond",\
+//	SIM_CARD_ERR	=	2,	//Pin? no SIM?
+	"SIM CARD ERR",\
+//	NO_GSM_NET		=	3,	//no GSM net or can't register
+	"NO GSM NET",\
+//	NO_CARRIER_INFO	=	4,	//Get GSM carrier info failure
+	"Get GSM carrier info failure",\
+//	SIGNAL_WEAK		=	5,	//gsm signal < MIN_GSM_SIGNAL
+	"Signal weak",\
+//	NO_GPRS			=	6,	//mg323_status.gprs_count > 60
+	"NO GPRS",\
+//	RSV				=	7,	//Reserve
+	"RSV",\
+//	RSV				=	8,	//Reserve
+	"RSV",\
+//	RSV				=	9,	//Reserve
+	"RSV",\
+//	RSV				=	10,	//Reserve
+	"RSV",\
+//	RSV				=	11,	//Reserve
+	"RSV",\
+//	RSV				=	12,	//Reserve
+	"RSV",\
+//	TRY_ONLINE		=	13,	//if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
+	"Try online > MAX_ONLINE_TRY",\
+//	RETURN_TOO_ERR	= 	14,	//if ( module_err_count > MAX_MODULE_ERR ) {//reboot
+	"GSM module return too err",\
+//	MODULE_REBOOT	=	15	//if receive: SYSSTART
+	"GSM module reboot"\
+};
+
+const unsigned char *ERR_GPRS[][1]= {\
+//	DISCONNECT_NO_ERR = 0,	//normal, no error
+	"Disconnect NO ERR",\
+//	CONNECTION_DOWN	=	1,	//^SICI: 0,2,0
+	"Connection Down",\
+//	PEER_CLOSED 	= 	2,	//^SIS: 0, 0, 48, Remote Peer has closed the connection
+	"Remote Peer closed the connection",\
+//	PROFILE_NO_UP 	=	3,	//AT^SISI return is not 4: up
+	"Profile NO UP",\
+//	RSV				=	4,	//Reserve
+	"RSV",\
+//	RSV				=	5,	//Reserve
+	"RSV",\
+//	NO_GPRS_IN_INIT	=	6,	//no gprs network
+	"NO GPRS IN INIT",\
+//	GPRS_ATT_ERR	=	7,	//gprs attach failure
+	"GPRS attach failure",\
+//	CONN_TYPE_ERR	=	8,	//set connect type error
+	"Set connection type error",\
+//	GET_APN_ERR		=	9,	//get APN error
+	"GET APN ERR",\
+//	SET_APN_ERR		=	10,	//set APN error
+	"SET APN ERR",\
+//	SET_CONN_ERR	=	11,	//set conID error
+	"Set conID error",\
+//	SVR_TYPE_ERR	=	12,	//set svr type error
+	"Set svr type error",\
+//	DEST_IP_ERR		=	13	//set dest IP and port error
+	"Set dest IP and port error",\
+//	RSV				=	14,	//Reserve
+	"RSV",\
+//	RSV				=	15,	//Reserve
+	"RSV"\
+};
+
+const unsigned char *ERR_MCU_RST[][1]= {\
+//	MCU_RST_NO_ERR	=	0,	//normal, no error
+	"MCU RST NO ERR",\
+//	External Reset	=	1
+	"External Reset",\
+//	Power On Reset	=	2
+	"Power On Reset",\
+//	Software reset	=	3
+	"Software reset",\
+//	Reset by IWDG	=	4
+	"Independent watchdog reset",\
+//	Reset by WWDG	=	5
+	"Window watchdog reset",\
+//	Low-power reset	=	6
+	"Low-power reset",\
+//	RSV				=	7,	//Reserve
+	"RSV",\
+//	RSV				=	8,	//Reserve
+	"RSV",\
+//	RSV				=	9,	//Reserve
+	"RSV",\
+//	RSV				=	10,	//Reserve
+	"RSV",\
+//	RSV				=	11,	//Reserve
+	"RSV",\
+//	RSV				=	12,	//Reserve
+	"RSV",\
+//	RSV				=	13,	//Reserve
+	"RSV",\
+//	RSV				=	14,	//Reserve
+	"RSV",\
+//	RSV				=	15,	//Reserve
+	"RSV"\
+};
+
 //Connect to MYSQ
 //return: 0 success
 //        1 failure
@@ -211,7 +316,7 @@ int db_check(struct icar_data *mycar)
 			`SN` char(10) NOT NULL COMMENT 'Product serial numble',\
 			`err_time` int unsigned NOT NULL,\
 			`err_code` tinyint unsigned NOT NULL,\
-			`err_str` varchar(128) NOT NULL\
+			`err_str` varchar(64) NOT NULL\
 			) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
 		}
 		else { //unknow error
@@ -647,21 +752,20 @@ int record_ip(struct icar_data *mycar, unsigned char *buf)
 
 //0: ok
 //others: error, check err_code and err_msg
-int record_error(struct icar_data *mycar, unsigned char *buf)
+int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *part)
 {
 	char sql_buf[BUFSIZE];
-	unsigned int buf_index, buf_len, ostime=0, err_len;
-	unsigned char err_str[128];
+	unsigned int buf_index, buf_len, err_time=0, err_len, err_code;
+	unsigned char err_str[MAX_LOG_LENGTH];
 
 	MYSQL_RES *res_ptr;
 	MYSQL_ROW sqlrow;
 	unsigned long sqlrow_cnt = 0 ;
 
-	//input: HEAD+SEQ+PCB+LEN+OSTime+SN+IP+CHK
-	//IP(123.123.123.123) 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33
-	//i.e: C9 01 53 00 1B 00 00 0D 99 
-	//     30 32 50 31 43 30 44 32 41 37 
-	//     31 30 2E 32 30 31 2E 31 33 37 2E 32 37 28 
+	//input: HEAD+SEQ+PCB+LEN+err_time+err_code+CHK
+	//i.e: C9 09 45 00 2A 00 00 10 4D 01 
+	//     47 53 4D 20 6D 6F 64 75 6C 65 20 70 6F 77 65 72 20 6F 
+	//	   66 66 2C 20 63 68 65 63 6B 20 61 70 70 5F 67 73 6D 2E 68 
 	buf_len = buf[3] << 8 | buf[4];
 
 	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
@@ -669,21 +773,58 @@ int record_error(struct icar_data *mycar, unsigned char *buf)
 	}
 	//fprintf(stderr, "\r\nLen: %d ",buf_len);
 
-	ostime = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[9];
-	//fprintf(stderr, "\r\nOSTime: %d ",ostime);
+	err_time = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[8];
+	//fprintf(stderr, "\r\nerr_time: %08X ",err_time);
 
-	snprintf(err_str, 127, "Different SN: %s and ",mycar->sn);
-	err_len = strlen( err_str );
+	//BKP_DR1, ERR index: 	15~12:reverse 
+	//						11~8:reverse
+	//						7~4:GPRS disconnect reason
+	//						3~0:GSM module poweroff reason
 
-	for ( buf_index = 0 ; buf_index < 10 ; buf_index++ ) {
-		err_str[buf_index+err_len] = *(buf+9+buf_index) ;
-		if ( buf_index > 127 ) { break ; }
-		;//fprintf(stderr, "buf_index=%d\t%X\r\n",buf_index,gsm_ip[buf_index]);
+	//err_code, 2 byte
+	err_code = buf[9] << 8 | buf[10];
+	if ( err_code & 0xF000 ) { //highest priority, MCU reset
+		err_code = (err_code & 0xF000) >> 12 ;
+		*part = 4 ;
+		snprintf(err_str, MAX_LOG_LENGTH-1, \
+			"MCU reset: %s",*ERR_MCU_RST[err_code]);
 	}
-	err_str[buf_index+err_len]  = 0x0, 	err_str[128] = 0x0; 
+	else {
+		if ( err_code & 0x0F00 ) { //higher priority
+			err_code = (err_code & 0x0F00) >> 8 ;
+			*part = 3 ;
+		}
+		else {	
+			if ( err_code & 0x00F0 ) { //GPRS disconnect err
+				err_code = (err_code & 0x00F0) >> 4 ;
+				*part = 2 ;
+				snprintf(err_str, MAX_LOG_LENGTH-1, \
+					"GPRS disconnect: %s",*ERR_GPRS[err_code]);
+			}
+			else {		
+				if ( err_code & 0x000F ) { //GSM module poweroff err
+					err_code = (err_code & 0x000F) ;
+					*part = 1 ;
+					snprintf(err_str, MAX_LOG_LENGTH-1, \
+						"GSM module power off: %s",*ERR_GSM[err_code]);
+				}
+				else {//program logic error
+					fprintf(stderr, "firmware logic error, chk: %s: %d\r\n",\
+						__FILE__,__LINE__);	
+				}//end (i & 0x000F)
+			}//end (i & 0x00F0)
+		}//end (i & 0x0F00)
+	}//end (i & 0xF000)
+
+	//fprintf(stderr, "\terr_code: %04X ",err_code);
+
+	//snprintf(err_str, 127, "Different SN: %s and ",mycar->sn);
+	//err_len = strlen( err_str );
+
+	err_str[MAX_LOG_LENGTH-1] = 0x0; //prevent overflow
 
 	if ( debug_flag ) {
-		;//fprintf(stderr, "err_str: %s\r\n",err_str);
+		fprintf(stderr, "err_str: %s\r\n",err_str);
 	}
 
 	//insert err to table t_log_error:
@@ -691,12 +832,13 @@ int record_error(struct icar_data *mycar, unsigned char *buf)
 								'%d',\
 								'%s',\
 								'%d',\
-								'',\
+								'%d',\
 								'%s'\
 								);",\
 								time(NULL),\
 								mycar->sn,\
-								ostime,\
+								err_time,\
+								err_code,\
 								err_str\
 								);
 
