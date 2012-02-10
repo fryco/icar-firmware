@@ -199,6 +199,7 @@ void  App_TaskManager (void *p_arg)
 			}
 
 			if ( var_uchar == 'v' || var_uchar == 'V' ) {//show revision
+				prompt("$URL$\r\n");
 				prompt("$Id$\r\n");
 				prompt("Revision: %d  OS Tick: %d\r\n",my_icar.rev,OS_TICKS_PER_SEC);
 			}
