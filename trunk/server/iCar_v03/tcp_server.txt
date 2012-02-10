@@ -1,3 +1,6 @@
+Send SN:
+C9 01 53 00 1B 00 00 0D 99 30 32 50 31 43 30 44 32 41 37 31 30 2E 32 30 31 2E 31 33 37 2E 32 37 28 
+
 Send command: 0x54 //'T', get time on server, SEQ:sequence
 
 HEAD SEQ CMD Length(2 bytes) SN(char 10) check

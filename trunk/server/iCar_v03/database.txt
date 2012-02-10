@@ -100,9 +100,13 @@ FROM `t_log_signal`
 ORDER BY date DESC
 LIMIT 0 , 30
 
-SELECT FROM_UNIXTIME( date ) , `IP` , `port` , `cmd_seq` , hex( cmd_pcb ) , `cmd_len` , `cmd_str`
-FROM `t_log_command`
-WHERE date >1326954101
+SELECT FROM_UNIXTIME( date ) , `SN` , `signal_seq` , `gsm_signal`
+FROM `t_log_signal`
+WHERE SN='02P1007324'
+ORDER BY date DESC
+
+SELECT FROM_UNIXTIME( date ) , `SN` ,`IP` , `port` , `IP_local`, `OSTime`
+FROM `t_log_ip`
 ORDER BY date DESC
 
 SELECT FROM_UNIXTIME( date ) , `IP` , `port` , `cmd_seq` ,char( cmd_pcb ) , `cmd_len` , `cmd_str`
