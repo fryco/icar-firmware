@@ -1,10 +1,11 @@
 #include "main.h"
 
-#define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__ "\r\n" 
-static unsigned char rev[]="$Rev$";
+#define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
+#define	BUILD_REV  "$Rev$"
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static void calc_sn( void );
+static void conv_rev( char * );
 static void flash_led( unsigned int );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
 static unsigned char mcu_id_eor( unsigned int );
@@ -51,8 +52,6 @@ void  App_TaskManager (void *p_arg)
 	(void)p_arg;
 
 
-	prompt("%s\r\n",BUILD_DATE);
-
 	/* Initialize the queue.	*/
 	for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
 		c2s_data.queue_sent[var_uchar].send_timer= 0 ;//free queue if > 60 secs.
@@ -82,6 +81,11 @@ void  App_TaskManager (void *p_arg)
 	}//2012/1/21 verified
 	*/
 
+	printf("\r\n"),	prompt("%s\r\n",BUILD_DATE);
+	conv_rev(BUILD_REV);
+	prompt("Revision: %d  OS Tick: %d\r\n",my_icar.rev,OS_TICKS_PER_SEC);
+	show_rst_flag( ), show_err_log( );
+ 	
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();												/* Determine CPU capacity.								*/
 #endif
@@ -113,11 +117,6 @@ void  App_TaskManager (void *p_arg)
 	mg323_rx_cmd.timer = OSTime ;
 	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
 	mg323_rx_cmd.status = S_HEAD;
-
-	//prompt("\r\n\r\n%s, line:	%d\r\n",__FILE__, __LINE__);
-	prompt("Micrium	uC/OS-II V%d.%d\r\n", OSVersion()/100,OSVersion()%100);
-	prompt("TickRate: %d\t\t", OS_TICKS_PER_SEC);
-	printf("OSCPUUsage: %d\r\n", OSCPUUsage);
 
 	calc_sn( );//prepare serial number
 
@@ -197,6 +196,11 @@ void  App_TaskManager (void *p_arg)
 			if ( var_uchar == 'c' || var_uchar == 'C' ) {//close
 				prompt("Ask GSM off line...\r\n");
 				my_icar.mg323.ask_online = false ;
+			}
+
+			if ( var_uchar == 'v' || var_uchar == 'V' ) {//show revision
+				prompt("$Id$\r\n");
+				prompt("Revision: %d  OS Tick: %d\r\n",my_icar.rev,OS_TICKS_PER_SEC);
 			}
 
 			if ( var_uchar == 'd' ) {//set debug flag
@@ -282,17 +286,36 @@ void  App_TaskManager (void *p_arg)
 	}
 }
 
-static unsigned char mcu_id_eor( unsigned int id)
+
+unsigned int pow( unsigned char n)
 {
-	static unsigned char chkbyte ;
+	unsigned int result ;
 
-	//Calc. MCU ID eor result as product SN
-	chkbyte =  (id >> 24)&0xFF ;
-	chkbyte ^= (id >> 16)&0xFF ;
-	chkbyte ^= (id >> 8)&0xFF ;
-	chkbyte ^= id&0xFF ;
+	result = 1 ;
+	while ( n ) {
+		result = result*10;
+		n--;
+	}
+	return result;
+}
 
-	return chkbyte ;
+static void conv_rev( char *p )
+{//$Rev$
+	unsigned char i , j;
+
+	my_icar.rev = 0 ;
+	i = 0 , p = p + 6 ;
+	while ( *(p+i) != 0x20 ) {
+		i++ ;
+		if ( *(p+i) == 0x24 || i > 4 ) break ; //$
+	}
+
+	j = 0 ;
+	while ( i ) {
+		i-- ;
+		my_icar.rev = (*(p+i)-0x30)*pow(j) + my_icar.rev;
+		j++;
+	}
 }
 
 static void calc_sn( )
@@ -312,6 +335,19 @@ static void calc_sn( )
 
 	prompt("The MCU ID is %X %X %X\tSN:%s\r\n",\
 		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
+}
+
+static unsigned char mcu_id_eor( unsigned int id)
+{
+	static unsigned char chkbyte ;
+
+	//Calc. MCU ID eor result as product SN
+	chkbyte =  (id >> 24)&0xFF ;
+	chkbyte ^= (id >> 16)&0xFF ;
+	chkbyte ^= (id >> 8)&0xFF ;
+	chkbyte ^= id&0xFF ;
+
+	return chkbyte ;
 }
 
 static void flash_led( unsigned int i )
