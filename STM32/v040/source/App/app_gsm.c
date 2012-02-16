@@ -13,7 +13,7 @@ static unsigned char send_tcp_data( unsigned char *, unsigned int * );
 
 void  App_TaskGsm (void *p_arg)
 {
-	unsigned char rec_str[AT_CMD_LENGTH], err_code, module_err_count=0;
+	unsigned char rec_str[AT_CMD_LENGTH], err_code;
 	unsigned int  relay_timer=0, var_int_data = 0;
 #if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
     OS_CPU_SR  cpu_sr = 0;
@@ -200,20 +200,12 @@ void  App_TaskGsm (void *p_arg)
 					}
 
 					err_code = gsm_string_decode( rec_str ,&relay_timer );
-					if ( err_code == 2 ) {//module error
-						module_err_count++;
-						if ( module_err_count > MAX_MODULE_ERR ) {//reboot
-							prompt("\r\nGSM Module error, will be reset... %s: %d\r\n",\
-								__FILE__, __LINE__);
-							module_err_count=0 ;
-							gsm_pwr_off( RETURN_TOO_ERR );
-						}
-					}
 				}
 			}//end of Check GSM output string
 
 			if ( my_icar.mg323.tcp_online ) { //can send data
 
+				//Receive data
 				//Check mg323 has data or not
 				if ( (c2s_data.check_timer == 0) \
 					|| ((OSTime-c2s_data.check_timer)>TCP_CHECK_PERIOD) \
@@ -224,6 +216,9 @@ void  App_TaskGsm (void *p_arg)
 						prompt("Rec TCP data error! Line: %d\r\n",__LINE__);
 					}
 					else {
+						if ( var_int_data ) {//success rec data
+							c2s_data.rx_timer = OSTime ;//reset GSM module if rx timeout
+						}
 						if ( my_icar.debug ) {
 							prompt("Rec %d bytes\r\n",var_int_data);
 						}
@@ -231,6 +226,7 @@ void  App_TaskGsm (void *p_arg)
 					c2s_data.check_timer = OSTime ;//Update timer
 				}
 
+				//Send data
 				//Check c2s_data.tx_len, if > 0, then send it
 				if ( c2s_data.tx_sn_len > 0 && my_icar.need_sn ) {
 					//prompt("Sending SN...\t");
@@ -241,7 +237,7 @@ void  App_TaskGsm (void *p_arg)
 						}
 					}
 				}
-				else {
+				else {//Send normal data
 					if ( (c2s_data.tx_len > GSM_BUF_LENGTH/2) \
 						|| c2s_data.tx_timer == 0 \
 						|| (OSTime-c2s_data.tx_timer) > TCP_SEND_PERIOD) {
@@ -263,6 +259,13 @@ void  App_TaskGsm (void *p_arg)
 						;//prompt("Send delay, tx_len: %d Time: %d\r\n",\
 							//c2s_data.tx_len,OSTime-c2s_data.tx_timer);
 					}
+				}
+
+				//Reset GSM module if rx timeout
+				if ( OSTime - c2s_data.rx_timer > TCP_SEND_PERIOD*2 ) {
+					prompt("Rec TCP timeout, reset GSM module! Line: %d\r\n",__LINE__);
+					prompt("OSTime:%d - rx_timer:%d = %d\r\n",OSTime,c2s_data.rx_timer,OSTime-c2s_data.rx_timer);
+					gprs_disconnect( RX_TIMEOUT );
 				}
 			}
 		}
@@ -303,6 +306,7 @@ void  App_TaskGsm (void *p_arg)
 static unsigned char read_tcp_data( unsigned char *buf, unsigned int *rec_len )
 {
 	static unsigned char i, gsm_tcp_len, buf_len, retry;
+	static unsigned int data_timer ; //prevent rx data timeout
 #if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
     static OS_CPU_SR  cpu_sr = 0;
 #endif
@@ -323,14 +327,14 @@ static unsigned char read_tcp_data( unsigned char *buf, unsigned int *rec_len )
 		//data will be sent out after ^SISR: 0,xx
 		memset(buf, 0x0, AT_CMD_LENGTH);
 	
-		c2s_data.rx_timer = OSTime ;
+		data_timer = OSTime ;
 	
 		while ( !strstr((char *)buf,"^SISR: 0,") \
 				&& !c2s_data.rx_full \
-				&& (OSTime - c2s_data.rx_timer) < 5*AT_TIMEOUT ) {
+				&& (OSTime - data_timer) < 5*AT_TIMEOUT ) {
 	
 			while ( my_icar.stm32_u2_rx.empty && \
-				(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
+				(OSTime - data_timer) < AT_TIMEOUT ) {//no data...
 				OSTimeDlyHMSM(0, 0,	0, 100);
 			}
 	
@@ -393,7 +397,7 @@ static unsigned char read_tcp_data( unsigned char *buf, unsigned int *rec_len )
 						*rec_len = *rec_len + gsm_tcp_len ;
 						for ( i = 0 ; i < gsm_tcp_len; i++ ) {
 							while ( my_icar.stm32_u2_rx.empty && \
-								(OSTime - c2s_data.rx_timer) < AT_TIMEOUT ) {//no data...
+								(OSTime - data_timer) < AT_TIMEOUT ) {//no data...
 								OSTimeDlyHMSM(0, 0,	0, 100);
 								prompt("Line: %d, gsm_tcp_len: %d, i: %d\r\n",\
 									__LINE__,gsm_tcp_len,i);
@@ -685,6 +689,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		//need to double check
 		prompt("TCP online: %s\r\n",buf);
 		my_icar.mg323.tcp_online = true ;
+		c2s_data.rx_timer = OSTime ;//update timer
 		//ask the IP, return:^SICI: 0,2,1,"10.156.174.147"
 		putstring(COM2,"AT^SICI?\r\n");
 		return 0;
@@ -719,15 +724,30 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		return 0;
 	}
 
-	if ( cmpmem(buf,"AT^SISI?\r\n",8 )) {
-		prompt("MG323 error: %s ",buf);
-		printf("Check %s: %d\r\n",	__FILE__,__LINE__);
-		return 2;
-	}
+	if ( cmpmem(buf,"AT+CSQ\r\n",6 ) || cmpmem(buf,"AT^SICI?\r\n",8 ) \
+		|| cmpmem(buf,"AT^SISI?\r\n",8 ) ) {//Module had been reboot, echo command
+		prompt("MG323 reboot, echo CMD: %s\r\n",buf);
+		my_icar.mg323.try_online = 1;
+		my_icar.mg323.gprs_count = 0 ;
+		my_icar.mg323.gprs_ready = false;
+		my_icar.mg323.tcp_online = false ;
+		my_icar.mg323.power_on = false;
+	
+		//save to BK reg
+		//BKP_DR2, GSM Module power off time(UTC Time) high
+		//BKP_DR3, GSM Module power off time(UTC Time) low
+	    BKP_WriteBackupRegister(BKP_DR2, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+	    BKP_WriteBackupRegister(BKP_DR3, (RTC_GetCounter( ))&0xFFFF);//low
+	
+		//BKP_DR1, ERR index: 	15~12:MCU reset 
+		//						11~8:reverse
+		//						7~4:GPRS disconnect reason
+		//						3~0:GSM module poweroff reason
+		i = (BKP_ReadBackupRegister(BKP_DR1))&0xFFF0;
+		i = i | MODULE_REBOOT ;
+	    BKP_WriteBackupRegister(BKP_DR1, i);
 
-	if ( cmpmem(buf,"AT^SICI?\r\n",8 )) {
-		prompt("MG323 error: %s ",buf);
-		printf("Check %s: %d\r\n",	__FILE__,__LINE__);
+		prompt("Check %s: %d\r\n",	__FILE__,__LINE__);
 		return 2;
 	}
 

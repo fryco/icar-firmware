@@ -67,7 +67,7 @@ struct CAR2SERVER_COMMUNICATION {
 	unsigned char *rx_in_last;
 	bool rx_empty;
 	bool rx_full;
-	unsigned int rx_timer;//prevent rx timeout
+	unsigned int rx_timer;//reset GSM module if rx timeout
 	unsigned int check_timer;//check rx period
 };
 

@@ -26,6 +26,7 @@ typedef enum
 	CONNECTION_DOWN	=	1,	//^SICI: 0,2,0
 	PEER_CLOSED 	= 	2,	//^SIS: 0, 0, 48, Remote Peer has closed the connection
 	PROFILE_NO_UP 	=	3,	//AT^SISI return is not 4: up
+	RX_TIMEOUT	 	=	4,	//RX data timeout after tx
 
 	NO_GPRS_IN_INIT	=	6,	//no gprs network
 	GPRS_ATT_ERR	=	7,	//gprs attach failure
@@ -49,7 +50,7 @@ typedef enum
 	NO_GPRS			=	6,	//mg323_status.gprs_count > 60
 
 	TRY_ONLINE		=	13,	//if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
-	RETURN_TOO_ERR	= 	14,	//if ( module_err_count > MAX_MODULE_ERR ) {//reboot
+	RSV				= 	14,	//Reserve
 	MODULE_REBOOT	=	15	//if receive: SYSSTART
 } POWEROFF_REASON; //enum must < 15
 
