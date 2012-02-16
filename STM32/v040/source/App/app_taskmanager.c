@@ -199,9 +199,11 @@ void  App_TaskManager (void *p_arg)
 			}
 
 			if ( var_uchar == 'v' || var_uchar == 'V' ) {//show revision
+				prompt("The MCU ID is %X %X %X  SN:%s\r\n",\
+					*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
+				prompt("Revision: %d  OS Tick: %d\r\n",my_icar.rev,OS_TICKS_PER_SEC);
 				prompt("$URL$\r\n");
 				prompt("$Id$\r\n");
-				prompt("Revision: %d  OS Tick: %d\r\n",my_icar.rev,OS_TICKS_PER_SEC);
 			}
 
 			if ( var_uchar == 'd' ) {//set debug flag
@@ -334,7 +336,7 @@ static void calc_sn( )
 
 	my_icar.sn = pro_sn ;
 
-	prompt("The MCU ID is %X %X %X\tSN:%s\r\n",\
+	prompt("The MCU ID is %X %X %X  SN:%s\r\n",\
 		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
 }
 

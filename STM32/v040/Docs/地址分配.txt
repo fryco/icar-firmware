@@ -1,4 +1,5 @@
-MCT: STM32F103R8,64KB Flash, sector:1K, 20KB RAM
+.LOG
+MCU: STM32F103R8,64KB Flash, sector:1K, 20KB RAM
 
 Flash 分配：
 Bootloader: 4KB, 0~3 sector
@@ -12,3 +13,16 @@ temp data(临时数据，如升级用的FW,GSM缓存数据）：28KB, 36~64 sector
 temp data index说明：
 Write index: 1KB,  对应temp data里，每512字节的CRC结果，如：
 Read  index: 1KB, 
+
+
+18:31 2012/2/16
+现在app 已经有30KB，所以R8不行，改RB 试试: 
+STM32F103RB,128KB Flash, sector:1K, 20KB RAM
+
+Flash 分配：
+Bootloader: 4KB, 0~3 sector
+App: 60KB, 4~63 sector
+
+CFG data(系统数据，如SN、版本号等):2KB, 64~65 sector
+temp data index(临时数据索引):2KB, 66~67 sector
+temp data(临时数据，如升级用的FW,GSM缓存数据）：60KB, 68~127 sector
