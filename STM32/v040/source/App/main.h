@@ -30,6 +30,7 @@
 #include "drv_rtc.h"
 #include "drv_iwdg.h"
 #include "drv_mg323.h"
+#include "drv_flash.h"
 
 /* Exported types ------------------------------------------------------------*/
 //For taskmanger
@@ -57,6 +58,7 @@
 
 //For GSM <==> Server protocol
 #define GSM_HEAD				0xC9
+#define GSM_ASK_IST				0x3F //'?', Ask instruction from server
 #define GSM_CMD_ERROR			0x45 //'E', upload error log to server
 #define GSM_CMD_RECORD			0x52 //'R', record gsm/adc data
 #define GSM_CMD_SN				0x53 //'S', upload SN
