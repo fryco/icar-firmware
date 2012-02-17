@@ -123,6 +123,9 @@ int	main(void)
 
 	ADCTEMP_Configuration( );
 
+	/* Enable CRC clock */
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_CRC, ENABLE);
+
 	led_init_all( );
 	led_on(POWER_LED);
 

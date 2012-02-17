@@ -17,6 +17,14 @@ struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
 
 extern struct ICAR_DEVICE my_icar;
 
+const unsigned char commands[] = {\
+GSM_ASK_IST,\
+GSM_CMD_ERROR,\
+GSM_CMD_RECORD,\
+GSM_CMD_SN,\
+GSM_CMD_TIME\
+};
+
 static unsigned char pro_sn[]="02P1xxxxxx";
 //Last 6 bytes replace by MCU ID xor result
 /* SN, char(10): 0  2  P  1 1  A  H  0 0 0
@@ -84,6 +92,7 @@ void  App_TaskManager (void *p_arg)
 	printf("\r\n"),	prompt("%s\r\n",BUILD_DATE);
 	conv_rev(BUILD_REV);
 	prompt("Revision: %d  OS Tick: %d\r\n",my_icar.rev,OS_TICKS_PER_SEC);
+
 	show_rst_flag( ), show_err_log( );
  	
 #if	(OS_TASK_STAT_EN > 0)
@@ -127,12 +136,12 @@ void  App_TaskManager (void *p_arg)
 	flash_led( 80 );//100ms
 
 	//independent watchdog init
-	iwdg_init( );
+	//iwdg_init( );
 
 	while	(1)
 	{
 		/* Reload IWDG counter */
-		IWDG_ReloadCounter();  
+		//IWDG_ReloadCounter();  
 
 		if ( c2s_data.tx_len > 0 || !my_icar.login_timer ) {//have command, need online
 			my_icar.mg323.ask_online = true ;
@@ -164,8 +173,13 @@ void  App_TaskManager (void *p_arg)
 			}
 
 			if ( my_icar.mg323.tcp_online ) {//record GSM signal and ADC, for testing
+				//Ask cmd from server, return 0 if no CMD
+				gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
+
 				//lowest task, just send when online
-				gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
+				if ( (OSTime/100)%5 == 0 ) {				
+					gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
+				}
 			}
 		}
 
@@ -206,6 +220,7 @@ void  App_TaskManager (void *p_arg)
 				prompt("$Id$\r\n");
 			}
 
+
 			if ( var_uchar == 'd' ) {//set debug flag
 				my_icar.debug++ ;
 				prompt("Increase debug lever, my_icar.debug:%d\r\n",my_icar.debug);
@@ -214,6 +229,10 @@ void  App_TaskManager (void *p_arg)
 			if ( var_uchar == 'D' ) {//reset debug flag
 				my_icar.debug = 0 ;
 				prompt("Reset debug flag... my_icar.debug:%d\r\n",my_icar.debug);
+			}
+
+			if ( var_uchar == 'f' ) {//set debug flag
+				flash_program_one_page( ) ;
 			}
 
 			if ( var_uchar == 'g' ) {//Suspend GSM task for debug
@@ -552,6 +571,44 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				//handle the respond
 				switch (buf->pcb&0x7F) {
 
+				case GSM_ASK_IST://0x3F,'?'
+					//C9 CD BF 00 01 xx E8, xx is new instruction
+
+					switch (*((buf->start)+5)) {
+
+					case 0x0://no new instruction
+						if ( my_icar.debug ) {
+							prompt("No new instruction! CMD_seq: %02X\r\n",\
+								*((buf->start)+1));
+						}
+						break;
+
+					case 0x1://need upload SN first
+						my_icar.need_sn = 3 ;
+						prompt("Upload SN first! CMD_seq: %02X\r\n",\
+							*((buf->start)+1));
+						break;
+
+					default:
+
+						for ( chkbyte = 0 ; chkbyte < sizeof(commands) ; chkbyte++ ) {
+							if ( commands[chkbyte] == *((buf->start)+5) ) {
+								prompt("New instruction is: 0x%02X CMD_seq: %02X ",\
+										*((buf->start)+5),*((buf->start)+1));
+								chkbyte = 0xF0 ; //end
+							}
+						}
+
+						if ( chkbyte == sizeof(commands) ) {
+							prompt("Unknow instruction : 0x%02X CMD_seq: %02X ",\
+									*((buf->start)+5),*((buf->start)+1));
+							printf("check %s: %d\r\n",__FILE__,__LINE__);
+						}
+						break;
+					}
+
+					break;
+
 				case 0x4C://'L':
 					break;
 
@@ -836,6 +893,29 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 				c2s_data.tx[c2s_data.tx_len+1] = *sequence ;//SEQ
 				*sequence = c2s_data.tx[c2s_data.tx_len+1]+1;//increase seq
 				c2s_data.tx[c2s_data.tx_len+2] = out_pcb ;//PCB
+
+				if ( out_pcb == GSM_ASK_IST ) {//Max. 6 Bytes
+
+					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
+					c2s_data.tx[c2s_data.tx_len+4] = 0;//length low
+
+					if ( my_icar.debug > 3) {
+						prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+					}
+					chkbyte = GSM_HEAD ;
+					for ( i = 1 ; i < 5 ; i++ ) {//calc chkbyte
+						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
+						if ( my_icar.debug > 3) {
+							printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+						}
+					}
+					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
+					if ( my_icar.debug > 3) {
+						printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+i]);
+					}
+					//update buf length
+					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
+				}
 
 				if ( out_pcb == GSM_CMD_TIME ) {//Max. 6 Bytes
 					my_icar.stm32_rtc.update_timer = RTC_GetCounter( );
