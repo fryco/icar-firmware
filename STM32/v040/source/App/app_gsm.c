@@ -96,7 +96,8 @@ void  App_TaskGsm (void *p_arg)
 		if ( my_icar.mg323.power_on ) {//below action need power on
 
 			//should receive feedback < 10 seconds, because we enquire every sec.
-			if ( OSTime - my_icar.mg323.at_timer > 10*AT_TIMEOUT ) {
+			if ((OSTime > my_icar.mg323.at_timer) && \
+				(OSTime - my_icar.mg323.at_timer > 10*AT_TIMEOUT) ) {
 				//GSM module no respond, reset it
 				prompt("\r\nGSM Module no respond, will be reset...%s\tline: %d\r\n",\
 						__FILE__, __LINE__);
@@ -185,6 +186,8 @@ void  App_TaskGsm (void *p_arg)
 					putstring(COM2,"ATD");
 					putstring(COM2,(unsigned char *)callback_phone);
 					putstring(COM2,";\r\n");
+					c2s_data.rx_timer = OSTime + VOICE_RESPOND_TIMEOUT ;//GPRS stop when voice
+					my_icar.mg323.at_timer = OSTime + VOICE_RESPOND_TIMEOUT ;//GPRS stop when voice
 				}
 			}
 
@@ -262,7 +265,8 @@ void  App_TaskGsm (void *p_arg)
 				}
 
 				//Reset GSM module if rx timeout
-				if ( OSTime - c2s_data.rx_timer > TCP_SEND_PERIOD*2 ) {
+				if ((OSTime > c2s_data.rx_timer) && \
+					(OSTime - c2s_data.rx_timer > TCP_SEND_PERIOD*2) ) {
 					prompt("Rec TCP timeout, reset GSM module! Line: %d\r\n",__LINE__);
 					prompt("OSTime:%d - rx_timer:%d = %d\r\n",OSTime,c2s_data.rx_timer,OSTime-c2s_data.rx_timer);
 					gprs_disconnect( RX_TIMEOUT );
