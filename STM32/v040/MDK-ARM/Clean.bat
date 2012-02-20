@@ -13,4 +13,4 @@ REM ****************************************
 REM   Delete files
 REM ****************************************
 
-FOR %%i IN (OBJ, TMP, BAK, HTM, PLG) DO IF EXIST *.%%i DEL *.%%i
+FOR %%i IN (OBJ, TMP, BAK, HTM, PLG, DEP) DO IF EXIST *.%%i DEL *.%%i
