@@ -69,6 +69,9 @@ struct CAR2SERVER_COMMUNICATION {
 	bool rx_full;
 	unsigned int rx_timer;//reset GSM module if rx timeout
 	unsigned int check_timer;//check rx period
+
+	//New instruction from server
+	unsigned char next_ist ;
 };
 
 /* Exported constants --------------------------------------------------------*/
