@@ -64,7 +64,7 @@
 #define GSM_CMD_RECORD			0x52 //'R', record gsm/adc data
 #define GSM_CMD_SN				0x53 //'S', upload SN
 #define GSM_CMD_TIME			0x54 //'T', time
-
+#define GSM_CMD_UPGRADE			0x55 //'U', Upgrade firmware
 
 #define	prompt(x, args...)	printf("[%d,%02d%%]> ",OSTime/100,OSCPUUsage);printf(x,	##args);
 
