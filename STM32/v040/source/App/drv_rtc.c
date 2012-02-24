@@ -154,14 +154,14 @@ void rtc_init(void)	{
 	my_icar.stm32_rtc.update_timer = 0 ;
 }
 
-void RTC_update_calibrate( unsigned char *p1, unsigned char *p2) 
+void RTC_update_calibrate( unsigned char *p1, unsigned char *buf_start) 
 {
 	struct DATE_TIME datetime;
 	unsigned char i ;
 
 	my_icar.stm32_rtc.update_timer = 0 ;
 	for ( i = 0 ; i < 4 ; i++ ) {//
-		if ( (p1+i+5) < p2+GSM_BUF_LENGTH ) {
+		if ( (p1+i+5) < buf_start+GSM_BUF_LENGTH ) {
 			my_icar.stm32_rtc.update_timer |= (*(p1+i+5))<<(24-i*8);
 		}
 		else {//data in begin of buffer

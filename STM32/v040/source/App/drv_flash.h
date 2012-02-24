@@ -32,5 +32,5 @@
 
 /* Exported functions ------------------------------------------------------- */
 void flash_program_one_page(void);
-
+unsigned char flash_update( unsigned char *, unsigned char * ) ;
 #endif /* __APP_FLASH_H */
