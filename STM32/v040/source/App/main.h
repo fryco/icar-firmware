@@ -72,7 +72,8 @@
 
 /* Exported types ------------------------------------------------------------*/
 struct ICAR_DEVICE {
-	u16 rev ;//iCar revision, up to 65535
+	unsigned char hw_rev ;//iCar hardware revision, up to 255
+	u16 fw_rev ;//iCar firmware revision, up to 65535
 	unsigned char debug ;//debug flag
 	unsigned int login_timer;
 	unsigned int err_log_send_timer;

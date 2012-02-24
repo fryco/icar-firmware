@@ -1,11 +1,12 @@
 #include "main.h"
 
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
-#define	BUILD_REV  "$Rev$"
+
+unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static void calc_sn( void );
-static void conv_rev( char * );
+static void conv_rev( unsigned char * );
 static void flash_led( unsigned int );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
 static unsigned char mcu_id_eor( unsigned int );
@@ -93,8 +94,9 @@ void  App_TaskManager (void *p_arg)
 	*/
 
 	printf("\r\n"),	prompt("%s\r\n",BUILD_DATE);
-	conv_rev(BUILD_REV);
-	prompt("Revision: %d  OS Tick: %d\r\n",my_icar.rev,OS_TICKS_PER_SEC);
+	conv_rev((unsigned char *)BUILD_REV);
+	my_icar.hw_rev = 0;//will be set by resistor
+	prompt("Revision: %d  OS Tick: %d\r\n",my_icar.fw_rev,OS_TICKS_PER_SEC);
 
 	show_rst_flag( ), show_err_log( );
  	
@@ -225,7 +227,7 @@ void  App_TaskManager (void *p_arg)
 			if ( var_uchar == 'v' || var_uchar == 'V' ) {//show revision
 				prompt("The MCU ID is %X %X %X  SN:%s\r\n",\
 					*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
-				prompt("Revision: %d  OS Tick: %d\r\n",my_icar.rev,OS_TICKS_PER_SEC);
+				prompt("Revision: %d  OS Tick: %d\r\n",my_icar.fw_rev,OS_TICKS_PER_SEC);
 				prompt("$URL$\r\n");
 				prompt("$Id$\r\n");
 			}
@@ -331,11 +333,11 @@ unsigned int pow( unsigned char n)
 	return result;
 }
 
-static void conv_rev( char *p )
+static void conv_rev( unsigned char *p )
 {//$Rev$
 	unsigned char i , j;
 
-	my_icar.rev = 0 ;
+	my_icar.fw_rev = 0 ;
 	i = 0 , p = p + 6 ;
 	while ( *(p+i) != 0x20 ) {
 		i++ ;
@@ -345,7 +347,7 @@ static void conv_rev( char *p )
 	j = 0 ;
 	while ( i ) {
 		i-- ;
-		my_icar.rev = (*(p+i)-0x30)*pow(j) + my_icar.rev;
+		my_icar.fw_rev = (*(p+i)-0x30)*pow(j) + my_icar.fw_rev;
 		j++;
 	}
 }
@@ -604,7 +606,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 						for ( chkbyte = 0 ; chkbyte < sizeof(commands) ; chkbyte++ ) {
 							if ( commands[chkbyte] == *((buf->start)+5) ) {
-								prompt("New instruction is: 0x%02X CMD_seq: %02X ",\
+								prompt("New instruction is: 0x%02X CMD_seq: %02X\r\n",\
 										*((buf->start)+5),*((buf->start)+1));
 								c2s_data.next_ist = *((buf->start)+5) ;
 								chkbyte = 0xFD ; //end
@@ -789,8 +791,33 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					}
 					break;
 
+				case GSM_CMD_UPGRADE://0x55,'U'
+					//C9 57 D5 00 xx yy data
+					//xx: data len, 
+					//yy: KB sequence, 00: data is latest firmware revision
+					//                 01: 1st KB of FW, 02: 2nd KB, 03: 3rd KB
+					switch (*((buf->start)+4)) {
+
+					case 0x1://need upload SN first, C9 77 D5 00 01 01 6B
+						my_icar.need_sn = 3 ;
+						prompt("Upgrade CMD failure, need product SN first! CMD_seq: %02X\r\n",\
+							*((buf->start)+1));
+
+						break;
+
+					default:
+						if ( my_icar.debug > 2) {
+							prompt("Upgrade CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						}
+						//Check each KB and save to flash
+						flash_update(buf->start,c2s_data.rx) ;
+
+						break;
+					}
+					break;
+
 				default:
-					prompt("Unknow respond PCB: 0x%X\r\n",buf->pcb&0x7F);
+					prompt("Unknow respond PCB: 0x%X %s:%d\r\n",buf->pcb&0x7F,__FILE__,__LINE__);
 
 					break;
 				}//end of handle the respond
@@ -1065,19 +1092,27 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 				}
 
 				if ( out_pcb == GSM_CMD_UPGRADE ) {//Max. TBD Bytes
-//will be dev.
+					//C9 97 55 00 xx yy 
+					//xx: data len, 
+					//yy: KB sequence, 00: data is current HW rev.(1Byte) + fw rev.(2 Bytes)
+					//                 01: ask 1st KB of FW, 02: 2nd KB, 03: 3rd KB
+
 					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
-					c2s_data.tx[c2s_data.tx_len+4] = 0;//length low
+					c2s_data.tx[c2s_data.tx_len+4] = 3;//length low
+
+					c2s_data.tx[c2s_data.tx_len+5] = my_icar.hw_rev+3;//有问题，待查
+					c2s_data.tx[c2s_data.tx_len+6] = (my_icar.fw_rev>>8)&0xFF;//fw rev. high
+					c2s_data.tx[c2s_data.tx_len+7] = (my_icar.fw_rev)&0xFF;//fw rev. low
 
 					if ( my_icar.debug > 3) {
 						prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 					}
 					chkbyte = GSM_HEAD ;
-					for ( i = 1 ; i < 5 ; i++ ) {//calc chkbyte
+					for ( i = 1 ; i < 8 ; i++ ) {//calc chkbyte
 						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
-						if ( my_icar.debug > 3) {
+						//if ( my_icar.debug > 3) {
 							printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
-						}
+						//}
 					}
 					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
 					if ( my_icar.debug > 3) {
