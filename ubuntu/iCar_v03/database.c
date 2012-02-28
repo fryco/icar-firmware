@@ -1,9 +1,13 @@
+//$URL$ 
+//$Rev$, $Date$
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <limits.h>
 #include "database.h"
+#include "commands.h"
 
 extern int debug_flag ;
 
@@ -36,8 +40,8 @@ const unsigned char *ERR_GSM[][1]= {\
 	"RSV",\
 //	TRY_ONLINE		=	13,	//if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
 	"Try online > MAX_ONLINE_TRY",\
-//	RETURN_TOO_ERR	= 	14,	//if ( module_err_count > MAX_MODULE_ERR ) {//reboot
-	"GSM module return too err",\
+//	RSV				=	14,	//Reserve
+	"RSV",\
 //	MODULE_REBOOT	=	15	//if receive: SYSSTART
 	"GSM module reboot"\
 };
@@ -51,8 +55,8 @@ const unsigned char *ERR_GPRS[][1]= {\
 	"Remote Peer closed the connection",\
 //	PROFILE_NO_UP 	=	3,	//AT^SISI return is not 4: up
 	"Profile NO UP",\
-//	RSV				=	4,	//Reserve
-	"RSV",\
+//	RX_TIMEOUT		=	4,	//should rx result after tx data
+	"RX timeout after TX",\
 //	RSV				=	5,	//Reserve
 	"RSV",\
 //	NO_GPRS_IN_INIT	=	6,	//no gprs network
@@ -858,6 +862,25 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 	//prevent error: 2014
 	res_ptr=mysql_store_result(&(mycar->mydb.mysql));
 	mysql_free_result(res_ptr);
+
+	return 0;
+
+}
+
+//0: ok
+//others: error, check err_code and err_msg
+int ask_instruction(struct icar_data *mycar, unsigned char *buf, unsigned char *ist)
+{
+	char sql_buf[BUFSIZE];
+
+	MYSQL_RES *res_ptr;
+	MYSQL_ROW sqlrow;
+	unsigned long sqlrow_cnt = 0 ;
+
+	*ist = 0x55 ;//Upgrade firmware
+	//input: HEAD+SEQ+PCB+LEN+CHK
+
+//Will inquire DB for instruction
 
 	return 0;
 

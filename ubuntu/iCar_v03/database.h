@@ -1,3 +1,13 @@
+/**
+  ******************************************************************************
+  * SVN revision information:
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
+  * @brief   This file is for database operate
+  ******************************************************************************
+  */ 
 
 #ifndef _DATABASE_H
 #define _DATABASE_H
@@ -54,6 +64,7 @@ int db_connect(struct icar_db *);
 
 int check_sn(struct icar_data * );
 
+int ask_instruction(struct icar_data *,unsigned char *, unsigned char *);
 int record_command(struct icar_data *, unsigned char *, unsigned char *, unsigned int);
 int record_signal(struct icar_data *, unsigned char *);
 int record_ip(struct icar_data *, unsigned char *);
@@ -64,4 +75,3 @@ int record_error(struct icar_data *, unsigned char *, unsigned char *);
 //20:  GSM IP&Signal buffer length error.
 
 #endif /* _DATABASE_H */
-
