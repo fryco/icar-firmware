@@ -1,5 +1,5 @@
 #include "main.h"
-// $Id$
+
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
 unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
@@ -185,12 +185,12 @@ void  App_TaskManager (void *p_arg)
 				}
 				else {//No new instruction from server
 					//Ask instruction from server, return 0 if no instruction
-					gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
+					//gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
 	
 					//lowest task, just send when online
-					if ( (OSTime/100)%5 == 0 ) {				
+					//if ( (OSTime/100)%5 == 0 ) {				
 						gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
-					}
+					//}
 				}
 			}
 		}
@@ -295,7 +295,7 @@ void  App_TaskManager (void *p_arg)
 			for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE-2 ; var_uchar++) {
 				if ( (OSTime - c2s_data.queue_sent[var_uchar].send_timer > CLEAN_QUEUE_PERIOD) \
 					&& (c2s_data.queue_sent[var_uchar].send_pcb !=0)) {
-					prompt("queue %d, CMD: 0x%02X timeout, reset!\r\n",\
+					prompt("queue %d, CMD: %c timeout, reset!\r\n",\
 						var_uchar,c2s_data.queue_sent[var_uchar].send_pcb);//60 secs.
 					c2s_data.queue_sent[var_uchar].send_timer= 0 ;//free queue if > 1 min
 					c2s_data.queue_sent[var_uchar].send_pcb = 0 ;
@@ -581,13 +581,15 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				}
 
 				//handle the respond
+				if ( my_icar.debug > 2 ) {
+					prompt("Rec %c CMD return, Len: %d\r\n",buf->pcb&0x7F, buf->len);
+				}
 				switch (buf->pcb&0x7F) {
 
 				case GSM_ASK_IST://0x3F,'?'
 					//C9 CD BF 00 01 xx E8, xx is new instruction
 
 					switch (*((buf->start)+5)) {
-
 					case 0x0://no new instruction
 						if ( my_icar.debug ) {
 							prompt("No new instruction! CMD_seq: %02X\r\n",\
@@ -933,6 +935,11 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 				*sequence = c2s_data.tx[c2s_data.tx_len+1]+1;//increase seq
 				c2s_data.tx[c2s_data.tx_len+2] = out_pcb ;//PCB
 
+				if ( my_icar.debug > 2 ) {
+					prompt("Snd %c CMD , seq:%02X, queue: %02d\r\n",\
+							out_pcb,*sequence,index);
+				}
+
 				if ( out_pcb == GSM_ASK_IST ) {//Max. 6 Bytes
 
 					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
@@ -1100,7 +1107,7 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
 					c2s_data.tx[c2s_data.tx_len+4] = 3;//length low
 
-					c2s_data.tx[c2s_data.tx_len+5] = my_icar.hw_rev+5;//有问题，待查
+					c2s_data.tx[c2s_data.tx_len+5] = my_icar.hw_rev;
 					c2s_data.tx[c2s_data.tx_len+6] = (my_icar.fw_rev>>8)&0xFF;//fw rev. high
 					c2s_data.tx[c2s_data.tx_len+7] = (my_icar.fw_rev)&0xFF;//fw rev. low
 
