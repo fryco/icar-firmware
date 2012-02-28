@@ -1,5 +1,5 @@
 #include "main.h"
-//$id$
+// $Id$
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
 unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
