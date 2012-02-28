@@ -23,6 +23,8 @@
  * ...
  */
 
+#define FLASH_UPGRADE_BASE				0x08010C00	//Page67
+
 /* Includes ------------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
 
@@ -32,5 +34,5 @@
 
 /* Exported functions ------------------------------------------------------- */
 void flash_program_one_page(void);
-unsigned char flash_update( unsigned char *, unsigned char * ) ;
+unsigned char flash_upgrade( unsigned char *, unsigned char * ) ;
 #endif /* __APP_FLASH_H */

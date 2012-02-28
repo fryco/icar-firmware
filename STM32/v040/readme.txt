@@ -15,5 +15,3 @@ If you want to contribute to this project, or bug report, or have some good idea
 please touch me: cn0086.info@gmail.com
 
 更多的项目资料，请浏览：http://cn0086.info
-
-$id$

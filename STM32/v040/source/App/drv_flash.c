@@ -63,7 +63,7 @@ void flash_program_one_page( )
 }
 
 //Return 0: ok, others error.
-unsigned char flash_update( unsigned char *buf, unsigned char *buf_start) 
+unsigned char flash_upgrade( unsigned char *buf, unsigned char *buf_start) 
 {
 	u16 buf_index, buf_len, fw_rev, fw_size ;
 
