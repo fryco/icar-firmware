@@ -1,5 +1,5 @@
 #include "main.h"
-
+//$id$
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
 unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
@@ -185,12 +185,12 @@ void  App_TaskManager (void *p_arg)
 				}
 				else {//No new instruction from server
 					//Ask instruction from server, return 0 if no instruction
-					//gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
+					gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
 	
 					//lowest task, just send when online
-					//if ( (OSTime/100)%5 == 0 ) {				
+					if ( (OSTime/100)%5 == 0 ) {				
 						gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
-					//}
+					}
 				}
 			}
 		}
@@ -810,7 +810,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 							prompt("Upgrade CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						}
 						//Check each KB and save to flash
-						flash_update(buf->start,c2s_data.rx) ;
+						flash_upgrade(buf->start,c2s_data.rx) ;
 
 						break;
 					}
@@ -1100,7 +1100,7 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
 					c2s_data.tx[c2s_data.tx_len+4] = 3;//length low
 
-					c2s_data.tx[c2s_data.tx_len+5] = my_icar.hw_rev+3;//有问题，待查
+					c2s_data.tx[c2s_data.tx_len+5] = my_icar.hw_rev+5;//有问题，待查
 					c2s_data.tx[c2s_data.tx_len+6] = (my_icar.fw_rev>>8)&0xFF;//fw rev. high
 					c2s_data.tx[c2s_data.tx_len+7] = (my_icar.fw_rev)&0xFF;//fw rev. low
 
