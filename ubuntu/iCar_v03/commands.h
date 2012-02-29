@@ -4,7 +4,7 @@
   * @file    $URL$ 
   * @version $Rev$
   * @author  $Author$
-  * @date    $Date$
+  * @date    $Date: 2012-02-29 09:32:56 +0800 (Wed, 29 Feb 2012) $
   * @brief   This file is for commands
   ******************************************************************************
   */ 
