@@ -30,4 +30,13 @@ int cmd_err_log(struct icar_data *, struct icar_command *,\
 int cmd_err_signal(struct icar_data *, struct icar_command *,\
 				unsigned char *, unsigned char * );
 
+int cmd_sn_upload(struct icar_data *, struct icar_command *,\
+				unsigned char *, unsigned char * );
+
+int cmd_get_time(struct icar_data *, struct icar_command *,\
+				unsigned char *, unsigned char * );
+
+int cmd_upgrade_fw(struct icar_data *, struct icar_command *,\
+				unsigned char *, unsigned char * );
+
 #endif /* _COMMANDS_H */
