@@ -23,7 +23,11 @@
  * ...
  */
 
-#define FLASH_UPGRADE_BASE				0x08010C00	//Page67
+//#define FLASH_UPGRADE_BASE				0x08010C00	//Page67
+#define FLASH_UPGRADE_BASE				0	//Page67, simu first
+#define NEW_FW_REV						0	//4 bytes for rev. 4 B for !rev., start addr
+#define NEW_FW_SIZE						8	//4 bytes for size 4 B for !size, start addr
+#define BLK_CRC_DAT						16	//4 bytes for CRC 4 B for !CRC, start addr
 
 /* Includes ------------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
@@ -34,5 +38,7 @@
 
 /* Exported functions ------------------------------------------------------- */
 void flash_program_one_page(void);
-unsigned char flash_upgrade( unsigned char *, unsigned char * ) ;
+void init_flash_map( void ); //for dev. only, will be removed
+unsigned char flash_upgrade_ask( unsigned char * ) ;
+unsigned char flash_upgrade_rec( unsigned char *, unsigned char * ) ;
 #endif /* __APP_FLASH_H */
