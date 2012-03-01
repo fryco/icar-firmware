@@ -185,12 +185,12 @@ void  App_TaskManager (void *p_arg)
 				}
 				else {//No new instruction from server
 					//Ask instruction from server, return 0 if no instruction
-					//gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
+					gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
 	
 					//lowest task, just send when online
-					//if ( (OSTime/100)%5 == 0 ) {				
+					if ( (OSTime/100)%5 == 0 ) {				
 						gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
-					//}
+					}
 				}
 			}
 		}
@@ -812,7 +812,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 							prompt("Upgrade CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						}
 						//Check each KB and save to flash
-						flash_upgrade(buf->start,c2s_data.rx) ;
+						flash_upgrade_rec(buf->start,c2s_data.rx) ;
 
 						break;
 					}
@@ -1099,23 +1099,14 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 				}
 
 				if ( out_pcb == GSM_CMD_UPGRADE ) {//Max. TBD Bytes
-					//C9 97 55 00 xx yy 
-					//xx: data len, 
-					//yy: KB sequence, 00: data is current HW rev.(1Byte) + fw rev.(2 Bytes)
-					//                 01: ask 1st KB of FW, 02: 2nd KB, 03: 3rd KB
 
-					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
-					c2s_data.tx[c2s_data.tx_len+4] = 3;//length low
-
-					c2s_data.tx[c2s_data.tx_len+5] = my_icar.hw_rev;
-					c2s_data.tx[c2s_data.tx_len+6] = (my_icar.fw_rev>>8)&0xFF;//fw rev. high
-					c2s_data.tx[c2s_data.tx_len+7] = (my_icar.fw_rev)&0xFF;//fw rev. low
+					flash_upgrade_ask( &c2s_data.tx[c2s_data.tx_len] );
 
 					if ( my_icar.debug > 3) {
 						prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 					}
 					chkbyte = GSM_HEAD ;
-					for ( i = 1 ; i < 8 ; i++ ) {//calc chkbyte
+					for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
 						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
 						//if ( my_icar.debug > 3) {
 							printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
