@@ -93,7 +93,7 @@ void process_conn_server(struct icar_data *mycar)
 		//read the content from remote site
 		memset(recv_buf, '\0', BUFSIZE);
 
-		//以下基于假设：每次读取1个或2个包或更多，不会收到不完整包
+		//以下基于假设：每次读取1个或更多包，不会收到不完整包
 		//HEAD+SEQ+PCB+Length, please refer to: iCar protocol_通讯协议
 		size = read(mycar->client_socket, recv_buf, BUFSIZE); 
 		if (size == 0 || size > BUFSIZE) { //no data or overflow
@@ -163,294 +163,30 @@ void process_conn_server(struct icar_data *mycar)
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
-					case 0x53://'S', SN, HEAD SEQ CMD Length(2 bytes) OSTime SN(char 10) IP check
-						      //C9 01 53 00 1B 00 00 0D 99 //CMD + OSTime
-							  //30 32 50 31 43 30 44 32 41 37 //SN
-							  //31 30 2E 32 30 31 2E 31 33 37 2E 32 37 28 //IP+CHK
-						if ( strlen(mycar->sn) == 10 ) {
-							if ( strncmp(mycar->sn,&recv_buf[9], 10) ) {
-								//no same
-								//record_error(mycar,&recv_buf[buf_index]); 
-//Need change
-								fprintf(stderr, "\r\nSN error! First SN: %s, ",\
-									mycar->sn);
-								strncpy(cmd.pro_sn, &recv_buf[9], 10);
-								cmd.pro_sn[10] = 0x0;
-								fprintf(stderr, "now is: %s\n\n",mycar->sn);
-								goto exit_process_conn_server;
-							}
-							else {
-								fprintf(stderr, "\r\nNo need update ");
-							}
+					case GSM_CMD_SN: //0x53, 'S', upload SN to server
+						if ( cmd_sn_upload( mycar,&cmd,\
+							&recv_buf[buf_index], send_buf ) == 1 ) {
+
+							goto exit_process_conn_server;
 						}
-						else {	//record the product SN
-							strncpy(cmd.pro_sn, &recv_buf[9], 10);
-							cmd.pro_sn[10] = 0x0;
-
-							//Update IP to server's DB
-							if ( record_ip(mycar,&recv_buf[buf_index])) 
-							{//no error
-								if ( debug_flag ) {
-									fprintf(stderr, "Update GSM IP err= %d: %s",\
-										mycar->err_code,mycar->err_msg);
-								}
-							}
-						}
-						fprintf(stderr, "SN: %s\t",mycar->sn);
-						fprintf(stderr, "cmd.pro_sn: %s\r\n",cmd.pro_sn);
-
-						//record this command
-						if ( record_command(mycar,&recv_buf[buf_index],"NO_ERR",10)) {
-							if ( debug_flag ) {
-								fprintf(stderr, "Record command err= %d: %s",\
-									mycar->err_code,mycar->err_msg);
-								}
-						}
-
-						//send respond 
-						memset(send_buf, '\0', BUFSIZE);
-						send_buf[0] = GSM_HEAD ;
-						send_buf[1] = cmd.seq ;
-						send_buf[2] = cmd.pcb | 0x80 ;
-						send_buf[3] =  00;//len high
-						send_buf[4] =  04;//len low
-						send_buf[5] =  (time(NULL) >> 24)&0xFF;//time high
-						send_buf[6] =  (time(NULL) >> 16)&0xFF;//time high
-						send_buf[7] =  (time(NULL) >> 8)&0xFF;//time low
-						send_buf[8] =  (time(NULL) >> 00)&0xFF;//time low
-
-						//Calc chk
-						cmd.chk = GSM_HEAD ;
-						for ( chk_count = 1 ; chk_count < 4+5 ; chk_count++) {
-							cmd.chk ^= send_buf[chk_count] ;
-							//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
-						}
-
-						send_buf[9] =  cmd.chk ;
-
-						if ( debug_flag ) {
-							fprintf(stderr, "CMD is SN, will send: ");
-							for ( chk_count = 0 ; chk_count < 10 ; chk_count++ ) {
-								fprintf(stderr, "%02X ",send_buf[chk_count]);
-							}
-							fprintf(stderr, "to %s\n",cmd.pro_sn);
-						}
-
-						write(mycar->client_socket,send_buf,10);
-
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
 					
-					case 0x54://'T', Time, C9 A4 54 00 00 23
-						if ( debug_flag ) {
-							fprintf(stderr, "CMD is Time...\n");
-						}
-
-						if ( strlen(mycar->sn) == 10 ) {
-
-							fprintf(stderr, "SN: %s\t",mycar->sn);
-							fprintf(stderr, "cmd.pro_sn: %s\r\n",cmd.pro_sn);
-
-							//record this command
-							if ( record_command(mycar,&recv_buf[buf_index],"NO_ERR",10)) {
-								if ( debug_flag ) {
-									fprintf(stderr, "Record command err= %d: %s",\
-										mycar->err_code,mycar->err_msg);
-									}
-							}
-
-							//send respond 
-							memset(send_buf, '\0', BUFSIZE);
-							send_buf[0] = GSM_HEAD ;
-							send_buf[1] = cmd.seq ;
-							send_buf[2] = cmd.pcb | 0x80 ;
-							send_buf[3] =  00;//len high
-							send_buf[4] =  04;//len low
-							send_buf[5] =  (time(NULL) >> 24)&0xFF;//time high
-							send_buf[6] =  (time(NULL) >> 16)&0xFF;//time high
-							send_buf[7] =  (time(NULL) >> 8)&0xFF;//time low
-							send_buf[8] =  (time(NULL) >> 00)&0xFF;//time low
-
-							//Calc chk
-							cmd.chk = GSM_HEAD ;
-							for ( chk_count = 1 ; chk_count < 4+5 ; chk_count++) {
-								cmd.chk ^= send_buf[chk_count] ;
-							}
-
-							send_buf[9] =  cmd.chk ;
-
-							if ( debug_flag ) {
-								fprintf(stderr, "CMD is Time, will send: ");
-								for ( chk_count = 0 ; chk_count < 10 ; chk_count++ ) {
-									fprintf(stderr, "%02X ",send_buf[chk_count]);
-								}
-								fprintf(stderr, "to %s\n",cmd.pro_sn);
-							}
-
-							write(mycar->client_socket,send_buf,10);
-						}
-
-						else { //no SN
-							fprintf(stderr, "Please upload SN first!\n");
-
-							//record this command
-							if ( record_command(mycar,&recv_buf[buf_index],"NEED_SN",7)) {//error
-								if ( debug_flag ) {
-									fprintf(stderr, "Record command err= %d: %s",\
-										mycar->err_code,mycar->err_msg);
-									}
-							}
-
-							//send respond 
-							memset(send_buf, '\0', BUFSIZE);
-							send_buf[0] = GSM_HEAD ;
-							send_buf[1] = cmd.seq ;
-							send_buf[2] = cmd.pcb | 0x80 ;
-							send_buf[3] =  00;//len high
-							send_buf[4] =  01;//len low
-							send_buf[5] =  01;//error code, need product SN.
-
-							//Calc chk
-							cmd.chk = GSM_HEAD ;
-							for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
-								cmd.chk ^= send_buf[chk_count] ;
-								//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
-							}
-
-							send_buf[6] =  cmd.chk ;
-
-							if ( debug_flag ) {
-								fprintf(stderr, "CMD 0x%02X error, will return: ",cmd.pcb);
-								for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
-									fprintf(stderr, "%02X ",send_buf[chk_count]);
-								}
-								fprintf(stderr, "\n");
-							}
-
-							write(mycar->client_socket,send_buf,7);
-						}
+					case GSM_CMD_TIME: //0x54, 'T', Get server Time
+						cmd_get_time( mycar,&cmd,\
+							&recv_buf[buf_index], send_buf );
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
-					case 0x55://'U', Upgrade firmware, C9 A4 54 00 00 23
-						if ( debug_flag ) {
-							fprintf(stderr, "CMD is Upgrade...\n");
-						}
-
-						if ( strlen(mycar->sn) == 10 ) {
-
-							fprintf(stderr, "SN: %s\t",mycar->sn);
-							fprintf(stderr, "cmd.pro_sn: %s\r\n",cmd.pro_sn);
-
-							//record this command
-							if ( record_command(mycar,&recv_buf[buf_index],"NO_ERR",10)) {
-								if ( debug_flag ) {
-									fprintf(stderr, "Record command err= %d: %s",\
-										mycar->err_code,mycar->err_msg);
-									}
-							}
-
-							//Check input detail
-							//C9 97 55 00 xx yy 
-							//xx: data len, 
-							//yy: KB sequence, 00: data is current HW rev.(1Byte) + fw rev.(2 Bytes)
-							//                 01: ask 1st KB of FW, 02: 2nd KB, 03: 3rd KB
-//把所有数据显示出来
-	fprintf(stderr, "Rec: ");
-	for ( var_u8 = 0 ; var_u8 < recv_buf[buf_index+5]+6 ; var_u8++ ) {
-		fprintf(stderr, "%02X ",recv_buf[var_u8+buf_index]);
-	}
-
-							if ( debug_flag ) {
-								fprintf(stderr, "\r\nHW rev: %d, FW rev: %d\r\n",\
-									recv_buf[buf_index+5],recv_buf[buf_index+6]<<8 | recv_buf[buf_index+7]);
-								}
-
-							//send respond 
-							//C9 57 D5 00 xx yy data
-							//xx: data len, 
-							//yy: KB sequence, 00: data is latest firmware revision(u16) + size(u16)
-							//                 01: 1st KB of FW, 02: 2nd KB, 03: 3rd KB
-
-							memset(send_buf, '\0', BUFSIZE);
-							send_buf[0] = GSM_HEAD ;
-							send_buf[1] = cmd.seq ;
-							send_buf[2] = cmd.pcb | 0x80 ;
-							send_buf[3] =  00;//len high
-							send_buf[4] =  05;//len low
-							send_buf[5] =  00;
-							send_buf[6] =  0x00;//Rev high
-							send_buf[7] =  0x5a;//Rev low
-							send_buf[8] =  0xF0;//Size high
-							send_buf[9] =  0x00;//Size low
-							//Calc chk
-							cmd.chk = GSM_HEAD ;
-							for ( chk_count = 1 ; chk_count < send_buf[4]+5 ; chk_count++) {
-								cmd.chk ^= send_buf[chk_count] ;
-							}
-
-							send_buf[chk_count] =  cmd.chk ;
-
-							if ( debug_flag ) {
-								fprintf(stderr, "CMD %c ok, will return: ",cmd.pcb);
-								for ( chk_count = 0 ; chk_count < 11 ; chk_count++ ) {
-									fprintf(stderr, "%02X ",send_buf[chk_count]);
-								}
-								fprintf(stderr, "to %s\n",cmd.pro_sn);
-							}
-
-							write(mycar->client_socket,send_buf,11);
-						}
-
-						else { //no SN
-							fprintf(stderr, "Please upload SN first!\n");
-
-							//record this command
-							if ( record_command(mycar,&recv_buf[buf_index],"NEED_SN",7)) {//error
-								if ( debug_flag ) {
-									fprintf(stderr, "Record command err= %d: %s",\
-										mycar->err_code,mycar->err_msg);
-									}
-							}
-
-							//send respond 
-							memset(send_buf, '\0', BUFSIZE);
-							send_buf[0] = GSM_HEAD ;
-							send_buf[1] = cmd.seq ;
-							send_buf[2] = cmd.pcb | 0x80 ;
-							send_buf[3] =  00;//len high
-							send_buf[4] =  01;//len low
-							send_buf[5] =  01;//error code, need product SN.
-
-							//Calc chk
-							cmd.chk = GSM_HEAD ;
-							for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
-								cmd.chk ^= send_buf[chk_count] ;
-								//fprintf(stderr, "%d\t%02X\t%02X\r\n",chk_count,send_buf[chk_count],cmd.chk);
-							}
-
-							send_buf[6] =  cmd.chk ;
-
-							if ( debug_flag ) {
-								fprintf(stderr, "CMD %c error, will return: ",cmd.pcb);
-								for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
-									fprintf(stderr, "%02X ",send_buf[chk_count]);
-								}
-								fprintf(stderr, "\n");
-							}
-
-							write(mycar->client_socket,send_buf,7);
-						}
+					case GSM_CMD_UPGRADE://0x55, 'U', Upgrade firmware
+						cmd_upgrade_fw( mycar,&cmd,\
+							&recv_buf[buf_index], send_buf );
 						buf_index = buf_index + cmd.len ;//update index
 						break;
-			
+
 					default:
 						fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
-			
-						//memset(send_buf, '\0', BUFSIZE);  
-						//snprintf(send_buf,100,"Unknow command\r\n");
-						//write(mycar->client_socket,send_buf,strlen(send_buf));
 			
 						cmd_err_cnt++;
 						break;
@@ -458,7 +194,6 @@ void process_conn_server(struct icar_data *mycar)
 					
 					if ( cmd_err_cnt > 3 ) {
 						goto exit_process_conn_server;
-						//break ;
 					}
 				}//end of if (i + cmd.len) > (size-4)
 
