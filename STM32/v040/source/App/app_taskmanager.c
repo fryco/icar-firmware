@@ -812,8 +812,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 							prompt("Upgrade CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						}
 						//Check each KB and save to flash
-						flash_upgrade_rec(buf->start,c2s_data.rx) ;
-
+						my_icar.upgrade_err = flash_upgrade_rec(buf->start,c2s_data.rx) ;
+						//If error flag, feedback to server
 						break;
 					}
 					break;
