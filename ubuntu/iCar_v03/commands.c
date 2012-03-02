@@ -574,6 +574,9 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 				}
 		}
 
+		//if buf[5] > 0xF0, error report from STM32 for upgrade flash
+
+
 		//Check input detail
 		//C9 F9 55 00 04 00 00 00 5E
 		//buf[5] = 0x00 ;//00: mean buf[6] is hw rev, others: block seq
@@ -584,15 +587,48 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 	fprintf(stderr, "%02X ",rec_buf[chk_count]);
 }
 
+		memset(snd_buf, '\0', BUFSIZE);
 		if ( rec_buf[5] == 0 ) { //HW,FW info
 			if ( debug_flag ) {
 				fprintf(stderr, "\r\nHW rev: %d, FW rev: %d\r\n",\
 					rec_buf[6],rec_buf[7]<<8 | rec_buf[8]);
 			}
+
+			//send respond : FW rev&size
+			//C9 57 D5 00 05 00 data
+			//05: data len, 00: data is latest firmware revision(u16) + size(u16)
+			snd_buf[0] = GSM_HEAD ;
+			snd_buf[1] = cmd->seq ;
+			snd_buf[2] = cmd->pcb | 0x80 ;
+			snd_buf[3] =  00;//len high
+			snd_buf[4] =  05;//len low
+			snd_buf[5] =  00;
+			snd_buf[6] =  0x00;//Rev high
+			snd_buf[7] =  0x7D;//Rev low
+			snd_buf[8] =  0xE4;//Size high
+			snd_buf[9] =  0x03;//Size low
 		}
 		else {//others : block seq
 			fprintf(stderr, "\r\nAsk Block %d, FW rev: %d\r\n",\
 					rec_buf[5]-1,rec_buf[6]<<8 | rec_buf[7]);
+
+			//send respond : Block data
+			//C9 57 D5 00 xx yy FW_Rev(2 Bytes) + data + CRC
+			//xx: data len, yy: block seq, data: block data
+			snd_buf[0] = GSM_HEAD ;
+			snd_buf[1] = cmd->seq ;
+			snd_buf[2] = cmd->pcb | 0x80 ;
+
+			snd_buf[3] =  00;//len high
+			snd_buf[4] =  05;//len low
+
+			snd_buf[5] =  rec_buf[5]-1;//block seq
+			snd_buf[6] =  0x00;//Rev high, get Rev. info from binary
+			snd_buf[7] =  0x7D;//Rev low
+
+			snd_buf[8] =  0xE4;//Size high
+			snd_buf[9] =  0x03;//Size low
+
 		}
 
 		//send respond 
@@ -601,17 +637,7 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 		//yy: KB sequence, 00: data is latest firmware revision(u16) + size(u16)
 		//                 01: 1st KB of FW, 02: 2nd KB, 03: 3rd KB
 
-		memset(snd_buf, '\0', BUFSIZE);
-		snd_buf[0] = GSM_HEAD ;
-		snd_buf[1] = cmd->seq ;
-		snd_buf[2] = cmd->pcb | 0x80 ;
-		snd_buf[3] =  00;//len high
-		snd_buf[4] =  05;//len low
-		snd_buf[5] =  00;
-		snd_buf[6] =  0x00;//Rev high
-		snd_buf[7] =  0x7D;//Rev low
-		snd_buf[8] =  0xE4;//Size high
-		snd_buf[9] =  0x03;//Size low
+
 		//Calc chk
 		cmd->chk = GSM_HEAD ;
 		for ( chk_count = 1 ; chk_count < snd_buf[4]+5 ; chk_count++) {
