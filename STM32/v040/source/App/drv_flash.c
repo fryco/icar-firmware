@@ -271,6 +271,18 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 			if ( flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV] == buf[6] && \
 					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] == buf[7] ) {//same
 
+				//show data
+				prompt("Rec: ");
+				for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
+					if ( (buf+buf_index) < buf_start+GSM_BUF_LENGTH ) {
+						printf("%02X ",*(buf+buf_index));
+					}
+					else {//data in begin of buffer
+						printf("%02X ",*(buf+buf_index-GSM_BUF_LENGTH));
+					}
+				}
+				printf("\r\n");
+
 				//same, verify CRC
 				return ERR_UPGRADE_BLK_CRC ;
 				//TBD
@@ -284,15 +296,6 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 	}
 	
 
-	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
-		if ( (buf+buf_index) < buf_start+GSM_BUF_LENGTH ) {
-			printf("%02X ",*(buf+buf_index));
-		}
-		else {//data in begin of buffer
-			printf("%02X ",*(buf+buf_index-GSM_BUF_LENGTH));
-		}
-	}
-	printf("\r\n");
 
 	return 0;
 }
