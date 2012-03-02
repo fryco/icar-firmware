@@ -80,6 +80,9 @@ struct ICAR_DEVICE {
 	unsigned char *sn ;//serial number
 	unsigned char need_sn;//server need SN
 
+	//for upgrade firmware
+	unsigned char upgrade_err;//indicate error number
+
 	struct RTC_STATUS stm32_rtc;
 	struct ADC_STATUS stm32_adc;
 

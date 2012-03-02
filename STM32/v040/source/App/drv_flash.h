@@ -29,6 +29,15 @@
 #define NEW_FW_SIZE						8	//4 bytes for size 4 B for !size, start addr
 #define BLK_CRC_DAT						16	//4 bytes for CRC 4 B for !CRC, start addr
 
+
+//Error define for upgrade firmware
+#define ERR_UPGRADE_HAVE_NEW_FW			1	//STM32 have new firmware, no need upgrade
+#define ERR_UPGRADE_SIZE_LARGE			2	//firmware size too large, > 60KB
+#define ERR_UPGRADE_UP_NEWER			3	//Upgrading a newer firmware
+#define ERR_UPGRADE_NO_INFO				4	//No upgrade info in flash
+#define ERR_UPGRADE_BLK_CRC				5	//Block CRC error
+#define ERR_UPGRADE_NO_MATCH			6	//Upgrading FW Rev no match
+
 /* Includes ------------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
 
