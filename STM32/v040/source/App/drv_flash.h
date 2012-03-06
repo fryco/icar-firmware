@@ -13,6 +13,13 @@
 #ifndef __APP_FLASH_H
 #define __APP_FLASH_H
 
+struct FIRMWARE_UPGRADE {
+	//for upgrade firmware
+	unsigned char err_no;//indicate error number
+	unsigned char q_idx; //the point for upgrade command queue
+};
+
+
 /* 说明 :
  * firmware限制在60KB以内，升级时先保存在 page68~127 里
  × page67 记录对应的CRC值

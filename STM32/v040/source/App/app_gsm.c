@@ -200,7 +200,7 @@ void  App_TaskGsm (void *p_arg)
 				if ( get_respond(rec_str) ) {
 					if ( my_icar.debug > 3) {
 						prompt("Rec:%s\r\n",rec_str);
-					}
+					}//here
 
 					err_code = gsm_string_decode( rec_str ,&relay_timer );
 				}
@@ -324,7 +324,7 @@ static unsigned char read_tcp_data( unsigned char *buf, unsigned int *rec_len )
 	while ( retry < 20 ) {
 		//get the buffer data
 		putstring(COM2,"AT^SISR=0,");
-		snprintf((char *)buf,AT_CMD_LENGTH-1,"%d\r\n",AT_CMD_LENGTH-1);
+		snprintf((char *)buf,AT_CMD_LENGTH-1,"%d\r\n",32);
 		//each time can't get > AT_CMD_LENGTH, else overflow
 		putstring(COM2,buf);
 	

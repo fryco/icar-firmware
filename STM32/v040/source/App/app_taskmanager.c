@@ -54,7 +54,7 @@ void  App_TaskManager (void *p_arg)
 {
 
 	CPU_INT08U	os_err;
-	unsigned char var_uchar , gsm_sequence=0;
+	unsigned char var_uchar , ist_cnt, gsm_sequence=0;
 	unsigned int record_sequence = 0;
 	struct GSM_RX_RESPOND mg323_rx_cmd;
 
@@ -127,6 +127,8 @@ void  App_TaskManager (void *p_arg)
 	my_icar.err_log_send_timer = 0 ;//
 	my_icar.need_sn = 3 ;
 	my_icar.mg323.ask_power = true ;
+	my_icar.upgrade.err_no = 0 ;
+	my_icar.upgrade.q_idx = MAX_CMD_QUEUE+1 ;
 
 	mg323_rx_cmd.timer = OSTime ;
 	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
@@ -182,14 +184,29 @@ void  App_TaskManager (void *p_arg)
 				if ( c2s_data.next_ist ) {
 					//Got new instruction
 					gsm_send_pcb(&gsm_sequence, c2s_data.next_ist, &record_sequence);
+					c2s_data.next_ist = 0 ;//reset if run
 				}
 				else {//No new instruction from server
+					ist_cnt = 0 ;
+					//Check the IST runing or no
+					for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
+						if ( GSM_ASK_IST==(c2s_data.queue_sent[var_uchar].send_pcb)) { 
+
+							ist_cnt++ ;
+							if ( ist_cnt > 2 ) { //no need send more
+								var_uchar = MAX_CMD_QUEUE+1 ;//end loop
+							}
+						}
+					}
+
 					//Ask instruction from server, return 0 if no instruction
-					gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
+					if ( ist_cnt <= 2 ) {
+						gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
+					}
 	
 					//lowest task, just send when online
 					if ( (OSTime/100)%5 == 0 ) {				
-						gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
+						;//gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
 					}
 				}
 			}
@@ -527,7 +544,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 	//3, find CHK
 	if ( buf->status == S_CHK ) {
 
-		if ( OSTime - buf->timer > 10*AT_TIMEOUT ) {//reset status
+		if ( OSTime - buf->timer > 30*AT_TIMEOUT ) {//reset status
 			prompt("In S_CHK timeout, reset to S_HEAD status!!!\r\n");
 			buf->status = S_HEAD ;
 			c2s_data.rx_out_last++	 ;
@@ -607,11 +624,24 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					default:
 
 						for ( chkbyte = 0 ; chkbyte < sizeof(commands) ; chkbyte++ ) {
-							if ( commands[chkbyte] == *((buf->start)+5) ) {
-								prompt("New instruction is: 0x%02X CMD_seq: %02X\r\n",\
-										*((buf->start)+5),*((buf->start)+1));
-								c2s_data.next_ist = *((buf->start)+5) ;
-								chkbyte = 0xFD ; //end
+							if ( commands[chkbyte] == *((buf->start)+5) ) {//legal instruction
+
+								//Check this IST runing or no
+								for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
+									if ( *((buf->start)+5)==(c2s_data.queue_sent[queue_index].send_pcb)) { 
+
+										prompt("New instruction %c in Q:%d\r\n",*((buf->start)+5),queue_index);
+										c2s_data.next_ist = 0 ;//no need run again
+										queue_index = MAX_CMD_QUEUE+1;chkbyte = 0xFD ;//found and end loop
+									}
+								}
+
+								if ( queue_index == MAX_CMD_QUEUE ){//no found
+
+									prompt("New instruction %c will be run\r\n",*((buf->start)+5));
+									c2s_data.next_ist = *((buf->start)+5) ;
+									chkbyte = 0xFD ; //end
+								}
 							}
 						}
 
@@ -812,7 +842,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 							prompt("Upgrade CMD success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						}
 						//Check each KB and save to flash
-						my_icar.upgrade_err = flash_upgrade_rec(buf->start,c2s_data.rx) ;
+						my_icar.upgrade.err_no = flash_upgrade_rec(buf->start,c2s_data.rx) ;
 						//If error flag, feedback to server
 						break;
 					}
