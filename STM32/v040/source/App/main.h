@@ -40,7 +40,7 @@
 
 #define DEBUG_GSM
 
-#define AT_CMD_LENGTH			48 //for GSM command, must < RX_BUF_SIZE
+#define AT_CMD_LENGTH			64 //for GSM command, must < RX_BUF_SIZE in drv_uart.h
 #define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
 #define MIN_GSM_SIGNAL			8  //Min. GSM Signal require
 
