@@ -625,17 +625,21 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 
 			//Block data
 			//data len
-			snd_buf[3] =  01;//len high
-			snd_buf[4] =  6+3;//len low, > 3
+			snd_buf[3] =  04;//len high
+			snd_buf[4] =  32+3;//len low, > 3
 
-			for ( chk_count = 0 ; chk_count < 0xFF*snd_buf[3]+snd_buf[4]-3 ; chk_count++) {
+			for ( chk_count = 0 ; chk_count < ((snd_buf[3])<<8)+snd_buf[4]-3 ; chk_count++) {
 				snd_buf[8+chk_count]= chk_count ;
 			}
+
+			fprintf(stderr, "chk_count: %d,  Len: %d\r\n",\
+				chk_count,((snd_buf[3])<<8)+snd_buf[4]);
+
 		}
 
 		//Calc chk
 		cmd->chk = GSM_HEAD ;
-		for ( chk_count = 1 ; chk_count < 0xFF*snd_buf[3]+snd_buf[4]+5 ; chk_count++) {
+		for ( chk_count = 1 ; chk_count < ((snd_buf[3])<<8)+snd_buf[4]+5 ; chk_count++) {
 			cmd->chk ^= snd_buf[chk_count] ;
 		}
 
@@ -643,13 +647,13 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 
 		if ( debug_flag ) {
 			fprintf(stderr, "CMD %c ok, will return: ",cmd->pcb);
-			for ( chk_count = 0 ; chk_count < 0xFF*snd_buf[3]+snd_buf[4]+6 ; chk_count++ ) {
+			for ( chk_count = 0 ; chk_count < ((snd_buf[3])<<8)+snd_buf[4]+6 ; chk_count++ ) {
 				fprintf(stderr, "%02X ",snd_buf[chk_count]);
 			}
 			fprintf(stderr, "to %s\n",cmd->pro_sn);
 		}
 
-		write(mycar->client_socket,snd_buf,0xFF*snd_buf[3]+snd_buf[4]+6);
+		write(mycar->client_socket,snd_buf,((snd_buf[3])<<8)+snd_buf[4]+6);
 	}
 
 	else { //no SN
