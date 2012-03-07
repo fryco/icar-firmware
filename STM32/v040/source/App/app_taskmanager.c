@@ -455,9 +455,10 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				buf->start = c2s_data.rx_out_last ;//mark the start
 				buf->status = S_PCB ;//search protocol control byte
 				buf->timer = OSTime ;
-				if ( my_icar.debug > 3) {
-					prompt("Found HEAD: %X\r\n",buf->start);
-				}
+				//if ( my_icar.debug > 2) {
+					prompt("Buf: %X ~ %X\r\n",c2s_data.rx,c2s_data.rx+GSM_BUF_LENGTH);
+					prompt("Found HEAD @ %X\t",buf->start);
+				//}
 			}
 			else { //no found
 				c2s_data.rx_out_last++;//search next byte
@@ -498,9 +499,9 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				buf->pcb = *(buf->start + 2 - GSM_BUF_LENGTH);
 			}//end of (buf->start + 2)  < (c2s_data.rx+GSM_BUF_LENGTH)
 
-			if ( my_icar.debug > 3) {
-				printf("\r\nrespond PCB is %02X\t",buf->pcb);
-			}
+			//if ( my_icar.debug > 2) {
+				printf("PCB is %c\t",(buf->pcb)&0x7F);
+			//}
 
 			//get sequence
 			if ( (buf->start + 1)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
@@ -533,7 +534,9 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			//printf("L: %02d ",len_low);
 
 			buf->len = len_high << 8 | len_low ;
-			//printf("respond LEN: %d\r\n",buf->len);
+			//if ( my_icar.debug > 2) {
+				printf("Len: %d\t",buf->len);
+			//}
 
 			//update the status & timer
 			buf->status = S_CHK ;//search check byte
@@ -545,7 +548,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 	if ( buf->status == S_CHK ) {
 
 		if ( OSTime - buf->timer > 30*AT_TIMEOUT ) {//reset status
-			prompt("In S_CHK timeout, reset to S_HEAD status!!!\r\n");
+			prompt("In S_CHK timeout, reset to S_HEAD status!!! Got %d Bytes\r\n",\
+					c2s_data.rx_out_last-buf->start);
 			buf->status = S_HEAD ;
 			c2s_data.rx_out_last++	 ;
 		}
@@ -558,11 +562,15 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			if ( (buf->start + 5+buf->len)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
 				//CHK no in the end of buffer
 				buf->chk = *(buf->start + 5 + buf->len );
-				//printf("CHK add: %X\t",buf->start + 5 + buf->len);
+				//if ( my_icar.debug > 2) {
+					printf("CHK: %X @ %X\r\n",buf->chk,buf->start + 5 + buf->len);
+				//}
 			}
 			else { //CHK in the end of buffer
 				buf->chk = *(buf->start + 5 + buf->len - GSM_BUF_LENGTH);
-				//printf("CHK add: %X\t",buf->start + 5 + buf->len - GSM_BUF_LENGTH);
+				//if ( my_icar.debug > 2) {
+					printf("CHK: %X @ %X\r\n",buf->chk,buf->start + 5 + buf->len - GSM_BUF_LENGTH);
+				//}
 			}//end of GSM_BUF_LENGTH - (buf->start - c2s_data.rx)
 			//2012/1/4 19:54:50 已验证边界情况，正常
 
@@ -897,8 +905,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 		}//end of (c2s_data.rx_in_last > c2s_data.rx_out_last) ...
 		else { //
-			if ( my_icar.debug > 3) {
-				prompt("Buffer no enough.\r\n");
+			if ( my_icar.debug > 2) {
+				prompt("Buffer no enough. %d\r\n",__LINE__);
 			}
 		}
 	}//end of if ( buf->status == S_CHK )
@@ -1138,16 +1146,19 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					chkbyte = GSM_HEAD ;
 					for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
 						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
-						//if ( my_icar.debug > 3) {
+						//if ( my_icar.debug > 2) {
 							printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
 						//}
 					}
 					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
-					if ( my_icar.debug > 3) {
+					if ( my_icar.debug > 2) {
 						printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+i]);
 					}
 					//update buf length
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
+
+					//For dev only, remove later...
+					c2s_data.tx_timer= 0 ;//need send immediately
 				}
 
 				OS_ENTER_CRITICAL();

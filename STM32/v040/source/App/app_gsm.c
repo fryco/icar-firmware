@@ -317,14 +317,14 @@ static unsigned char read_tcp_data( unsigned char *buf, unsigned int *rec_len )
 
 	gsm_tcp_len=0, buf_len=0 , retry = 0;
 
-	//GPRS max. speed: 115kbit/s = 11KB/s, but GSM_BUF_LENGTH is 1K
-	//retry: 1K*1024/(AT_CMD_LENGTH-1) = 1*1024/47 = 21
-	//so if > 21, release cpu, let taskmanager to handle receive buf
+	//GPRS max. speed: 115kbit/s = 11KB/s, but GSM_BUF_LENGTH is 1088
+	//retry: 1088/(AT_CMD_LENGTH-16) = 1*1088/48 = 22.6
+	//so if > 22, release cpu, let taskmanager to handle receive buf
 
-	while ( retry < 20 ) {
+	while ( retry < 22 ) {
 		//get the buffer data
 		putstring(COM2,"AT^SISR=0,");
-		snprintf((char *)buf,AT_CMD_LENGTH-1,"%d\r\n",32);
+		snprintf((char *)buf,AT_CMD_LENGTH-1,"%d\r\n",AT_CMD_LENGTH-16);
 		//each time can't get > AT_CMD_LENGTH, else overflow
 		putstring(COM2,buf);
 	
@@ -388,7 +388,8 @@ static unsigned char read_tcp_data( unsigned char *buf, unsigned int *rec_len )
 						//prompt("\r\nGSM TCP no data. %s\tline: %d\r\n",__FILE__, __LINE__);
 					}
 					else {
-						if ( gsm_tcp_len == AT_CMD_LENGTH-1 ) {
+						if ( gsm_tcp_len == AT_CMD_LENGTH-16 ) {//Important, need same as above:
+							//snprintf((char *)buf,AT_CMD_LENGTH-1,"%d\r\n",AT_CMD_LENGTH-16);
 							//still have data in module
 							retry++ ;
 						}

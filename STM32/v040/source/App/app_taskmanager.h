@@ -16,11 +16,10 @@
 #include "stm32f10x.h"
 
 /* Exported macro ------------------------------------------------------------*/
-#define MAX_CMD_QUEUE		60
+#define MAX_CMD_QUEUE		30
 
 //HEAD SEQ CMD Length(2 bytes) INF(Max.1024) check
-//#define GSM_BUF_LENGTH		1024+8 //for GSM command
-#define GSM_BUF_LENGTH		1024 //for GSM command
+#define GSM_BUF_LENGTH		1088 //for GSM command, 1024+64
 
 /* Exported types ------------------------------------------------------------*/
 typedef enum
