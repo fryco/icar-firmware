@@ -5,7 +5,7 @@ extern struct CAR2SERVER_COMMUNICATION c2s_data ;
 
 extern unsigned char dest_server[];
 
-const unsigned char callback_phone[] = "13828431106";
+const unsigned char callback_phone[] = "18306471341";//replace with your phone number
 
 static unsigned char gsm_string_decode( unsigned char *, unsigned int *);
 static unsigned char read_tcp_data( unsigned char *,unsigned int * );
