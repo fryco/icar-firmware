@@ -21,6 +21,8 @@
 #define GSM_CMD_TIME			0x54 //'T', time
 #define GSM_CMD_UPGRADE			0x55 //'U', Upgrade firmware
 
+unsigned int crctablefast (unsigned char* p, unsigned long len);
+
 int cmd_ask_ist(struct icar_data *, struct icar_command *,\
 				unsigned char *, unsigned char * );
 
