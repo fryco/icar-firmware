@@ -34,12 +34,10 @@ void init_flash_map( )
 	memset(flash_map, 0xFF, 1024);
 }
 
-void flash_program_one_page( )
+//return 0 : OK, else error
+unsigned char flash_prog_u16( uint32_t addr, uint16_t data)
 {
 	FLASH_Status FLASHStatus = FLASH_COMPLETE;
-
-	prompt("CRC_value = %X\r\n", CRC_GetCRC( ));
-	prompt("CRC_value = %X\r\n", CRC_CalcCRC(0x5A5AA5A5));
 
 	/* Unlock the Flash Bank1 Program Erase controller */
 	FLASH_UnlockBank1();
@@ -47,25 +45,32 @@ void flash_program_one_page( )
 	/* Clear All pending flags */
 	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
 	
-	/* Erase the FLASH pages */
+	/* Erase the FLASH pages 
 	FLASHStatus = FLASH_ErasePage(FLASH_IDX_ADDR);
+
 	if ( FLASHStatus == FLASH_COMPLETE ) {
 		prompt("FLASH_ErasePage :%X success.\r\n",FLASH_IDX_ADDR);
 	}
 	else {
 		prompt("FLASH_ErasePage :%X failure: %d\r\n",FLASH_IDX_ADDR,FLASHStatus);
 	}
+	*/
 
 	/* Program Flash Bank1 */
-	FLASHStatus = FLASH_ProgramWord(FLASH_IDX_ADDR,0x5A5AA5A5);
+	
+
+	FLASHStatus = FLASH_ProgramHalfWord(addr, data);
+	FLASH_LockBank1();
+
 	if ( FLASHStatus == FLASH_COMPLETE ) {
-		prompt("FLASH_ProgramWord :%X success.\r\n",FLASH_IDX_ADDR);
+		//prompt("FLASH_ProgramWord :%X success.\r\n",FLASH_IDX_ADDR);
+		return 0 ;
 	}
 	else {
-		prompt("FLASH_ErasePage :%X failure: %d\r\n",FLASH_IDX_ADDR,FLASHStatus);
+		prompt("Prog add :%08X failure: %d\r\n",addr,FLASHStatus);
+		prompt("Check %s:%d\r\n",__FILE__,__LINE__);
+		return 1 ;
 	}
-
-	FLASH_LockBank1();
 }
 
 //0: ok, others: error
@@ -269,9 +274,10 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 			flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+4] = ~((fw_size>>8)&0xFF);
 			flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+5] = ~((fw_size)&0xFF) ;
 	
-			//for test
-			flash_map[440-1]=0xAB;flash_map[441]=0xCD;
-			flash_map[442]=0xA5;flash_map[443]=0x5A;
+			//write to flash
+			flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_REV,fw_rev);
+			flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE,fw_size);
+			//TBD if prog error....
 		}
 		else { //upgrading...
 			//check upgrading rev is same as new rev?
