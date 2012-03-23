@@ -22,7 +22,7 @@ struct FIRMWARE_UPGRADE {
 
 /* 说明 :
  * firmware限制在60KB以内，升级时先保存在 page68~127 里
- × page67 记录对应的CRC值
+ × page67 记录对应的CRC值, 偏移量从BLK_CRC_DAT 开始
  * 0~3   Bytes: 对应page68的CRC值， 4~7  Bytes: CRC值取反
  * 8~11  Bytes: 对应page69的CRC值，12~15 Bytes: CRC值取反
  * 16~19 Bytes: 对应page70的CRC值，20~23 Bytes: CRC值取反
@@ -30,7 +30,7 @@ struct FIRMWARE_UPGRADE {
  * ...
  */
 
-//#define FLASH_UPGRADE_BASE				0x08010C00	//Page67
+#define FLASH_UPGRADE_BASE_F				0x08010C00	//Page67
 #define FLASH_UPGRADE_BASE				0	//Page67, simu first
 #define NEW_FW_REV						0	//4 bytes for rev. 4 B for !rev., start addr
 #define NEW_FW_SIZE						8	//4 bytes for size 4 B for !size, start addr
@@ -53,7 +53,8 @@ struct FIRMWARE_UPGRADE {
 /* Exported constants --------------------------------------------------------*/
 
 /* Exported functions ------------------------------------------------------- */
-void flash_program_one_page(void);
+//void flash_program_one_page(void);
+unsigned char flash_prog_u16( uint32_t addr, uint16_t data);
 void init_flash_map( void ); //for dev. only, will be removed
 unsigned char flash_upgrade_ask( unsigned char * ) ;
 unsigned char flash_upgrade_rec( unsigned char *, unsigned char * ) ;

@@ -55,7 +55,7 @@ void  App_TaskManager (void *p_arg)
 {
 
 	CPU_INT08U	os_err;
-	unsigned char var_uchar , ist_cnt, gsm_sequence=0;
+	unsigned char var_uchar , ist_cnt, gsm_sequence=0, *flash_p;
 	unsigned int record_sequence = 0;
 	struct GSM_RX_RESPOND mg323_rx_cmd;
 
@@ -142,6 +142,14 @@ void  App_TaskManager (void *p_arg)
 
 	//flash LED, wait power stable and others task init
 	flash_led( 80 );//100ms
+
+prompt("FLASH_UPGRADE_BASE = %08X\r\n",FLASH_UPGRADE_BASE_F);
+
+flash_p = (unsigned char *)FLASH_UPGRADE_BASE_F+NEW_FW_REV ;
+prompt("NEW_FW_REV = %08X\r\n",((*(flash_p))<<8)|(*(flash_p+1)));
+
+flash_p = (unsigned char *)FLASH_UPGRADE_BASE_F+NEW_FW_SIZE ;
+prompt("NEW_FW_SIZE = %08X\r\n",((*(flash_p))<<8)|(*(flash_p+1)));
 
 	//independent watchdog init
 	iwdg_init( );
@@ -262,7 +270,8 @@ void  App_TaskManager (void *p_arg)
 			}
 
 			if ( var_uchar == 'f' ) {//set debug flag
-				flash_program_one_page( ) ;
+				;//flash_program_one_page( ) ;
+				prompt("Will be dev.\r\n");
 			}
 
 			if ( var_uchar == 'g' ) {//Suspend GSM task for debug
