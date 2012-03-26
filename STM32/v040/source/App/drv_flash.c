@@ -2,15 +2,6 @@
 
 extern struct ICAR_DEVICE my_icar;
 
-unsigned char flash_map[1024] ;//for develop, simu page67 记录对应的CRC值
-/* Private define ------------------------------------------------------------*/
-/* Define the STM32F10x FLASH Page Size depending on the used STM32 device */
-#if defined (STM32F10X_HD) || defined (STM32F10X_HD_VL) || defined (STM32F10X_CL) || defined (STM32F10X_XL)
-  #define FLASH_PAGE_SIZE    ((uint16_t)0x800) //2KB
-#else
-  #define FLASH_PAGE_SIZE    ((uint16_t)0x400) //1KB
-#endif
-
 #define FLASH_BOOT_ADDR  ((uint32_t)0x08000000)
 #define FLASH_BOOT_SIZE  ((uint32_t)0x1000) //4KB, page0~3
 
@@ -29,13 +20,8 @@ unsigned char flash_map[1024] ;//for develop, simu page67 记录对应的CRC值
 #define FLASH_DAT_ADDR  ((uint32_t)0x08011000)
 #define FLASH_DAT_SIZE  ((uint32_t)0xF000) //60KB, page68~127
 
-void init_flash_map( )
-{//for dev. only, will be removed
-	memset(flash_map, 0xFF, 1024);
-}
-
 //return 0 : OK, else error
-unsigned char flash_prog_u16( uint32_t addr, uint16_t data)
+unsigned char flash_erase( uint32_t addr )
 {
 	FLASH_Status FLASHStatus = FLASH_COMPLETE;
 
@@ -45,32 +31,53 @@ unsigned char flash_prog_u16( uint32_t addr, uint16_t data)
 	/* Clear All pending flags */
 	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
 	
-	/* Erase the FLASH pages 
-	FLASHStatus = FLASH_ErasePage(FLASH_IDX_ADDR);
-
-	if ( FLASHStatus == FLASH_COMPLETE ) {
-		prompt("FLASH_ErasePage :%X success.\r\n",FLASH_IDX_ADDR);
-	}
-	else {
-		prompt("FLASH_ErasePage :%X failure: %d\r\n",FLASH_IDX_ADDR,FLASHStatus);
-	}
-	*/
-
-	/* Program Flash Bank1 */
-	
-
-	FLASHStatus = FLASH_ProgramHalfWord(addr, data);
+	//Erase the FLASH pages 
+	FLASHStatus = FLASH_ErasePage(addr);
 	FLASH_LockBank1();
 
 	if ( FLASHStatus == FLASH_COMPLETE ) {
-		//prompt("FLASH_ProgramWord :%X success.\r\n",FLASH_IDX_ADDR);
+		prompt("FLASH_ErasePage :%08X success.\r\n",addr);
 		return 0 ;
 	}
 	else {
-		prompt("Prog add :%08X failure: %d\r\n",addr,FLASHStatus);
+		prompt("FLASH_ErasePage :%08X failure: %d\r\n",addr,FLASHStatus);
 		prompt("Check %s:%d\r\n",__FILE__,__LINE__);
 		return 1 ;
 	}
+}
+
+//return 0 : OK, else return failure 
+unsigned char flash_prog_u16( uint32_t addr, uint16_t data)
+{
+	FLASH_Status FLASHStatus = FLASH_COMPLETE;
+	unsigned char retry = MAX_PROG_TRY ;
+
+	/* Unlock the Flash Bank1 Program Erase controller */
+	FLASH_UnlockBank1();
+
+	/* Clear All pending flags */
+	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+	
+	/* Program Flash Bank1 */
+	while ( retry-- ) {
+		FLASHStatus = FLASH_ProgramHalfWord(addr, data);
+		if ( *(vu16*)(addr) == data ) {//prog success
+			FLASH_LockBank1();
+			if ( my_icar.debug ) {
+				prompt("Prog %04X @ %08X, read back: %04X\r\n",data,addr,\
+					*(vu16*)(addr));
+			}
+			return 0 ;
+		}
+	}
+
+	//have try "retry" timer, still failure, return this address
+	FLASH_LockBank1();
+
+	prompt("Prog add :%08X failure: %d\r\n",addr,FLASHStatus);
+	prompt("Check %s:%d\r\n",__FILE__,__LINE__);
+	my_icar.upgrade.prog_fail_addr = addr ;
+	return 1 ;
 }
 
 //0: ok, others: error
@@ -85,20 +92,16 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 	//set buf[5] > 0xF0 if error, then report to server for failure detail.
 
 	//check upgrade process status
-	if ( flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV] == 0xFF && \
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] == 0xFF ) {//empty
-
+	if ( *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) == 0xFFFF ) {//empty
 		prompt("No upgrade data, can be used.\r\n");
 	}
 	else {//Upgrading...
 		prompt("In upgrade %d ==> %d process...\r\n", my_icar.fw_rev,\
-				flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV]<<8 | \
-				flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1]);
+				*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV));
 
 		//Ask firmware data
 		//Calc. block:
-		fw_size = (	flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE] << 8 ) |\
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+1] ;
+		fw_size = *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE) ;
 		prompt("Firmware size: %X\t", fw_size);
 
 		if((fw_size%1024) > 0 ){
@@ -114,18 +117,12 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 		//xx: data len, 
 		//yy: KB sequence, 01: ask 1st KB of FW, 02: 2nd KB, 03: 3rd KB
 
-		for ( buf[5] = 0 ; buf[5] <= blk_cnt ; buf[5]++ ) {
-			crc_dat = 	(flash_map[FLASH_UPGRADE_BASE+BLK_CRC_DAT+buf[5]*8]<<24) |\
-					(flash_map[FLASH_UPGRADE_BASE+BLK_CRC_DAT+(buf[5]*8)+1]<<16) |\
-					(flash_map[FLASH_UPGRADE_BASE+BLK_CRC_DAT+(buf[5]*8)+2]<<8 ) |\
-					(flash_map[FLASH_UPGRADE_BASE+BLK_CRC_DAT+(buf[5]*8)+3]    ) ;
-			prompt("Block %d CRC: %X\t", buf[5],crc_dat);
+		for ( buf[5] = 1 ; buf[5] <= blk_cnt+1 ; buf[5]++ ) {
+			crc_dat = 	*(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8) ;
+			prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8);
 			if ( crc_dat == 0xFFFFFFFF ) { //empty
 				//Check ~CRC again
-				crc_dat=(flash_map[FLASH_UPGRADE_BASE+BLK_CRC_DAT+(buf[5]*8)+4]<<24) |\
-						(flash_map[FLASH_UPGRADE_BASE+BLK_CRC_DAT+(buf[5]*8)+5]<<16) |\
-						(flash_map[FLASH_UPGRADE_BASE+BLK_CRC_DAT+(buf[5]*8)+6]<<8 ) |\
-						(flash_map[FLASH_UPGRADE_BASE+BLK_CRC_DAT+(buf[5]*8)+7]    ) ;
+				crc_dat = 	*(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8+4) ;
 				if ( crc_dat == 0 ) {//the CRC just 0xFFFFFFFF
 					printf("Have data, no need ask.\r\n");
 				}
@@ -138,9 +135,8 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 						buf[3] = 0;//length high
 						buf[4] = 3;//length low
 						
-						buf[5]++; //1: first block, 2:second block
-						buf[6] = flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV];  //fw rev. high
-						buf[7] = flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1];//fw rev. low
+						buf[6] = (*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV))>>8&0xFF;  //fw rev. high
+						buf[7] = (*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV))&0xFF;//fw rev. low
 						return 0 ;
 					}
 					else {//Not FF, not 0, the flash failure?
@@ -259,56 +255,52 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 		}
 	
 		//check firmware revision
-		if ( flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV] == 0xFF && \
-				flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] == 0xFF ) {//empty
+		if ( *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) == 0xFFFF ) {//empty
 
 			prompt("FLASH_UPGRADE empty, can be used.\r\n");
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV]   = (fw_rev>>8)&0xFF ;
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] = (fw_rev)&0xFF  ;
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE]  = (fw_size>>8)&0xFF;
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+1]= (fw_size)&0xFF ;
-	
+			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_REV,fw_rev);
+			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE,fw_size);
+			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
 			//will check again before upgrade, prevent flase failure
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV +4] = ~((fw_rev>>8)&0xFF) ;
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV +5] = ~((fw_rev)&0xFF) ;
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+4] = ~((fw_size>>8)&0xFF);
-			flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+5] = ~((fw_size)&0xFF) ;
-	
-			//write to flash
-			flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_REV,fw_rev);
-			flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE,fw_size);
+			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_REV+4,~fw_rev);
+			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE+4,~fw_size);	
+			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
 			//TBD if prog error....
 		}
 		else { //upgrading...
 			//check upgrading rev is same as new rev?
-			if ( flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV] == (fw_rev>>8)&0xFF && \
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] == (fw_rev)&0xFF ) {//same
-	
+			if ( *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) == fw_rev ) {//same
+
 				prompt("Firmware %d ==> %d upgrading...",my_icar.fw_rev,fw_rev);
 			}
 			else {//difference, case:升级过程中，又有新版本发布
-				if ( (fw_rev>>8)&0xFF >= flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV] &&
-					 (fw_rev)&0xFF >  flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] ) {//newer
-	
+				if ( fw_rev > *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) )  {//newer
 					prompt("Newer Firmware %d ==> %d upgrading...",my_icar.fw_rev,fw_rev);
-					//erase_page( ); //erase the old content
+					flash_erase(FLASH_UPGRADE_BASE_F);
 	
 					//Save new firmware info:
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV]   = (fw_rev>>8)&0xFF ;
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] = (fw_rev)&0xFF  ;
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE]  = (fw_size>>8)&0xFF;
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+1]= (fw_size)&0xFF ;
-			
+					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_REV,fw_rev);
+					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE,fw_size);
+					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure		
+
 					//will check again before upgrade, prevent flase failure
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV +4] = ~((fw_rev>>8)&0xFF) ;
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV +5] = ~((fw_rev)&0xFF) ;
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+4] = ~((fw_size>>8)&0xFF);
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_SIZE+5] = ~((fw_size)&0xFF) ;
+					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_REV+4,~fw_rev);
+					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE+4,~fw_size);	
+					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure		
+					//TBD if prog error....
 				}
 				else {//older, maybe something wrong
 					prompt("Error, latest firmware %d is older than upgrading firmware: %d",\
-							fw_rev, flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV]<<8 | \
-									flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1]);
+							fw_rev, *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV));
 					printf("\t exit!\r\n");
 					return ERR_UPGRADE_UP_NEWER;
 				}
@@ -317,15 +309,13 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 	}//end of if ( buf_type == 0 ){//FW rev&size info
 	else { //each block data
 		//check FW Rev info in flash
-		if ( flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV] == 0xFF && \
-				flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] == 0xFF ) {//empty
+		if ( *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) == 0xFFFF ) {//empty
 
 			prompt("Error, no firmware info in flash\r\n");
 			return ERR_UPGRADE_NO_INFO ;
 		}
 		else { //have info, check info is same as block data?
-			if ( flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV] == (fw_rev>>8)&0xFF && \
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1] == (fw_rev)&0xFF ) {//same
+			if ( *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) == fw_rev ) {//same
 
 				//show data
 				/*
@@ -406,7 +396,19 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 				}
 
 				if ( var_u32 == CRC->DR ) {//CRC same
-					prompt("OK, Block %d CRC ok, check %s: %d\r\n",buf_type,__FILE__,__LINE__);
+					prompt("OK, Block %d CRC :%08X ok.\r\n",buf_type, var_u32);
+
+					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf_type*8,CRC->DR&0xFFFF);
+					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf_type*8+2,(CRC->DR>>16)&0xFFFF);
+					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf_type*8+4,~(CRC->DR&0xFFFF));
+					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf_type*8+6,~((CRC->DR>>16)&0xFFFF));
+					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
 				}
 				else {//CRC different
 					prompt("Rec Block %d:  ", buf_type);
@@ -417,19 +419,26 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 				}
 				//TBD
 			}
-			else { //diff, maybe error
-				prompt("FW info in flash: rev %d but in buf is %d\r\n",\
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV]>>8 |\
-					flash_map[FLASH_UPGRADE_BASE+NEW_FW_REV+1],fw_rev);
-				prompt("Error, firmware rev. no match, check %s: %d\r\n",__FILE__,__LINE__);
-		//TBD: set to error flag, feedback to server
-				return ERR_UPGRADE_NO_MATCH ;
+			else {//difference, case:升级过程中，又有新版本发布
+				if ( fw_rev > *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) )  {//newer
+					prompt("FW info in flash: rev %d, but in buf is %d\r\n",\
+						*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV),fw_rev);
+
+					prompt("Will be erase upgrade info! check %s: %d\r\n",__FILE__,__LINE__);
+					flash_erase(FLASH_UPGRADE_BASE_F);
+			
+					//TBD if prog error....
+				}
+				else {//older, maybe something wrong
+					prompt("Error, latest firmware %d is older than upgrading firmware: %d",\
+							fw_rev, *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV));
+					printf("\t exit!\r\n");
+					return ERR_UPGRADE_UP_NEWER;
+				}
 			}
 		}
 	}
 	
-
-
 	return 0;
 }
 
