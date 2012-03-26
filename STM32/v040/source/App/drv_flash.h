@@ -13,10 +13,19 @@
 #ifndef __APP_FLASH_H
 #define __APP_FLASH_H
 
+/* Private define ------------------------------------------------------------*/
+/* Define the STM32F10x FLASH Page Size depending on the used STM32 device */
+#if defined (STM32F10X_HD) || defined (STM32F10X_HD_VL) || defined (STM32F10X_CL) || defined (STM32F10X_XL)
+  #define FLASH_PAGE_SIZE    ((uint16_t)0x800) //2KB
+#else
+  #define FLASH_PAGE_SIZE    ((uint16_t)0x400) //1KB
+#endif
+
 struct FIRMWARE_UPGRADE {
 	//for upgrade firmware
 	unsigned char err_no;//indicate error number
 	unsigned char q_idx; //the point for upgrade command queue
+	unsigned int prog_fail_addr;//flash address for prog failure
 };
 
 
@@ -30,20 +39,22 @@ struct FIRMWARE_UPGRADE {
  * ...
  */
 
-#define FLASH_UPGRADE_BASE_F				0x08010C00	//Page67
-#define FLASH_UPGRADE_BASE				0	//Page67, simu first
+//#define FLASH_UPGRADE_BASE_F			0x08010C00	//Page67
+#define FLASH_UPGRADE_BASE_F			0x0800D000	//Page52, for test
 #define NEW_FW_REV						0	//4 bytes for rev. 4 B for !rev., start addr
 #define NEW_FW_SIZE						8	//4 bytes for size 4 B for !size, start addr
 #define BLK_CRC_DAT						16	//4 bytes for CRC 4 B for !CRC, start addr
 
 
 //Error define for upgrade firmware
+#define ERR_UPGRADE_NO_ERR				0	//No ERR
 #define ERR_UPGRADE_HAVE_NEW_FW			1	//STM32 have new firmware, no need upgrade
 #define ERR_UPGRADE_SIZE_LARGE			2	//firmware size too large, > 60KB
 #define ERR_UPGRADE_UP_NEWER			3	//Upgrading a newer firmware
 #define ERR_UPGRADE_NO_INFO				4	//No upgrade info in flash
 #define ERR_UPGRADE_BLK_CRC				5	//Block CRC error
 #define ERR_UPGRADE_NO_MATCH			6	//Upgrading FW Rev no match
+#define ERR_UPGRADE_PROG_FAIL			7	//prog flash failure
 
 /* Includes ------------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
@@ -55,7 +66,6 @@ struct FIRMWARE_UPGRADE {
 /* Exported functions ------------------------------------------------------- */
 //void flash_program_one_page(void);
 unsigned char flash_prog_u16( uint32_t addr, uint16_t data);
-void init_flash_map( void ); //for dev. only, will be removed
 unsigned char flash_upgrade_ask( unsigned char * ) ;
 unsigned char flash_upgrade_rec( unsigned char *, unsigned char * ) ;
 #endif /* __APP_FLASH_H */

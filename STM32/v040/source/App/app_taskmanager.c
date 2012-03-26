@@ -55,7 +55,7 @@ void  App_TaskManager (void *p_arg)
 {
 
 	CPU_INT08U	os_err;
-	unsigned char var_uchar , ist_cnt, gsm_sequence=0, *flash_p;
+	unsigned char var_uchar , ist_cnt, gsm_sequence=0, flash_idx=0;
 	unsigned int record_sequence = 0;
 	struct GSM_RX_RESPOND mg323_rx_cmd;
 
@@ -129,6 +129,7 @@ void  App_TaskManager (void *p_arg)
 	my_icar.need_sn = 3 ;
 	my_icar.mg323.ask_power = true ;
 	my_icar.upgrade.err_no = 0 ;
+	my_icar.upgrade.prog_fail_addr = 0 ;
 	my_icar.upgrade.q_idx = MAX_CMD_QUEUE+1 ;
 
 	mg323_rx_cmd.timer = OSTime ;
@@ -143,13 +144,9 @@ void  App_TaskManager (void *p_arg)
 	//flash LED, wait power stable and others task init
 	flash_led( 80 );//100ms
 
-prompt("FLASH_UPGRADE_BASE = %08X\r\n",FLASH_UPGRADE_BASE_F);
+prompt("NEW_FW_REV = %d\r\n",*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV));
+prompt("NEW_FW_REV = %08X\r\n",*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE));
 
-flash_p = (unsigned char *)FLASH_UPGRADE_BASE_F+NEW_FW_REV ;
-prompt("NEW_FW_REV = %08X\r\n",((*(flash_p))<<8)|(*(flash_p+1)));
-
-flash_p = (unsigned char *)FLASH_UPGRADE_BASE_F+NEW_FW_SIZE ;
-prompt("NEW_FW_SIZE = %08X\r\n",((*(flash_p))<<8)|(*(flash_p+1)));
 
 	//independent watchdog init
 	iwdg_init( );
@@ -270,8 +267,33 @@ prompt("NEW_FW_SIZE = %08X\r\n",((*(flash_p))<<8)|(*(flash_p+1)));
 			}
 
 			if ( var_uchar == 'f' ) {//set debug flag
-				;//flash_program_one_page( ) ;
-				prompt("Will be dev.\r\n");
+				//show flash content
+				prompt("Page:%d, %08X: %08X ",\
+					(FLASH_UPGRADE_BASE_F+flash_idx*16-0x08000000)/FLASH_PAGE_SIZE,\
+					FLASH_UPGRADE_BASE_F+flash_idx*16,\
+					*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16));
+				OSTimeDlyHMSM(0,0,0,10);
+				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+4));
+				OSTimeDlyHMSM(0,0,0,10);
+				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+8));
+				OSTimeDlyHMSM(0,0,0,10);
+				printf("%08X \r\n",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+16));
+				flash_idx=flash_idx++;
+			}
+
+			if ( var_uchar == 'F' ) {//set debug flag
+				//show flash content
+				flash_idx=flash_idx--;
+				prompt("Page:%d, %08X: %08X ",\
+					(FLASH_UPGRADE_BASE_F+flash_idx*16-0x08000000)/FLASH_PAGE_SIZE,\
+					FLASH_UPGRADE_BASE_F+flash_idx*16,\
+					*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16));
+				OSTimeDlyHMSM(0,0,0,10);
+				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+4));
+				OSTimeDlyHMSM(0,0,0,10);
+				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+8));
+				OSTimeDlyHMSM(0,0,0,10);
+				printf("%08X \r\n",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+16));
 			}
 
 			if ( var_uchar == 'g' ) {//Suspend GSM task for debug
@@ -861,6 +883,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						}
 						//Check each KB and save to flash
 						my_icar.upgrade.err_no = flash_upgrade_rec(buf->start,c2s_data.rx) ;
+
 						//If error flag, feedback to server
 						break;
 					}

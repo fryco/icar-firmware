@@ -135,8 +135,6 @@ int	main(void)
 	GPS_PM_OFF;
 	SD_PM_OFF;
 
-	init_flash_map( ) ;//for dev. only, will be remove
-
 	/*	Initialize "uC/OS-II, The Real-Time	Kernel".		 */
 	OSInit(); //include: OSTime = 0L;
 	//OSTimeSet(RTC_GetCounter( ));

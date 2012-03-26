@@ -44,6 +44,8 @@
 #define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
 #define MIN_GSM_SIGNAL			8  //Min. GSM Signal require
 
+#define MAX_PROG_TRY			16 //Max. program flash retry
+
 #define AT_TIMEOUT				1*OS_TICKS_PER_SEC // 1 sec
 
 #define VOICE_RESPOND_TIMEOUT	1*1*60*OS_TICKS_PER_SEC //60 secs
