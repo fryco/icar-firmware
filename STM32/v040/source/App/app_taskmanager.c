@@ -266,18 +266,15 @@ prompt("NEW_FW_REV = %08X\r\n",*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE));
 				prompt("Reset debug flag... my_icar.debug:%d\r\n",my_icar.debug);
 			}
 
-			if ( var_uchar == 'f' ) {//set debug flag
+			if ( var_uchar == 'f' ) {//show flash page67
 				//show flash content
 				prompt("Page:%d, %08X: %08X ",\
 					(FLASH_UPGRADE_BASE_F+flash_idx*16-0x08000000)/FLASH_PAGE_SIZE,\
 					FLASH_UPGRADE_BASE_F+flash_idx*16,\
 					*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16));
-				OSTimeDlyHMSM(0,0,0,10);
 				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+4));
-				OSTimeDlyHMSM(0,0,0,10);
 				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+8));
-				OSTimeDlyHMSM(0,0,0,10);
-				printf("%08X \r\n",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+16));
+				printf("%08X \r\n",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+12));
 				flash_idx=flash_idx++;
 			}
 
@@ -288,12 +285,20 @@ prompt("NEW_FW_REV = %08X\r\n",*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE));
 					(FLASH_UPGRADE_BASE_F+flash_idx*16-0x08000000)/FLASH_PAGE_SIZE,\
 					FLASH_UPGRADE_BASE_F+flash_idx*16,\
 					*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16));
-				OSTimeDlyHMSM(0,0,0,10);
 				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+4));
-				OSTimeDlyHMSM(0,0,0,10);
 				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+8));
-				OSTimeDlyHMSM(0,0,0,10);
-				printf("%08X \r\n",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+16));
+				printf("%08X \r\n",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+12));
+			}
+
+			if ( var_uchar == 'p' ) {//show data page, can be remove
+				//show flash content
+				prompt("Page:%d, %08X : ",\
+					(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*flash_idx-0x08000000)/FLASH_PAGE_SIZE,\
+					FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*flash_idx);
+				for ( var_uchar = 0 ; var_uchar < 128 ; var_uchar++ ) {
+					printf("%04X ",*(vu16*)(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*flash_idx+var_uchar*2));
+				}
+				flash_idx=flash_idx++;
 			}
 
 			if ( var_uchar == 'g' ) {//Suspend GSM task for debug
@@ -487,10 +492,10 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				buf->start = c2s_data.rx_out_last ;//mark the start
 				buf->status = S_PCB ;//search protocol control byte
 				buf->timer = OSTime ;
-				//if ( my_icar.debug > 2) {
+				if ( my_icar.debug > 2) {
 					prompt("Buf: %X ~ %X\r\n",c2s_data.rx,c2s_data.rx+GSM_BUF_LENGTH);
 					prompt("Found HEAD @ %X\t",buf->start);
-				//}
+				}
 			}
 			else { //no found
 				c2s_data.rx_out_last++;//search next byte
@@ -531,9 +536,9 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				buf->pcb = *(buf->start + 2 - GSM_BUF_LENGTH);
 			}//end of (buf->start + 2)  < (c2s_data.rx+GSM_BUF_LENGTH)
 
-			//if ( my_icar.debug > 2) {
+			if ( my_icar.debug > 1) {
 				printf("PCB is %c\t",(buf->pcb)&0x7F);
-			//}
+			}
 
 			//get sequence
 			if ( (buf->start + 1)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
@@ -566,9 +571,9 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			//printf("L: %02d ",len_low);
 
 			buf->len = len_high << 8 | len_low ;
-			//if ( my_icar.debug > 2) {
+			if ( my_icar.debug > 1) {
 				printf("Len: %d\t",buf->len);
-			//}
+			}
 
 			//update the status & timer
 			buf->status = S_CHK ;//search check byte
@@ -594,15 +599,15 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			if ( (buf->start + 5+buf->len)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
 				//CHK no in the end of buffer
 				buf->chk = *(buf->start + 5 + buf->len );
-				//if ( my_icar.debug > 2) {
+				if ( my_icar.debug > 1) {
 					printf("CHK: %X @ %X\r\n",buf->chk,buf->start + 5 + buf->len);
-				//}
+				}
 			}
 			else { //CHK in the end of buffer
 				buf->chk = *(buf->start + 5 + buf->len - GSM_BUF_LENGTH);
-				//if ( my_icar.debug > 2) {
+				if ( my_icar.debug > 1) {
 					printf("CHK: %X @ %X\r\n",buf->chk,buf->start + 5 + buf->len - GSM_BUF_LENGTH);
-				//}
+				}
 			}//end of GSM_BUF_LENGTH - (buf->start - c2s_data.rx)
 			//2012/1/4 19:54:50 已验证边界情况，正常
 
@@ -1179,9 +1184,9 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					chkbyte = GSM_HEAD ;
 					for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
 						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
-						//if ( my_icar.debug > 2) {
+						if ( my_icar.debug > 2) {
 							printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
-						//}
+						}
 					}
 					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
 					if ( my_icar.debug > 2) {

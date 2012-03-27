@@ -861,7 +861,8 @@ static void SetSysClockTo48_HSI(void)
     /* Flash 1 wait state */
     FLASH->ACR &= (uint32_t)((uint32_t)~FLASH_ACR_LATENCY);
     FLASH->ACR |= (uint32_t)FLASH_ACR_LATENCY_1;    
- 
+	//FLASH->ACR |= (uint32_t)FLASH_ACR_LATENCY_2;//set to 2 if read back error
+
     /* HCLK = SYSCLK */
     RCC->CFGR |= (uint32_t)RCC_CFGR_HPRE_DIV1;
       

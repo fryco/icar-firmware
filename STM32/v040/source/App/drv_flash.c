@@ -63,11 +63,15 @@ unsigned char flash_prog_u16( uint32_t addr, uint16_t data)
 		FLASHStatus = FLASH_ProgramHalfWord(addr, data);
 		if ( *(vu16*)(addr) == data ) {//prog success
 			FLASH_LockBank1();
-			if ( my_icar.debug ) {
+			if ( my_icar.debug > 1) {
 				prompt("Prog %04X @ %08X, read back: %04X\r\n",data,addr,\
 					*(vu16*)(addr));
 			}
 			return 0 ;
+		}
+		else {
+			prompt("Prog %04X @ %08X failure! read back: %04X\r\n",\
+					data,addr,*(vu16*)(addr));
 		}
 	}
 
@@ -117,18 +121,21 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 		//xx: data len, 
 		//yy: KB sequence, 01: ask 1st KB of FW, 02: 2nd KB, 03: 3rd KB
 
-		for ( buf[5] = 1 ; buf[5] <= blk_cnt+1 ; buf[5]++ ) {
+		for ( buf[5] = 1 ; buf[5] <= blk_cnt ; buf[5]++ ) {
 			crc_dat = 	*(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8) ;
-			prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8);
+			printf(".");
+			//prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8);
 			if ( crc_dat == 0xFFFFFFFF ) { //empty
 				//Check ~CRC again
 				crc_dat = 	*(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8+4) ;
 				if ( crc_dat == 0 ) {//the CRC just 0xFFFFFFFF
-					printf("Have data, no need ask.\r\n");
+					;//prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8);
 				}
 				else { 
 					if ( crc_dat == 0xFFFFFFFF ) { //empty
-						printf("No data, ask BLK %d data...\r\n",buf[5]);
+						printf("\r\n");
+						prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8);
+						printf("Ask BLK %d data...\r\n",buf[5]);
 
 						//Send : BLK index + new firmware revision
 						//C9 00 55 00 03 01 00 5E
@@ -140,14 +147,20 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 						return 0 ;
 					}
 					else {//Not FF, not 0, the flash failure?
-						printf("Flash failure, check: %s: %d\r\n",__FILE__, __LINE__);
+						printf("\r\nFlash failure, check: %s: %d\r\n",__FILE__, __LINE__);
 					}
 				}
 			}
 			else {
-				printf("Have data, no need ask.\r\n");
+				if ( my_icar.debug > 1) {
+					prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,\
+						FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8);
+					printf("Have data, no need ask.\r\n");
+				}
 			}
 		}//end block check
+		printf("\r\n");
+		prompt("Got all fw data! check: %s: %d\r\n",__FILE__, __LINE__);
 	}
 
 	//Default CMD: send current hardware and firmware revision
@@ -192,8 +205,12 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 		prompt("Len= %d : ",buf_len);
 	}
 
-	if ( buf_len < 5 ) { //err, Min.: 00 + rev(2Bytes) + size(2B) = 5 Bytes
-		printf("Length error!\r\n");
+	if ( buf_len < 5 || buf_len > 1024+7) { 
+		//err, Min.: 00 + rev(2Bytes) + size(2B) = 5 Bytes
+		//Max. block index(1 Byte) + fw_rev(2B) + fw_data(1024 Bytes) +CRC(4B)
+		printf("\r\n");
+		prompt("Length: %d is un-correct! Check %s: %d\r\n",\
+				buf_len,__FILE__,__LINE__);
 		//TBD: set to error flag, feedback to server
 		return 0 ;
 	}
@@ -307,7 +324,7 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 			}
 		}
 	}//end of if ( buf_type == 0 ){//FW rev&size info
-	else { //each block data
+	else { //buf_type != 0, each block data
 		//check FW Rev info in flash
 		if ( *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) == 0xFFFF ) {//empty
 
@@ -316,18 +333,6 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 		}
 		else { //have info, check info is same as block data?
 			if ( *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) == fw_rev ) {//same
-
-				//show data
-				/*
-				for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
-					if ( (buf+buf_index) < buf_start+GSM_BUF_LENGTH ) {
-						printf("%02X ",*(buf+buf_index));
-					}
-					else {//data in begin of buffer
-						printf("%02X ",*(buf+buf_index-GSM_BUF_LENGTH));
-					}
-				} 
-				printf("\r\n"); */
 
 				//same, Check CRC
 				/* Reset CRC generator */
@@ -396,8 +401,42 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 				}
 
 				if ( var_u32 == CRC->DR ) {//CRC same
-					prompt("OK, Block %d CRC :%08X ok.\r\n",buf_type, var_u32);
+					prompt("OK, Block %d CRC :%08X correct.\r\n",buf_type, var_u32);
 
+					//erase previous contents first
+					flash_erase(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*buf_type);
+
+					//prog data to flash: C9 F3 D5 00 07 01 00 7D 00 01 FF FF 95
+					//use fw_size to save fw data temporary
+					for ( buf_index = 0 ; buf_index < (buf_len-7)/2; buf_index++) {
+	
+						if ( (buf+buf_index*2+8) < buf_start+GSM_BUF_LENGTH ) {
+							fw_size = (*(buf+buf_index*2+8))<<8;
+						}
+						else {//data in begin of buffer
+							fw_size = (*(buf+buf_index*2+8-GSM_BUF_LENGTH))<<8;
+						}
+	
+						if ( (buf+buf_index*2+9) < buf_start+GSM_BUF_LENGTH ) {
+							fw_size = ((*(buf+buf_index*2+9)))|fw_size;
+						}
+						else {//data in begin of buffer
+							fw_size = ((*(buf+buf_index*2+9-GSM_BUF_LENGTH)))|fw_size;
+						}
+	
+						/* Reload IWDG counter */
+						IWDG_ReloadCounter();  
+
+						prompt("Page:%d, %08X + %02X: %04X \r\n",\
+							(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*buf_type-0x08000000)/FLASH_PAGE_SIZE,\
+							FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*buf_type,\
+							buf_index*2,fw_size);
+	
+						var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*buf_type+buf_index*2,fw_size);
+						if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+					}
+
+					//prog CRC result to flash
 					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf_type*8,CRC->DR&0xFFFF);
 					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
 

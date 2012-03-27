@@ -39,8 +39,7 @@ struct FIRMWARE_UPGRADE {
  * ...
  */
 
-//#define FLASH_UPGRADE_BASE_F			0x08010C00	//Page67
-#define FLASH_UPGRADE_BASE_F			0x0800D000	//Page52, for test
+#define FLASH_UPGRADE_BASE_F			0x08010C00	//Page67
 #define NEW_FW_REV						0	//4 bytes for rev. 4 B for !rev., start addr
 #define NEW_FW_SIZE						8	//4 bytes for size 4 B for !size, start addr
 #define BLK_CRC_DAT						16	//4 bytes for CRC 4 B for !CRC, start addr
