@@ -668,9 +668,9 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 			snd_buf[4] =  05;//len low
 			snd_buf[5] =  00;
 			snd_buf[6] =  0x00;//Rev high
-			snd_buf[7] =  0x7D;//Rev low
-			snd_buf[8] =  0xE4;//Size high
-			snd_buf[9] =  0x03;//Size low
+			snd_buf[7] =  0x8C;//Rev low
+			snd_buf[8] =  0xF0;//Size high
+			snd_buf[9] =  0x00;//Size low
 		}
 		else {//others : block seq
 			fprintf(stderr, "\r\nAsk Block %d, FW rev: %d\r\n",\
@@ -685,25 +685,27 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 
 			snd_buf[5] =  rec_buf[5];//block seq
 			snd_buf[6] =  0x00;//Rev high, get Rev. info from binary
-			snd_buf[7] =  0x7D;//Rev low
+			snd_buf[7] =  0x8C;//Rev low
 
 			//Block data
 			//data len
-			snd_buf[3] =  00;//len high
-			snd_buf[4] =  7+3;//len low, > 3
+			snd_buf[3] =  04;//len high
+			snd_buf[4] =  3+0;//len low, > 3
 			data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
 
 			for ( chk_count = 0 ; chk_count < (data_len-3); chk_count++) {
-				snd_buf[8+chk_count]= chk_count ;
+				snd_buf[8+chk_count]= chk_count+9 ;
 			}
 
 			//data align 4
-			for ( chk_count = 0 ; chk_count < (4 - ((data_len-3)%4)) ; chk_count++) {
-				snd_buf[5+chk_count+data_len]= 0xFF ;
-				//fprintf(stderr, "snd_buf[%d] = %X\r\n",\
-						5+chk_count+data_len,snd_buf[5+chk_count+data_len]);
+			if ((data_len-3)%4) {
+				for ( chk_count = 0 ; chk_count < (4 - ((data_len-3)%4)) ; chk_count++) {
+					snd_buf[5+chk_count+data_len]= 0xFF ;
+					//fprintf(stderr, "snd_buf[%d] = %X\r\n",\
+							5+chk_count+data_len,snd_buf[5+chk_count+data_len]);
+				}
+				data_len = chk_count+data_len;
 			}
-			data_len = chk_count+data_len;
 
 			//Calc CRC: C9 F3 D5 00 07 01 00 7D 00 01 FF FF 95
 			chk_count = crctablefast(&snd_buf[8],data_len-3);
@@ -729,8 +731,15 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 
 		if ( debug_flag ) {
 			fprintf(stderr, "CMD %c ok, will return: ",cmd->pcb);
-			for ( chk_count = 0 ; chk_count < data_len+6 ; chk_count++ ) {
-				fprintf(stderr, "%02X ",snd_buf[chk_count]);
+			if ( data_len < 128 ) {
+				for ( chk_count = 0 ; chk_count < data_len+6 ; chk_count++ ) {
+					fprintf(stderr, "%02X ",snd_buf[chk_count]);
+				}
+			}
+			else {
+				for ( chk_count = data_len - 8 ; chk_count < data_len+6 ; chk_count++ ) {
+					fprintf(stderr, "%02X ",snd_buf[chk_count]);
+				}
 			}
 			fprintf(stderr, "to %s\n",cmd->pro_sn);
 		} 
