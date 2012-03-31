@@ -10,6 +10,32 @@ extern struct ICAR_DEVICE my_icar;
 
 const unsigned char dest_server[] = "cqt.8866.org:25";
 const unsigned char at_set_channel0_para[] = "AT^SICS=0,";
+//  Init sequence:
+//  AT
+//  ATE0
+//  AT+CPIN?
+//  AT&F
+//  AT+IFC=0,0
+//  ATE0
+//  AT+CREG?
+//  ATE0
+//  AT+COPS?
+//  AT+CLIP=1
+//  AT+CSQ
+//  ATE0
+//  AT+CGREG?
+//  ATE0
+//  AT+CGATT?
+//  AT^SICS=0,conType, GPRS0
+//  AT+CIMI
+//  AT^SICS=0,apn,CMNET
+//  AT^SISS=0,conId,0
+//  AT^SISS=0,srvType, Socket
+//  AT^SISS=0,address,"socktcp://183.37.50.222:25"
+//  AT^SISO=0
+//  AT+CSQ
+//  AT^SISO=0
+//  AT^SISI?
 
 //查询连接状态： AT^SISI?
 //正确返回: ^SISI: 0,4,0,0,0,0
@@ -64,9 +90,9 @@ bool get_respond( unsigned char* rec_str)
 
 			rec_str[i] = getbyte( COM2 );
 	
-#ifdef DEBUG_GSM
-			;//putbyte( COM1, rec_str[i]);
-#endif
+			if ( my_icar.debug > 2)
+				putbyte( COM1, rec_str[i]);
+
 			if ( rec_str[i] != 0 ) { //prevent 0x0
 				i++;
 			}
@@ -1139,7 +1165,7 @@ bool gprs_disconnect( DISCONNECT_REASON reason)
 {
 	u16 result_temp;
 
-	prompt("Close connection... ");
+	prompt("Close connection, reason: %d... ",reason);
 	//close connect... AT^SISC=0
 	if( close_tcp_conn( ) )  {
 		prompt("ok.\r\n");
@@ -1149,7 +1175,7 @@ bool gprs_disconnect( DISCONNECT_REASON reason)
 	}
 
 	my_icar.mg323.tcp_online = false ;
-	my_icar.mg323.try_online = 1 ;
+	my_icar.mg323.try_online_cnt = 1 ;
 
 	//save to BK reg
 	//BKP_DR4, GPRS disconnect time(UTC Time) high
@@ -1200,7 +1226,7 @@ bool gsm_pwr_off( POWEROFF_REASON reason)
 
 	GSM_PM_OFF;
 
-	my_icar.mg323.try_online = 1;
+	my_icar.mg323.try_online_cnt = 1;
 	my_icar.mg323.gprs_count = 0 ;
 	my_icar.mg323.gprs_ready = false;
 	my_icar.mg323.tcp_online = false ;

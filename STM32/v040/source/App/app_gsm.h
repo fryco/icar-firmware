@@ -49,7 +49,7 @@ typedef enum
 	SIGNAL_WEAK		=	5,	//gsm signal < MIN_GSM_SIGNAL
 	NO_GPRS			=	6,	//mg323_status.gprs_count > 60
 
-	TRY_ONLINE		=	13,	//if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
+	TRY_ONLINE		=	13,	//if ( my_icar.mg323.try_online_cnt_cnt > MAX_ONLINE_TRY )
 	RSV				= 	14,	//Reserve
 	MODULE_REBOOT	=	15	//if receive: SYSSTART
 } POWEROFF_REASON; //enum must < 15
@@ -65,7 +65,8 @@ struct GSM_STATUS {
 	unsigned char gprs_count;
 	bool ask_online;
 	bool tcp_online;
-	unsigned char try_online;
+	unsigned char try_online_cnt;
+	unsigned int try_online_time;
 
 	//运营商信息，+COPS: 0,0,"CHINA MOBILE"
 	unsigned char carrier[32];
