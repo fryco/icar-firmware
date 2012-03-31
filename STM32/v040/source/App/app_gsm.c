@@ -28,7 +28,8 @@ void  App_TaskGsm (void *p_arg)
 	my_icar.mg323.gprs_ready = false;
 	my_icar.mg323.tcp_online = false;
 	my_icar.mg323.ask_online = false;
-	my_icar.mg323.try_online = 1;
+	my_icar.mg323.try_online_cnt = 1;
+	my_icar.mg323.try_online_time = 0;
 
 	my_icar.mg323.apn_index = NULL;
 	my_icar.mg323.roam = false;
@@ -113,29 +114,34 @@ void  App_TaskGsm (void *p_arg)
 					my_icar.mg323.gprs_count = 0 ;
 
 					if ( !my_icar.mg323.tcp_online ) { //no online
-						//try_online <= 4 if normal
-						if ( my_icar.mg323.try_online%9 == 0 ) {//Try close first
-							prompt("will re-init GSM again... try_online: %d\r\n",my_icar.mg323.try_online);
+						//try_online <= 4 when normally
+						if ( my_icar.mg323.try_online_cnt%9 == 0 ) {//Try close first
+							prompt("will re-init GSM again... try_online: %d\r\n",my_icar.mg323.try_online_cnt);
 							my_icar.mg323.gprs_count = 0 ;
 							my_icar.mg323.gprs_ready = false;
 							my_icar.mg323.tcp_online = false ;
 							my_icar.mg323.power_on = false;
 						}
 
-						//prompt("IP: %s\r\n",my_icar.mg323.ip_local);
-						//send online command
-						putstring(COM2,"AT^SISO=0\r\n");
-						//will be return ^SISW: 0,1,1xxx
-						//confirm this return in later
-						c2s_data.check_timer = OSTime ;//Prevent check when offline
-						my_icar.need_sn = true ;//need upload SN
+						if ( OSTime - my_icar.mg323.try_online_time > 3*OS_TICKS_PER_SEC ) {
+							my_icar.mg323.try_online_time = OSTime ;
 
-						my_icar.mg323.try_online++;
-						prompt("Try %d to online...\r\n",my_icar.mg323.try_online);
-						if ( my_icar.mg323.try_online > MAX_ONLINE_TRY ) {//failure
+							//send online command
+							putstring(COM2,"AT^SISO=0\r\n");
+							//will be return ^SISW: 0,1,1xxx
+							//confirm this return in later
+	
+							c2s_data.check_timer = OSTime ;//Prevent check when offline
+							my_icar.need_sn = true ;//need upload SN
+	
+							my_icar.mg323.try_online_cnt++;
+							prompt("Try %d to online...\r\n",my_icar.mg323.try_online_cnt);
+						}
+
+						if ( my_icar.mg323.try_online_cnt > MAX_ONLINE_TRY ) {//failure
 
 							prompt("Try %d to online, still failure, \
-								reboot GSM module.\r\n",my_icar.mg323.try_online);
+								reboot GSM module.\r\n",my_icar.mg323.try_online_cnt);
 							//will be auto power on because ask_power is true
 
 							//need to double check this logic
@@ -496,7 +502,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	//found GSM module reboot message
 	if (strstr((char *)buf,"SYSSTART")) {
 		prompt("MG323 report: %s\r\n",buf);
-		my_icar.mg323.try_online = 1;
+		my_icar.mg323.try_online_cnt = 1;
 		my_icar.mg323.gprs_count = 0 ;
 		my_icar.mg323.gprs_ready = false;
 		my_icar.mg323.tcp_online = false ;
@@ -530,6 +536,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 		if ( my_icar.mg323.tcp_online  ) {
 			//previous status is online, now is offline, close connect.
+			prompt("Rec:%s\r\n",buf);
 			gprs_disconnect(PEER_CLOSED);
 		}
 		else {
@@ -609,7 +616,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		//^SISI: 0,5,0,0,0,0
 		if ( buf[9]== 0x34 ) {
 			my_icar.mg323.tcp_online = true ;
-			my_icar.mg323.try_online = 1 ;
+			my_icar.mg323.try_online_cnt = 1 ;
 		}
 		else {
 			prompt("SISI return: %s, check %s: %d\r\n",\
@@ -624,12 +631,12 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 	//found IP message, i.e ^SICI: 0,2,0,"10.7.60.209"
 	if (strstr((char *)buf,"^SICI: 0,2,")) {
-		//prompt("SICI return: %s\r\n",buf);
 
 		switch (buf[11]) {
 
 			case 0x30://0：Down 状态，Internet 连接已经定义但还没连接
 
+				prompt("SICI return: %s\r\n",buf);
 				prompt("!!!Connection is down!!! %d\r\n",__LINE__);
 				if ( my_icar.mg323.tcp_online  ) {
 					//previous status is online, now is offline, close connect.
@@ -732,7 +739,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 	if ( cmpmem(buf,"AT+CSQ\r\n",6 ) || cmpmem(buf,"AT^SICI?\r\n",8 ) \
 		|| cmpmem(buf,"AT^SISI?\r\n",8 ) ) {//Module had been reboot, echo command
 		prompt("MG323 reboot, echo CMD: %s\r\n",buf);
-		my_icar.mg323.try_online = 1;
+		my_icar.mg323.try_online_cnt = 1;
 		my_icar.mg323.gprs_count = 0 ;
 		my_icar.mg323.gprs_ready = false;
 		my_icar.mg323.tcp_online = false ;
