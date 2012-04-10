@@ -144,10 +144,6 @@ void  App_TaskManager (void *p_arg)
 	//flash LED, wait power stable and others task init
 	flash_led( 80 );//100ms
 
-prompt("NEW_FW_REV = %d\r\n",*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV));
-prompt("NEW_FW_REV = %08X\r\n",*(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE));
-
-
 	//independent watchdog init
 	iwdg_init( );
 

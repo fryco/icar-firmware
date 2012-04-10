@@ -181,7 +181,7 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 {//receive upgrade data ...
 	u16 buf_index, buf_len, fw_rev, fw_size ;
 	unsigned char buf_type ;
-	unsigned int var_u32 ;
+	unsigned int var_u32 , fw_crc;
 	//C9 57 D5 00 xx yy data
 	//xx: data len, 
 	//yy: KB sequence, 00: data is latest firmware revision(u16) + size(u16)
@@ -245,8 +245,39 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 		fw_size = ((*(buf+8-GSM_BUF_LENGTH))<<8) | fw_size;
 	}
 
+	//extract 	fw_crc= buf[13] ~ buf[10];
+	if ( (buf+13) < buf_start+GSM_BUF_LENGTH ) {
+		fw_crc = *(buf+13);
+	}
+	else {
+		fw_crc = *(buf+13-GSM_BUF_LENGTH);
+	}
+
+	if ( (buf+12) < buf_start+GSM_BUF_LENGTH ) {
+		fw_crc = ((*(buf+12))<<8) | fw_crc;
+	}
+	else {
+		fw_crc = ((*(buf+12-GSM_BUF_LENGTH))<<8) | fw_crc;
+	}
+
+	if ( (buf+11) < buf_start+GSM_BUF_LENGTH ) {
+		fw_crc = ((*(buf+11))<<16) | fw_crc;
+	}
+	else {
+		fw_crc = ((*(buf+11-GSM_BUF_LENGTH))<<16) | fw_crc;
+	}
+
+	if ( (buf+10) < buf_start+GSM_BUF_LENGTH ) {
+		fw_crc = ((*(buf+10))<<24) | fw_crc;
+	}
+	else {
+		fw_crc = ((*(buf+10-GSM_BUF_LENGTH))<<24) | fw_crc;
+	}
+
+
 	if ( my_icar.debug ) {
-		printf("fw_rev: %d fw_size: %d current fw: %d\r\n", fw_rev,fw_size,my_icar.fw_rev);
+		printf("fw_rev: %d fw_size: %d fw_crc: %08X current fw: %d\r\n", \
+				fw_rev,fw_size,fw_crc,my_icar.fw_rev);
 	}
 
 	// buf[5] is indicate buffer type
@@ -261,7 +292,7 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 		//C9 20 D5 00 05 00 FF FF FF FF 39
 	
 		if ( fw_rev <=  my_icar.fw_rev ) {//firmware old
-			prompt("Error, firmware : %d is older then current: %d\r\n",fw_rev,my_icar.fw_rev);
+			prompt("Error, server fw : %d is older then current: %d\r\n",fw_rev,my_icar.fw_rev);
 			return ERR_UPGRADE_HAVE_NEW_FW;
 		}
 	
@@ -316,7 +347,7 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 					//TBD if prog error....
 				}
 				else {//older, maybe something wrong
-					prompt("Error, latest firmware %d is older than upgrading firmware: %d",\
+					prompt("Error, server fw %d is older than upgrading firmware: %d",\
 							fw_rev, *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV));
 					printf("\t exit!\r\n");
 					return ERR_UPGRADE_UP_NEWER;
