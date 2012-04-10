@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include "database.h"
 #include "commands.h"
@@ -73,6 +74,36 @@ unsigned int crctablefast (unsigned char* p, unsigned long len) {
 	crc&= 0xFFFFFFFF;
 
 	return(crc);
+}
+
+static unsigned int mypow( unsigned char n)
+{
+	unsigned int result ;
+
+	result = 1 ;
+	while ( n ) {
+		result = result*10;
+		n--;
+	}
+	return result;
+}
+
+static void conv_rev( unsigned char *p , unsigned int *fw_rev)
+{//$Rev: 9999 $
+	unsigned char i , j;
+
+	i = 0 , p = p + 6 ;
+	while ( *(p+i) != 0x20 ) {
+		i++ ;
+		if ( *(p+i) == 0x24 || i > 4 ) break ; //$
+	}
+
+	j = 0 ;
+	while ( i ) {
+		i-- ;
+		*fw_rev = (*(p+i)-0x30)*mypow(j) + *fw_rev;
+		j++;
+	}
 }
 
 int cmd_ask_ist( struct icar_data *mycar, struct icar_command * cmd,\
@@ -615,14 +646,69 @@ int cmd_get_time( struct icar_data *mycar, struct icar_command * cmd,\
 	return 0 ;
 }
 
+//0: ok, others: error
 int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 				unsigned char *rec_buf, unsigned char *snd_buf )
 {//case GSM_CMD_UPGRADE://0x55, 'U', Upgrade firmware
 
-	unsigned int chk_count , data_len;
+	int fd;
+	unsigned int i, chk_count , data_len, fpos, fw_size, fw_rev;
+	unsigned char *filename="./fw/stm32_v00/20120409.bin";
+	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
 
 	if ( debug_flag ) {
-		fprintf(stderr, "CMD is Upgrade...\n");
+		fprintf(stderr, "CMD is Upgrade fw...\n");
+	}
+
+	//Get the firmware file info
+	fd = open(filename, O_RDONLY, 0700);  
+	if (fd == -1)  {  
+		fprintf(stderr,"open file %s failed!\n%s\n", filename,strerror(errno));  
+		return 10;  
+	}  
+
+	fw_size = lseek(fd, 0, SEEK_END);  
+	if (fw_size == -1)  
+	{  
+		fprintf(stderr,"lseek failed!\n%s\n", strerror(errno));  
+		close(fd);  
+		return 20;  
+	}  
+
+	//check firmware size
+	if ( fw_size > MAX_FW_SIZE-1 ) {//must < 60KB
+		fprintf(stderr,"Error, firmware size: %d Bytes> 60KB\r\n",fw_size);
+		close(fd);  
+		return 30;  
+	}
+
+	lseek( fd, -20L, SEEK_END );
+	fpos = read(fd, rev_info, 20);
+	if (fpos == -1)  
+	{  
+		fprintf(stderr,"File read failed!\n%s\n", strerror(errno));  
+		close(fd);  
+		return 40;  
+	}  
+
+	//replace zero with 0x20
+	for ( i = 0 ; i < fpos ; i++ ) {
+		if ( rev_info[i] == 0 ) {
+			rev_info[i] = 0x20 ;
+		}
+	}
+
+	rev_pos = strstr(rev_info,"$Rev: ");
+	if ( rev_pos == NULL ) { //no found
+		fprintf(stderr,"Can't find revision info!\n");
+		close(fd);  
+		return 4;  
+	}
+
+	fw_rev = 0 ;
+	conv_rev( rev_pos, &fw_rev);
+	if ( debug_flag ) {
+	    fprintf(stderr,"File: %s size is:%d Rev:%d\n", filename,fw_size,fw_rev);
 	}
 
 	if ( strlen(mycar->sn) == 10 ) {
@@ -639,22 +725,16 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 		}
 
 		//if buf[5] > 0xF0, error report from STM32 for upgrade flash
-
+		//TBD
 
 		//Check input detail
 		//C9 F9 55 00 04 00 00 00 5E
 		//buf[5] = 0x00 ;//00: mean buf[6] is hw rev, others: block seq
 
-//把所有数据显示出来
-fprintf(stderr, "Rec: ");
-for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
-	fprintf(stderr, "%02X ",rec_buf[chk_count]);
-}
-
 		memset(snd_buf, '\0', BUFSIZE);
 		if ( rec_buf[5] == 0 ) { //HW,FW info
 			if ( debug_flag ) {
-				fprintf(stderr, "\r\nHW rev: %d, FW rev: %d\r\n",\
+				fprintf(stderr, "\r\nCurrent HW rev: %d, FW rev: %d\r\n",\
 					rec_buf[6],rec_buf[7]<<8 | rec_buf[8]);
 			}
 
@@ -665,12 +745,22 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
 			snd_buf[3] =  00;//len high
-			snd_buf[4] =  05;//len low
+			snd_buf[4] =  9;//len low
 			snd_buf[5] =  00;
-			snd_buf[6] =  0x00;//Rev high
-			snd_buf[7] =  0x8C;//Rev low
-			snd_buf[8] =  0xF0;//Size high
-			snd_buf[9] =  0x00;//Size low
+			snd_buf[6] =  (fw_rev >> 8)&0xFF;//Rev high
+			snd_buf[7] =  (fw_rev)&0xFF;//Rev low
+			snd_buf[8] =  (fw_size >> 8)&0xFF;//Size high
+			snd_buf[9] =  (fw_size)&0xFF;//Size low
+
+			//generate FW CRC:
+			lseek( fd, 0, SEEK_SET );
+			fpos = read(fd, rev_info, MAX_FW_SIZE);
+			chk_count = crctablefast(rev_info,fpos);
+
+			snd_buf[10] = (chk_count >> 24) & 0xFF ;
+			snd_buf[11] = (chk_count >> 16) & 0xFF ;
+			snd_buf[12] = (chk_count >> 8) & 0xFF ;
+			snd_buf[13] = (chk_count) & 0xFF ;
 		}
 		else {//others : block seq
 			fprintf(stderr, "\r\nAsk Block %d, FW rev: %d\r\n",\
@@ -684,14 +774,17 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 			snd_buf[2] = cmd->pcb | 0x80 ;
 
 			snd_buf[5] =  rec_buf[5];//block seq
-			snd_buf[6] =  0x00;//Rev high, get Rev. info from binary
-			snd_buf[7] =  0x8C;//Rev low
+
+			snd_buf[6] =  (fw_rev >> 8)&0xFF;//Rev high
+			snd_buf[7] =  (fw_rev)&0xFF;//Rev low
 
 			//Block data
 			//data len
-			snd_buf[3] =  04;//len high
-			snd_buf[4] =  3+0;//len low, > 3
-			data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
+			fw_size = fw_size + 3 ;//include blk seq, rev info
+			snd_buf[3] =  (fw_size >> 8)&0xFF;//Size high
+			snd_buf[4] =  (fw_size)&0xFF;//Size low
+
+			data_len = fw_size ;
 
 			for ( chk_count = 0 ; chk_count < (data_len-3); chk_count++) {
 				snd_buf[8+chk_count]= chk_count+9 ;
@@ -786,5 +879,7 @@ for ( chk_count = 0 ; chk_count < rec_buf[4]+6 ; chk_count++ ) {
 
 		write(mycar->client_socket,snd_buf,7);
 	}
+
+	close(fd);
 	return 0 ;
 }
