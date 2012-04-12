@@ -131,6 +131,7 @@ void  App_TaskManager (void *p_arg)
 	my_icar.upgrade.err_no = 0 ;
 	my_icar.upgrade.prog_fail_addr = 0 ;
 	my_icar.upgrade.q_idx = MAX_CMD_QUEUE+1 ;
+	my_icar.upgrade.new_fw_ready = false ;
 
 	mg323_rx_cmd.timer = OSTime ;
 	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
@@ -151,6 +152,16 @@ void  App_TaskManager (void *p_arg)
 	{
 		/* Reload IWDG counter */
 		IWDG_ReloadCounter();  
+
+		if ( my_icar.upgrade.new_fw_ready ) {
+			// new fw ready
+			// check others conditions, like: ECU off? ...
+			// TBD
+
+			while ( 1 ) {
+				prompt("New fw ready, will be reboot by watchdog!\r\n");
+			}
+		}
 
 		if ( c2s_data.tx_len > 0 || !my_icar.login_timer ) {//have command, need online
 			my_icar.mg323.ask_online = true ;
