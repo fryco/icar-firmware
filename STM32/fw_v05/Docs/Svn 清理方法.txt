@@ -1,0 +1,44 @@
+Svn 清理方法
+
+
+经过研究分析，比较可行的 Svn 库的清理方法有两种：
+
+1 、 dump 方法 ( 推荐 )
+
+使用 svn 的 dump 命令，将整个 svn 库备份出来，再使用 svnfilter 命令进行剔除不需要保留的项目（ exclude ）操作或进行仅包含需要保留项目（ include ）操作形成新的 dump 文件，然后新建一个 svn 库，将新 dump 文件导入新库中，最后删除旧库，把新库更名为旧库的名字。
+
+这种方法的优点是新库中项目的版本修订历史得以保留，比较方便回溯；缺点是操作起来比较费时。
+
+操作命令：
+
+使用 ssh 客户端登录到 svn 服务器：
+
+1)  执行 svnadmin dump /path/to/repo >dumpfile ，备份 project 库；
+
+2)  执行 svnadmin create newrepo ，创建新库 newrepo ；
+
+3)  执行 svndumpfilter include proj1 … <dumpfile >proj1-dumpfile
+
+4)  执行 svnadmin load newrepo < proj1-dumpfile
+
+5)      删除旧库 project ，将新库更名为 project 。
+
+ 
+
+2 、 export/import 方法
+
+使用 export 命令，将 svn 库中需要保留的项目的最新版本导出，再新建一个 svn 库，导入上一步中导出的项目文件到新库中，最后删除旧库，把新库更名为旧库的名字。
+
+这种方法的优点是操作简单，实施较快，缺点是导入到新库的项目不包含版本修订历史，无法回溯。
+
+操作命令：
+
+1)      在本地 pc 机（ windows 系统）上，新建一个空目录（假定为 d:/svn ）；
+
+2)      在此目录下单击鼠标右键，选择 tortoise svn 菜单中的 export 菜单项，导出需要保留的项目；
+
+3)      使用 ssh 客户端登录到 svn 服务器，执行 svnadmin create project2 ，创建新库 project2 ；
+
+4)      在此目录下单击鼠标右键，选择 tortoise svn 菜单中的 import 菜单项，导入本地目录下的项目到 project2 库中；
+
+使用 ssh 客户端登录到 svn 服务器，删除旧库 project ，将新库更名为 project 。 
