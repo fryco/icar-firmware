@@ -1,0 +1,110 @@
+App_gsm introduction：
+1，purpose/作用：
+   This is the GSM part, manage all the GSM input/output
+
+关闭服务端程序或拔开网线一段时间，GSM模块上报：
+^SIS: 0, 0, 48, Remote Peer has closed the connection
+此时发 AT^SISI?   返回：^SISI: 0,5,0,44,44,0
+此时发：AT^SISO=0 返回：ERROR
+此时发：AT^SISC=0 返回：OK，
+	再发：AT^SISI?返回：^SISI: 0,2,0,0,0,0
+
+发 AT^SISC=0 关闭连接，要过一段延时，IP才清0
+
+1, GSM network
+2, GPRS network
+3, TCP online
+
+2，Logic:
+开Uart2(接GSM模块)接收中断
+while ( 1 ) {
+	判断 ask_power 标志: if ( mg323_status.ask_power ){
+		真 {
+			打开GSM 电源:gsm_power_on() 
+			==>正常，置：power_on = true
+				开始检查GPRS网络(包括设置APN,设置服务器地址等)，
+					正常，设 gprs_ready = true
+					不正常：清 gprs_ready、tcp_online标志
+			==>出错，有可能GSM模块坏或SIM卡有问题，清各标志并关闭GSM电源
+		}
+		假==> 保持不变，暂不处理
+	}
+
+	判断 power_on 标志: if ( mg323_status.power_on ) {
+		有电：
+			MG323计时器如果超过10*AT_TIMEOUT都没收到GSM模块任何反馈，清各标志并关闭GSM电源
+
+			如果请求上线：ask_online
+				发送 AT^SISO=0 命令，正确返回是：^SISW: 0,1,1xxx，在下面程序确认
+				如果尝试15次仍不成，清各标志并关闭GSM电源 
+					==> 这里逻辑有问题，如果是服务器或网络原因，则不应关GSM电源，稍后改进
+					==> 要处理：GPRS 网络查询
+					==> 要处理：
+
+			发: AT+CSQ(询信号强度),AT^SISI?(连接状态), AT^SICI?(IP地址) 命令
+
+			延时10ms，等GSM响应上述命令
+
+			如果需要拨号 ==> 发：ATD+号码
+
+			统一处理所有GSM返回:	while ( !u2_rx_buf.empty ) {
+				复位MG323计时器 ;
+
+				提取反馈字符串(以回车分界){
+					是：network is unavailable？//GSM主动上报
+						tcp_online = false
+
+					是：RING ? //响铃
+						发 ATH，挂机；设继电器计时器
+
+					是：+CSQ: ? 
+						提取信号强度信息
+
+					是：SISI: 0, ? //连接信息
+						如果是：4 => 在线；其它：离线
+						***有可能是网络原因或服务器原因造成离线***
+
+					是：BUSY ? //拨号后，对方挂机
+						设：voice_confirm = true；不再拨号
+
+					是：^SISW: 0,1,1 ? //上面 AT^SISO=0 的响应
+						设 tcp_online = true；发 询IP地址命令
+
+					是：SICI: 0,2,1, ? 
+						保存IP地址信息
+
+					是：^SISR: 0, ? //主动上报，GSM模块接收到数据(TCP协议)
+						设标志rx_empty=false，在下面把TCP数据接收
+
+					//可添加其它反馈字符串
+				}
+			}
+
+			如果 !rx_empty (GSM 有TCP数据) 并 在线 {
+				读取TCP数据，保存到 c2s_data.rx 缓冲里，并设各指针及标志位
+			}
+
+			如果发送缓冲有数据 c2s_data.tx_len 并在线 并 缓冲是 unlock {
+				发送数据
+			}
+
+		无电：关闭TCP_LED
+	}
+
+	判断是否需要在线标志
+	是==> 连接TCP
+
+	根据延时，更新继电器状态
+
+	根据tcp_online，更新TCP_LED状态
+
+	延时1秒，释放CPU资源，让其它任务跑
+}
+
+CAR2SERVER_COMMUNICATION.tx[GSM_BUF_LENGTH]
+发送队列，通过加锁来避免互斥操作
+发送时从头开始
+
+CAR2SERVER_COMMUNICATION.rx[GSM_BUF_LENGTH]
+接收队列，环形队列，通过指针来指向有效数据，
+任何一个地方都有可能是数据的开始
