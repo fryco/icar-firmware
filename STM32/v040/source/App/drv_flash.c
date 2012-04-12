@@ -89,8 +89,8 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 {//Ask upgrade data ...
 
 	unsigned char blk_cnt;
-	u16 fw_size;
-	unsigned int crc_dat ;
+	u16 var_u16, fw_size;
+	unsigned int var_u32, crc_dat ;
 
 	//TBD: Check error flag, feedback to server if error
 	//set buf[5] > 0xF0 if error, then report to server for failure detail.
@@ -122,12 +122,12 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 		//yy: KB sequence, 01: ask 1st KB of FW, 02: 2nd KB, 03: 3rd KB
 
 		for ( buf[5] = 1 ; buf[5] <= blk_cnt ; buf[5]++ ) {
-			crc_dat = 	*(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8) ;
+			crc_dat = *(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8) ;
 			printf(".");
 			//prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8);
 			if ( crc_dat == 0xFFFFFFFF ) { //empty
 				//Check ~CRC again
-				crc_dat = 	*(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8+4) ;
+				crc_dat = *(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8+4) ;
 				if ( crc_dat == 0 ) {//the CRC just 0xFFFFFFFF
 					;//prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf[5]*8);
 				}
@@ -159,8 +159,68 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 				}
 			}
 		}//end block check
+		// Have download all firmware from server, now verify it
 		printf("\r\n");
 		prompt("Got all fw data! check: %s: %d\r\n",__FILE__, __LINE__);
+
+		// Check whether had verified?
+		if ( (*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD) == 0xFFFFFFFF) &&\
+			(*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD+4) == 0xFFFFFFFF) ) {
+
+			//empty, check CRC...
+
+			/* Reset CRC generator */
+			CRC->CR = CRC_CR_RESET;
+	
+			//Calc CRC for local fw in flash
+			for ( var_u16 = 0 ; var_u16 < fw_size ; var_u16 = var_u16+4 ) {
+				var_u32 = (*(vu8*)(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE+var_u16))<<24 | \
+					(*(vu8*)(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE+var_u16+1))<<16 | \
+					(*(vu8*)(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE+var_u16+2))<<8 | \
+					(*(vu8*)(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE+var_u16+3));
+	
+				CRC->DR = var_u32 ;
+			}
+
+			var_u32 = CRC->DR ;
+			prompt("Calc %d Bytes, CRC: %08X\r\n",var_u16, var_u32);
+
+			if ( var_u32 == *(vu32*)(FLASH_UPGRADE_BASE_F+FW_CRC_DAT) ) {
+	
+				//correct, prog the ready flag to flash
+				var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FW_READY_ADD,FW_READY_FLAG&0xFFFF);
+				if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+	
+				var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FW_READY_ADD+2,(FW_READY_FLAG>>16)&0xFFFF);
+				if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+	
+				var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FW_READY_ADD+4,~(FW_READY_FLAG&0xFFFF));
+				if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+	
+				var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FW_READY_ADD+6,~((FW_READY_FLAG>>16)&0xFFFF));
+				if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+			}
+
+			prompt("Flag in flash is: %08X",\
+							*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD));
+		}
+		else { //no empty
+
+			//check flag correct?
+			if ( (*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD) == FW_READY_FLAG) &&\
+				(*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD+4) == ~FW_READY_FLAG ) ) {
+
+				my_icar.upgrade.new_fw_ready = true ;//app_task will check this flag and reboot
+			}
+			else {
+				prompt("FW_READY_ADD had been modified: %08X %s:%d\r\n",\
+					*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD),\
+					__FILE__,__LINE__);
+				return 1;
+			}
+		}
+
+		return 0;
 	}
 
 	//Default CMD: send current hardware and firmware revision
@@ -230,54 +290,10 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 		fw_rev = ((*(buf+6-GSM_BUF_LENGTH))<<8) | fw_rev;
 	}
 
-	//extract 	fw_size= buf[8] << 8 | buf[9];
-	if ( (buf+9) < buf_start+GSM_BUF_LENGTH ) {
-		fw_size = *(buf+9);
-	}
-	else {
-		fw_size = *(buf+9-GSM_BUF_LENGTH);
-	}
-
-	if ( (buf+8) < buf_start+GSM_BUF_LENGTH ) {
-		fw_size = ((*(buf+8))<<8) | fw_size;
-	}
-	else {
-		fw_size = ((*(buf+8-GSM_BUF_LENGTH))<<8) | fw_size;
-	}
-
-	//extract 	fw_crc= buf[13] ~ buf[10];
-	if ( (buf+13) < buf_start+GSM_BUF_LENGTH ) {
-		fw_crc = *(buf+13);
-	}
-	else {
-		fw_crc = *(buf+13-GSM_BUF_LENGTH);
-	}
-
-	if ( (buf+12) < buf_start+GSM_BUF_LENGTH ) {
-		fw_crc = ((*(buf+12))<<8) | fw_crc;
-	}
-	else {
-		fw_crc = ((*(buf+12-GSM_BUF_LENGTH))<<8) | fw_crc;
-	}
-
-	if ( (buf+11) < buf_start+GSM_BUF_LENGTH ) {
-		fw_crc = ((*(buf+11))<<16) | fw_crc;
-	}
-	else {
-		fw_crc = ((*(buf+11-GSM_BUF_LENGTH))<<16) | fw_crc;
-	}
-
-	if ( (buf+10) < buf_start+GSM_BUF_LENGTH ) {
-		fw_crc = ((*(buf+10))<<24) | fw_crc;
-	}
-	else {
-		fw_crc = ((*(buf+10-GSM_BUF_LENGTH))<<24) | fw_crc;
-	}
-
-
-	if ( my_icar.debug ) {
-		printf("fw_rev: %d fw_size: %d fw_crc: %08X current fw: %d\r\n", \
-				fw_rev,fw_size,fw_crc,my_icar.fw_rev);
+	//check firmware revision
+	if ( fw_rev <=  my_icar.fw_rev ) {//firmware old
+		prompt("Error, server fw : %d is older then current: %d\r\n",fw_rev,my_icar.fw_rev);
+		return ERR_UPGRADE_HAVE_NEW_FW;
 	}
 
 	// buf[5] is indicate buffer type
@@ -291,9 +307,19 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 	if ( buf_type == 0 ){//FW rev&size info
 		//C9 20 D5 00 05 00 FF FF FF FF 39
 	
-		if ( fw_rev <=  my_icar.fw_rev ) {//firmware old
-			prompt("Error, server fw : %d is older then current: %d\r\n",fw_rev,my_icar.fw_rev);
-			return ERR_UPGRADE_HAVE_NEW_FW;
+		//extract 	fw_size= buf[8] << 8 | buf[9];
+		if ( (buf+9) < buf_start+GSM_BUF_LENGTH ) {
+			fw_size = *(buf+9);
+		}
+		else {
+			fw_size = *(buf+9-GSM_BUF_LENGTH);
+		}
+	
+		if ( (buf+8) < buf_start+GSM_BUF_LENGTH ) {
+			fw_size = ((*(buf+8))<<8) | fw_size;
+		}
+		else {
+			fw_size = ((*(buf+8-GSM_BUF_LENGTH))<<8) | fw_size;
 		}
 	
 		//check firmware size
@@ -301,6 +327,40 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 			prompt("Error, firmware size: %d Bytes> 60KB\r\n",fw_size);
 			return ERR_UPGRADE_SIZE_LARGE;
 		}
+
+		//extract 	fw_crc= buf[13] ~ buf[10];
+		if ( (buf+13) < buf_start+GSM_BUF_LENGTH ) {
+			fw_crc = *(buf+13);
+		}
+		else {
+			fw_crc = *(buf+13-GSM_BUF_LENGTH);
+		}
+	
+		if ( (buf+12) < buf_start+GSM_BUF_LENGTH ) {
+			fw_crc = ((*(buf+12))<<8) | fw_crc;
+		}
+		else {
+			fw_crc = ((*(buf+12-GSM_BUF_LENGTH))<<8) | fw_crc;
+		}
+	
+		if ( (buf+11) < buf_start+GSM_BUF_LENGTH ) {
+			fw_crc = ((*(buf+11))<<16) | fw_crc;
+		}
+		else {
+			fw_crc = ((*(buf+11-GSM_BUF_LENGTH))<<16) | fw_crc;
+		}
+	
+		if ( (buf+10) < buf_start+GSM_BUF_LENGTH ) {
+			fw_crc = ((*(buf+10))<<24) | fw_crc;
+		}
+		else {
+			fw_crc = ((*(buf+10-GSM_BUF_LENGTH))<<24) | fw_crc;
+		}
+
+		//if ( my_icar.debug ) {
+			printf("fw_rev: %d fw_size: %d fw_crc: %08X current fw: %d\r\n", \
+					fw_rev,fw_size,fw_crc,my_icar.fw_rev);
+		//}
 	
 		//check firmware revision
 		if ( *(vu16*)(FLASH_UPGRADE_BASE_F+NEW_FW_REV) == 0xFFFF ) {//empty
@@ -318,7 +378,20 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 
 			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+NEW_FW_SIZE+4,~fw_size);	
 			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
-			//TBD if prog error....
+
+			//prog FW CRC to flash
+			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FW_CRC_DAT+0,fw_crc&0xFFFF);
+			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FW_CRC_DAT+2,(fw_crc>>16)&0xFFFF);
+			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FW_CRC_DAT+4,~(fw_crc&0xFFFF));
+			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+			var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+FW_CRC_DAT+6,~((fw_crc>>16)&0xFFFF));
+			if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
 		}
 		else { //upgrading...
 			//check upgrading rev is same as new rev?
@@ -441,24 +514,24 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 					//use fw_size to save fw data temporary
 					for ( buf_index = 0 ; buf_index < (buf_len-7)/2; buf_index++) {
 	
-						if ( (buf+buf_index*2+8) < buf_start+GSM_BUF_LENGTH ) {
-							fw_size = (*(buf+buf_index*2+8))<<8;
+						if ( (buf+buf_index*2+9) < buf_start+GSM_BUF_LENGTH ) {
+							fw_size = (*(buf+buf_index*2+9))<<8;
 						}
 						else {//data in begin of buffer
-							fw_size = (*(buf+buf_index*2+8-GSM_BUF_LENGTH))<<8;
+							fw_size = (*(buf+buf_index*2+9-GSM_BUF_LENGTH))<<8;
 						}
 	
-						if ( (buf+buf_index*2+9) < buf_start+GSM_BUF_LENGTH ) {
-							fw_size = ((*(buf+buf_index*2+9)))|fw_size;
+						if ( (buf+buf_index*2+8) < buf_start+GSM_BUF_LENGTH ) {
+							fw_size = ((*(buf+buf_index*2+8)))|fw_size;
 						}
 						else {//data in begin of buffer
-							fw_size = ((*(buf+buf_index*2+9-GSM_BUF_LENGTH)))|fw_size;
+							fw_size = ((*(buf+buf_index*2+8-GSM_BUF_LENGTH)))|fw_size;
 						}
 	
 						/* Reload IWDG counter */
 						IWDG_ReloadCounter();  
 
-						prompt("Page:%d, %08X + %02X: %04X \r\n",\
+						//prompt("Page:%d, %08X + %02X: %04X \r\n",\
 							(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*buf_type-0x08000000)/FLASH_PAGE_SIZE,\
 							FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*buf_type,\
 							buf_index*2,fw_size);
@@ -479,6 +552,10 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 
 					var_u32 = flash_prog_u16(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf_type*8+6,~((CRC->DR>>16)&0xFFFF));
 					if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
+
+					//prompt("CRC in flash is: %08X",\
+						*(vu32*)(FLASH_UPGRADE_BASE_F+BLK_CRC_DAT+buf_type*8));
+
 				}
 				else {//CRC different
 					prompt("Rec Block %d:  ", buf_type);

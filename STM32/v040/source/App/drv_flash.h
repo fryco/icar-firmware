@@ -26,6 +26,7 @@ struct FIRMWARE_UPGRADE {
 	unsigned char err_no;//indicate error number
 	unsigned char q_idx; //the point for upgrade command queue
 	unsigned int prog_fail_addr;//flash address for prog failure
+	bool new_fw_ready ;
 };
 
 
@@ -40,10 +41,15 @@ struct FIRMWARE_UPGRADE {
  */
 
 #define FLASH_UPGRADE_BASE_F			0x08010C00	//Page67
+//FW info and FW data read as: *(vu16*)
 #define NEW_FW_REV						0	//4 bytes for rev. 4 B for !rev., start addr
 #define NEW_FW_SIZE						8	//4 bytes for size 4 B for !size, start addr
-#define BLK_CRC_DAT						16	//4 bytes for CRC 4 B for !CRC, start addr
+#define FW_READY_ADD					16	//4 bytes for FLAG: AA55A5A5 4 B for ~
+//CRC read as: *(vu32*)
+#define FW_CRC_DAT						24	//4 bytes for CRC, 4 B for !CRC, start addr
+#define BLK_CRC_DAT						32	//4 bytes for CRC, 4 B for !CRC, start addr
 
+#define FW_READY_FLAG					0xAA55A5A5
 
 //Error define for upgrade firmware
 #define ERR_UPGRADE_NO_ERR				0	//No ERR
