@@ -199,10 +199,6 @@ int	main(void)
 	GPS_PM_OFF;
 	SD_PM_OFF;
 
-	show_rst_flag( );
-	
-	show_err_log( );
-
 	printf("\r\n%s, ",BUILD_DATE);
 
 	conv_rev((unsigned char *)BUILD_REV,&my_icar.fw_rev);

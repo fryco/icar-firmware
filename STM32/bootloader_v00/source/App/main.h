@@ -20,7 +20,6 @@
 #include "stm32f10x.h"
 #include "drv_uart.h"
 #include "drv_gpio.h"
-#include "drv_iwdg.h"
 #include "drv_rtc.h"
 #include "drv_flash.h"
 

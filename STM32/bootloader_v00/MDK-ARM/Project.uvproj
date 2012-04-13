@@ -421,11 +421,6 @@
               <FilePath>..\source\App\drv_rtc.c</FilePath>
             </File>
             <File>
-              <FileName>drv_iwdg.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\source\App\drv_iwdg.c</FilePath>
-            </File>
-            <File>
               <FileName>drv_flash.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\source\App\drv_flash.c</FilePath>
