@@ -5,6 +5,11 @@
 unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev: 121 $";
 
 struct ICAR_DEVICE my_icar;
+unsigned int jump_address;
+
+typedef  void (*pFunction)(void);
+
+pFunction jump_application;
 
 /**
   * @brief  Configures the nested vectored interrupt controller.
@@ -19,8 +24,8 @@ void NVIC_Configuration(void)
 	// Set the Vector Tab base at location at 0x20000000
 	NVIC_SetVectorTable(NVIC_VectTab_RAM, 0x0);
 #else
-	// Set the Vector Tab base at location at 0x80000000
-	NVIC_SetVectorTable(NVIC_VectTab_FLASH, 0x0);
+	// Set the Vector Tab base at location at 0x80000000+SCB->VTOR
+    NVIC_SetVectorTable(NVIC_VectTab_FLASH, SCB->VTOR);
 #endif   
 
 	/* Configure the NVIC Preemption Priority Bits[配置优先级组] */  
@@ -109,6 +114,8 @@ static void conv_rev( unsigned char *p , u16 *fw_rev)
 
 static void flash_led( unsigned int i )
 {
+	led_on(POWER_LED);
+	delay_ms( i );
 	led_off(POWER_LED);
 	delay_ms( i );
 
@@ -138,6 +145,27 @@ static void flash_led( unsigned int i )
 	delay_ms( i );
 
 	led_on(POWER_LED);
+	delay_ms( i );
+	led_off(POWER_LED);
+	delay_ms( i );
+}
+
+static void blink_led( unsigned int i )
+{
+	static unsigned char loop ;
+
+	for ( loop = 0 ; loop < 2 ; loop++ ) {
+		led_on(POWER_LED);
+		led_on(ALARM_LED);
+		led_on(RELAY_LED);
+		led_on(ONLINE_LED);
+		delay_ms( i );
+		led_off(POWER_LED);
+		led_off(ALARM_LED);
+		led_off(RELAY_LED);
+		led_off(ONLINE_LED);
+		delay_ms( i );
+	}
 }
 
 int	main(void)
@@ -145,6 +173,9 @@ int	main(void)
 
 	my_icar.debug = 0 ;
 	my_icar.fw_rev = 0 ;
+
+	//delay, wait power stable
+	delay_ms( 100 );
 
 	NVIC_Configuration( );
 	
@@ -159,6 +190,7 @@ int	main(void)
 	//RCC_AHBPeriphClockCmd(RCC_AHBPeriph_CRC, ENABLE);
 
 	led_init_all( );
+
 	led_on(POWER_LED);
 
 	//GSM_PM_ON;
@@ -171,14 +203,43 @@ int	main(void)
 	
 	show_err_log( );
 
-	printf("\r\n%s\r\n",BUILD_DATE);
+	printf("\r\n%s, ",BUILD_DATE);
 
 	conv_rev((unsigned char *)BUILD_REV,&my_icar.fw_rev);
 
-	printf("Revision: %d\r\n",my_icar.fw_rev);
+	printf("Revision: %d\r\n\r\n",my_icar.fw_rev);
 
+	//check flag correct?
+	if ( (*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD) == FW_READY_FLAG) &&\
+		(*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD+4) == ~FW_READY_FLAG ) ) {
+
+		if ( flash_upgrade( )) {
+			//failure
+			while ( 1 ) {
+				blink_led( 400 );
+				printf("Upgrade failure, need send to factory!\r\n\r\n");
+			}
+		}
+	}
+
+	//No found new fw, boot with main app
+	jump_address = *(vu32*) (APPLICATION_ADDRESS + 4);
+	/* Jump to user application */
+	jump_application = (pFunction) jump_address;
+
+	printf("jump_address: %08X\tjump_application: %08X\r\n",\
+		jump_address, jump_application);
+
+	printf("Load main application ...\r\n\r\n");
+	//indicate system power up
+	flash_led( 200 );
+
+	/* Initialize user application's Stack Pointer */
+	__set_MSP(*(vu32*) APPLICATION_ADDRESS);
+	jump_application();
+/*
 	while ( 1 ) {
 		flash_led( 200 );
 		printf("Upgrade complete, will reset MCU!\r\n\r\n");
-	}
+	}*/
 }
