@@ -29,6 +29,8 @@ struct FIRMWARE_UPGRADE {
 	bool new_fw_ready ;
 };
 
+//#define APPLICATION_ADDRESS    (uint32_t)0x08001000 //4KB
+#define APPLICATION_ADDRESS    (uint32_t)0x08003000 //12KB
 
 /* 说明 :
  * firmware限制在60KB以内，升级时先保存在 page68~127 里
@@ -71,6 +73,6 @@ struct FIRMWARE_UPGRADE {
 /* Exported functions ------------------------------------------------------- */
 //void flash_program_one_page(void);
 unsigned char flash_prog_u16( uint32_t addr, uint16_t data);
-unsigned char flash_upgrade_ask( unsigned char * ) ;
-unsigned char flash_upgrade_rec( unsigned char *, unsigned char * ) ;
+unsigned char flash_upgrade( void ) ;
+
 #endif /* __APP_FLASH_H */
