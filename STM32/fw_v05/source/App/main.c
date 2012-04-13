@@ -17,8 +17,8 @@ void NVIC_Configuration(void)
 	// Set the Vector Tab base at location at 0x20000000
 	NVIC_SetVectorTable(NVIC_VectTab_RAM, 0x0);
 #else
-	// Set the Vector Tab base at location at 0x80000000
-	NVIC_SetVectorTable(NVIC_VectTab_FLASH, 0x0);
+	// Set the Vector Tab base at location at 0x80000000+SCB->VTOR
+    NVIC_SetVectorTable(NVIC_VectTab_FLASH, SCB->VTOR);
 #endif   
 
 	/* Configure the NVIC Preemption Priority Bits[配置优先级组] */  
