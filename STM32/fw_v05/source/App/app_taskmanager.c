@@ -2,7 +2,7 @@
 
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
-unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev: 121 $";
+unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev: 125 $";
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static void calc_sn( void );
