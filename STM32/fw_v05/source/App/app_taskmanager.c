@@ -485,6 +485,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 	unsigned char chkbyte, queue_index=0;
 	unsigned int  chk_index, free_len=0;
 	unsigned char len_high=0, len_low=0;
+	u16 var_u16 ;
 #if OS_CRITICAL_METHOD == 3   /* Allocate storage for CPU status register           */
     OS_CPU_SR  cpu_sr = 0;
 #endif
@@ -729,7 +730,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						break;
 
 					//BKP_DR1, ERR index: 	15~12:MCU reset 
-					//						11~8:reverse
+					//						11~8:upgrade fw failure code
 					//						7~4:GPRS disconnect reason
 					//						3~0:GSM module poweroff reason
 					case 0x10://record err log part 1: GSM module poweroff success
@@ -756,9 +757,13 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 						break;
 
-					case 0x30://record err log part 3: rev success
-						prompt("Upload rev err log success, CMD_seq: %02X\r\n",*((buf->start)+1));
+					case 0x30://record err log part 3: fw upgrade success
+						prompt("Upload fw upgrade log success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						//Clear the error flag
+						//BKP_DR6, upgrade fw time(UTC Time) high
+						//BKP_DR7, upgrade fw time(UTC Time) low
+					    BKP_WriteBackupRegister(BKP_DR6, 0);//fw rev
+					    BKP_WriteBackupRegister(BKP_DR7, 0);//fw size
 						BKP_WriteBackupRegister(BKP_DR1, \
 							((BKP_ReadBackupRegister(BKP_DR1))&0xF0FF));
 
@@ -895,8 +900,24 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						}
 						//Check each KB and save to flash
 						my_icar.upgrade.err_no = flash_upgrade_rec(buf->start,c2s_data.rx) ;
+						if ( my_icar.upgrade.err_no ) {
 
-						//If error flag, feedback to server
+							//BKP_DR1, ERR index: 	15~12:MCU reset 
+							//						11~8:upgrade fw failure code
+							//						7~4:GPRS disconnect reason
+							//						3~0:GSM module poweroff reason
+							var_u16 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
+							var_u16 = var_u16 | (my_icar.upgrade.err_no<<8) ;
+						    BKP_WriteBackupRegister(BKP_DR1, var_u16);
+
+							//BKP_DR6, upgrade fw time(UTC Time) high
+							//BKP_DR7, upgrade fw time(UTC Time) low
+						    BKP_WriteBackupRegister(BKP_DR6, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+						    BKP_WriteBackupRegister(BKP_DR7, (RTC_GetCounter( ))&0xFFFF);//low
+
+							prompt("Upgrade fw err: %d, check %s: %d\r\n",\
+									my_icar.upgrade.err_no,__FILE__,__LINE__);
+						}
 						break;
 					}
 					break;
@@ -1076,15 +1097,15 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 	
 					//Backup register, 16 bit = 2 bytes * 10 for STM32R8
 					//BKP_DR1, ERR index: 	15~12:MCU reset 
-					//						11~8:reverse
+					//						11~8:upgrade fw failure code
 					//						7~4:GPRS disconnect reason
 					//						3~0:GSM module poweroff reason
 					//BKP_DR2, GSM Module power off time(UTC Time) high
 					//BKP_DR3, GSM Module power off time(UTC Time) low
 					//BKP_DR4, GPRS disconnect time(UTC Time) high
 					//BKP_DR5, GPRS disconnect time(UTC Time) low
-					//BKP_DR6, reverse time(UTC Time) high
-					//BKP_DR7, reverse time(UTC Time) low
+					//BKP_DR6, upgrade fw time(UTC Time) high
+					//BKP_DR7, upgrade fw time(UTC Time) low
 					//BKP_DR8, MCU reset time(UTC Time) high
 					//BKP_DR9, MCU reset time(UTC Time) low
 
@@ -1106,7 +1127,13 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					}
 					else {
 						if ( i & 0x0F00 ) { //higher priority
-							;//reverse
+							//upgrade fw success
+							seq = BKP_ReadBackupRegister(BKP_DR6) ;
+							c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//rev high
+							c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//rev high
+							seq = BKP_ReadBackupRegister(BKP_DR7) ;
+							c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//size high
+							c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//size low
 						}
 						else {	
 							if ( i & 0x00F0 ) { //GPRS disconnect err

@@ -53,13 +53,15 @@ struct FIRMWARE_UPGRADE {
 
 //Error define for upgrade firmware
 #define ERR_UPGRADE_NO_ERR				0	//No ERR
-#define ERR_UPGRADE_HAVE_NEW_FW			1	//STM32 have new firmware, no need upgrade
-#define ERR_UPGRADE_SIZE_LARGE			2	//firmware size too large, > 60KB
-#define ERR_UPGRADE_UP_NEWER			3	//Upgrading a newer firmware
-#define ERR_UPGRADE_NO_INFO				4	//No upgrade info in flash
-#define ERR_UPGRADE_BLK_CRC				5	//Block CRC error
-#define ERR_UPGRADE_NO_MATCH			6	//Upgrading FW Rev no match
-#define ERR_UPGRADE_PROG_FAIL			7	//prog flash failure
+#define ERR_UPGRADE_SUCCESSFUL			1	//firmware upgrade successful
+#define ERR_UPGRADE_HAS_LATEST_FW		2	//STM32 has latest firmware, no need upgrade
+#define ERR_UPGRADE_SIZE_LARGE			3	//firmware size too large, > 60KB
+#define ERR_UPGRADE_UP_NEWER			4	//Upgrading a newer firmware
+#define ERR_UPGRADE_NO_INFO				5	//No upgrade info in flash
+#define ERR_UPGRADE_BLK_CRC				6	//Block CRC error
+#define ERR_UPGRADE_NO_MATCH			7	//Upgrading FW Rev no match
+#define ERR_UPGRADE_PROG_FAIL			8	//prog flash failure
+#define ERR_UPGRADE_STRING_LEN			9	//Upgrade string length un-correct
 
 /* Includes ------------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
