@@ -71,7 +71,7 @@ void show_rst_flag( void )
 	}
 
 	//BKP_DR1, ERR index: 	15~12:MCU reset 
-	//						11~8:reverse
+	//						11~8:upgrade fw failure code
 	//						7~4:GPRS disconnect reason
 	//						3~0:GSM module poweroff reason
     BKP_WriteBackupRegister(BKP_DR1, \
@@ -110,10 +110,23 @@ void show_err_log( void )
 		//BKP_DR4, GPRS disconnect time(UTC Time) high
 		//BKP_DR5, GPRS disconnect time(UTC Time) low
 		var_reg = BKP_ReadBackupRegister(BKP_DR4)<<16 | BKP_ReadBackupRegister(BKP_DR5) ;
-		printf("         BKP_DR4&5, GPRS disconnect time time: ");
+		printf("         BKP_DR4&5, GPRS disconnect time: ");
 		RTC_show_time(var_reg);
 	}
 	
+	var_reg = (BKP_ReadBackupRegister(BKP_DR1))&0x0F00 ;
+	var_reg = (var_reg>>8)&0x0F ;
+	if ( var_reg ) {
+		printf("         BKP_DR1, New FW upgrade flag: %d\r\n",var_reg);
+	
+		//BKP_DR6, upgrade fw time(UTC Time) high
+		//BKP_DR7, upgrade fw time(UTC Time) low
+		var_reg = BKP_ReadBackupRegister(BKP_DR6)<<16 | BKP_ReadBackupRegister(BKP_DR7) ;
+		printf("         BKP_DR6&7, FW upgrade time: ");
+		RTC_show_time(var_reg);
+	}
+
+
 	printf("         BKP_DR10, stm32_rtc.prescaler: 0x%X\r\n\r\n",\
 			BKP_ReadBackupRegister(BKP_DR10));
 }

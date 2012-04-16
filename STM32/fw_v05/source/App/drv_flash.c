@@ -271,8 +271,7 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 		printf("\r\n");
 		prompt("Length: %d is un-correct! Check %s: %d\r\n",\
 				buf_len,__FILE__,__LINE__);
-		//TBD: set to error flag, feedback to server
-		return 0 ;
+		return ERR_UPGRADE_STRING_LEN ;
 	}
 
 	//extract 	fw_rev = buf[6] << 8 | buf[7];
@@ -293,7 +292,7 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 	//check firmware revision
 	if ( fw_rev <=  my_icar.fw_rev ) {//firmware old
 		prompt("Error, server fw : %d is older then current: %d\r\n",fw_rev,my_icar.fw_rev);
-		return ERR_UPGRADE_HAVE_NEW_FW;
+		return ERR_UPGRADE_HAS_LATEST_FW;
 	}
 
 	// buf[5] is indicate buffer type
