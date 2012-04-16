@@ -2,7 +2,7 @@
 
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
-unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev: 126 $";
+unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
 
 static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
 static void calc_sn( void );
@@ -258,8 +258,8 @@ void  App_TaskManager (void *p_arg)
 				prompt("The MCU ID is %X %X %X  SN:%s\r\n",\
 					*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
 				prompt("Revision: %d  OS Tick: %d\r\n",my_icar.fw_rev,OS_TICKS_PER_SEC);
-				prompt("$URL: https://icar-firmware.googlecode.com/svn/STM32/v040/source/App/app_taskmanager.c $\r\n");
-				prompt("$Id: app_taskmanager.c 125 2012-04-12 08:10:24Z cn0086.info@gmail.com $\r\n");
+				prompt("$URL$\r\n");
+				prompt("$Id$\r\n");
 			}
 
 
@@ -395,7 +395,7 @@ unsigned int pow( unsigned char n)
 }
 
 static void conv_rev( unsigned char *p )
-{//$Rev: 125 $
+{//$Rev$
 	unsigned char i , j;
 
 	my_icar.fw_rev = 0 ;
