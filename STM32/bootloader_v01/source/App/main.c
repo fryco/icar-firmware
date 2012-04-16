@@ -104,6 +104,7 @@ static void blink_led( unsigned int i )
 
 int	main(void)
 {
+	u16 var_u16 ;
 
 	//delay, wait power stable
 	delay_ms( 100 );
@@ -135,15 +136,36 @@ int	main(void)
 				putstring("Upgrade failure, need send to factory!\r\n\r\n");
 			}
 		}
+
+		/* Enable PWR and BKP clock */
+		RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR | RCC_APB1Periph_BKP, ENABLE);
+
+		/* Allow access to BKP Domain */
+		PWR_BackupAccessCmd(ENABLE);
+
+		//BKP_DR1, ERR index: 	15~12:MCU reset 
+		//						11~8:upgrade fw success flag
+		//						7~4:GPRS disconnect reason
+		//						3~0:GSM module poweroff reason
+		var_u16 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
+		var_u16 = var_u16 | (ERR_UPGRADE_SUCCESSFUL<<8) ; //fw upgrade successful
+	    BKP_WriteBackupRegister(BKP_DR1, var_u16);
+
+		//BKP_DR6, upgrade fw time(UTC Time) high
+		//BKP_DR7, upgrade fw time(UTC Time) low
+	    BKP_WriteBackupRegister(BKP_DR6, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+	    BKP_WriteBackupRegister(BKP_DR7, (RTC_GetCounter( ))&0xFFFF);//low
+
 		putstring("\r\nUpgrade successful, load new firmware...\r\n");
 	}
+	else {
+		putstring("Load main application ...\r\n\r\n");
+	}
 
-	//No found new fw, boot with main app
+	//boot with main app
 	jump_address = *(vu32*) (APPLICATION_ADDRESS + 4);
 	/* Jump to user application */
 	jump_application = (pFunction) jump_address;
-
-	putstring("Load main application ...\r\n\r\n");
 
 	/* Initialize user application's Stack Pointer */
 	__set_MSP(*(vu32*) APPLICATION_ADDRESS);

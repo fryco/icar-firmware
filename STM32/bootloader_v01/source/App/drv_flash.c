@@ -28,15 +28,6 @@ unsigned char flash_upgrade(  )
 	putstring(" size: "), puthex(fw_size>>8), puthex(fw_size&0xFF);
 	putstring(" block cnt: "), puthex(blk_cnt), putstring("\r\n");
 
-	/* Allow access to BKP Domain */
-	PWR_BackupAccessCmd(ENABLE);
-
-	//save to BK reg, main app upload this event to server
-	//BKP_DR6, new fw rev
-	//BKP_DR7, new fw size
-    BKP_WriteBackupRegister(BKP_DR6, var_u16);//fw rev
-    BKP_WriteBackupRegister(BKP_DR7, fw_size);//fw size
-
 	/* Unlock the Flash Bank1 Program Erase controller */
 	FLASH_UnlockBank1();
 
