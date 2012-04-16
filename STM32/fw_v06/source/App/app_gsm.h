@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/STM32/v040/source/App/app_gsm.h $ 
-  * @version $Rev: 121 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-03-31 18:55:08 +0800 (周六, 2012-03-31) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This is GSM applicaion
   ******************************************************************************
   */ 
