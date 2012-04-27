@@ -7,7 +7,7 @@
 
   <Targets>
     <Target>
-      <TargetName>BL_v00</TargetName>
+      <TargetName>BL_v01</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
       <TargetOption>
