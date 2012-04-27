@@ -900,7 +900,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						}
 						//Check each KB and save to flash
 						my_icar.upgrade.err_no = flash_upgrade_rec(buf->start,c2s_data.rx) ;
-						if ( my_icar.upgrade.err_no ) {
+						if ( my_icar.upgrade.err_no && \
+								!((BKP_ReadBackupRegister(BKP_DR1))&0x0F00) ) {
 
 							//BKP_DR1, ERR index: 	15~12:MCU reset 
 							//						11~8:upgrade fw failure code
