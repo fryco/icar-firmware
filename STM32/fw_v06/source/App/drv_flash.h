@@ -14,12 +14,6 @@
 #define __APP_FLASH_H
 
 /* Private define ------------------------------------------------------------*/
-/* Define the STM32F10x FLASH Page Size depending on the used STM32 device */
-#if defined (STM32F10X_HD) || defined (STM32F10X_HD_VL) || defined (STM32F10X_CL) || defined (STM32F10X_XL)
-  #define FLASH_PAGE_SIZE    ((uint16_t)0x800) //2KB
-#else
-  #define FLASH_PAGE_SIZE    ((uint16_t)0x400) //1KB
-#endif
 
 struct FIRMWARE_UPGRADE {
 	//for upgrade firmware
@@ -27,6 +21,8 @@ struct FIRMWARE_UPGRADE {
 	unsigned char q_idx; //the point for upgrade command queue
 	unsigned int prog_fail_addr;//flash address for prog failure
 	bool new_fw_ready ;
+	u16 page_size; //my_icar.upgrade.page_size
+	unsigned int base; //my_icar.upgrade.base
 };
 
 
@@ -40,7 +36,6 @@ struct FIRMWARE_UPGRADE {
  * ...
  */
 
-#define FLASH_UPGRADE_BASE_F			0x08010C00	//Page67
 //FW info and FW data read as: *(vu16*)
 #define NEW_FW_REV						0	//4 bytes for rev. 4 B for !rev., start addr
 #define NEW_FW_SIZE						8	//4 bytes for size 4 B for !size, start addr
