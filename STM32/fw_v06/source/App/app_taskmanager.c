@@ -139,6 +139,20 @@ void  App_TaskManager (void *p_arg)
 
 	calc_sn( );//prepare serial number
 
+	//闪存容量寄存器基地址：0x1FFF F7E0
+	//以K字节为单位指示产品中闪存存储器容量。
+	//例：0x0080 = 128 K字节
+	if ( *(vu16*)(0x1FFFF7E0) >= 256 ) {
+		my_icar.upgrade.page_size = 0x800; //2KB
+		my_icar.upgrade.base = 0x08000000 + \
+			((*(vu16*)(0x1FFFF7E0))>>2)*my_icar.upgrade.page_size;
+	}
+	else { 
+		my_icar.upgrade.page_size = 0x400; //1KB
+		my_icar.upgrade.base = 0x08010C00 ;	//Page67
+	}
+	prompt("Flash size: %d BASE: %08X\r\n",*(vu16*)(0x1FFFF7E0),my_icar.upgrade.base);
+
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
 	//USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
 
@@ -276,12 +290,12 @@ void  App_TaskManager (void *p_arg)
 			if ( var_uchar == 'f' ) {//show flash page67
 				//show flash content
 				prompt("Page:%d, %08X: %08X ",\
-					(FLASH_UPGRADE_BASE_F+flash_idx*16-0x08000000)/FLASH_PAGE_SIZE,\
-					FLASH_UPGRADE_BASE_F+flash_idx*16,\
-					*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16));
-				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+4));
-				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+8));
-				printf("%08X \r\n",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+12));
+					(my_icar.upgrade.base+flash_idx*16-0x08000000)/my_icar.upgrade.page_size,\
+					my_icar.upgrade.base+flash_idx*16,\
+					*(vu32*)(my_icar.upgrade.base+flash_idx*16));
+				printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+4));
+				printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+8));
+				printf("%08X \r\n",*(vu32*)(my_icar.upgrade.base+flash_idx*16+12));
 				flash_idx=flash_idx++;
 			}
 
@@ -289,21 +303,21 @@ void  App_TaskManager (void *p_arg)
 				//show flash content
 				flash_idx=flash_idx--;
 				prompt("Page:%d, %08X: %08X ",\
-					(FLASH_UPGRADE_BASE_F+flash_idx*16-0x08000000)/FLASH_PAGE_SIZE,\
-					FLASH_UPGRADE_BASE_F+flash_idx*16,\
-					*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16));
-				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+4));
-				printf("%08X ",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+8));
-				printf("%08X \r\n",*(vu32*)(FLASH_UPGRADE_BASE_F+flash_idx*16+12));
+					(my_icar.upgrade.base+flash_idx*16-0x08000000)/my_icar.upgrade.page_size,\
+					my_icar.upgrade.base+flash_idx*16,\
+					*(vu32*)(my_icar.upgrade.base+flash_idx*16));
+				printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+4));
+				printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+8));
+				printf("%08X \r\n",*(vu32*)(my_icar.upgrade.base+flash_idx*16+12));
 			}
 
 			if ( var_uchar == 'p' ) {//show data page, can be remove
 				//show flash content
 				prompt("Page:%d, %08X : ",\
-					(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*flash_idx-0x08000000)/FLASH_PAGE_SIZE,\
-					FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*flash_idx);
+					(my_icar.upgrade.base+my_icar.upgrade.page_size*flash_idx-0x08000000)/my_icar.upgrade.page_size,\
+					my_icar.upgrade.base+my_icar.upgrade.page_size*flash_idx);
 				for ( var_uchar = 0 ; var_uchar < 128 ; var_uchar++ ) {
-					printf("%04X ",*(vu16*)(FLASH_UPGRADE_BASE_F+FLASH_PAGE_SIZE*flash_idx+var_uchar*2));
+					printf("%04X ",*(vu16*)(my_icar.upgrade.base+my_icar.upgrade.page_size*flash_idx+var_uchar*2));
 				}
 				flash_idx=flash_idx++;
 			}
@@ -455,19 +469,9 @@ static void flash_led( unsigned int i )
 	led_off(ALARM_LED);
 	OSTimeDlyHMSM(0, 0,	0, i);
 
-	led_on(RELAY_LED);
-	OSTimeDlyHMSM(0, 0,	0, i);
-	led_off(RELAY_LED);
-	OSTimeDlyHMSM(0, 0,	0, i);
-
 	led_on(ONLINE_LED);
 	OSTimeDlyHMSM(0, 0,	0, i);
 	led_off(ONLINE_LED);
-	OSTimeDlyHMSM(0, 0,	0, i);
-
-	led_on(RELAY_LED);
-	OSTimeDlyHMSM(0, 0,	0, i);
-	led_off(RELAY_LED);
 	OSTimeDlyHMSM(0, 0,	0, i);
 
 	led_on(ALARM_LED);

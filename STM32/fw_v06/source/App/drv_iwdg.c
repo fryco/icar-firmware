@@ -52,21 +52,21 @@ void show_rst_flag( void )
 	/* Check if the system has resumed from IWDG reset */
 	if (RCC_GetFlagStatus(RCC_FLAG_IWDGRST) != RESET) {
 		/* IWDGRST flag set */
-		printf("\r\n         Reset by IWDG...\r\n");
+		printf("\r\n       Reset by IWDG...\r\n");
 		reason = 4;
 	}
 
 	/* Check if the system has resumed from WWDG reset */
 	if (RCC_GetFlagStatus(RCC_FLAG_WWDGRST) != RESET) {
 		/* WWDGRST flag set */
-		printf("\r\n         Reset by WWDG...\r\n");
+		printf("\r\n       Reset by WWDG...\r\n");
 		reason = 5;
 	}
 
 	/* Check if the system has resumed from LPWRRST reset */
 	if (RCC_GetFlagStatus(RCC_FLAG_LPWRRST) != RESET) {
 		/* WWDGRST flag set */
-		printf("\r\n         Reset by Low-power management...\r\n");
+		printf("\r\n       Reset by Low-power management...\r\n");
 		reason = 6;
 	}
 
