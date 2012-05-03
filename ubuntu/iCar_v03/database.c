@@ -46,6 +46,25 @@ const unsigned char *ERR_GSM[][1]= {\
 	"GSM module reboot"\
 };
 
+const unsigned char *ERR_UPGRADE[][1]= {\
+	"UPGRADE_NO_ERR",\
+	"firmware upgrade successful",\
+	"STM32 has latest firmware, no need upgrade",\
+	"firmware size too large > 60KB",\
+	"Upgrading a newer firmware",\
+	"No upgrade info in flash",\
+	"Block CRC error",\
+	"Upgrading FW Rev no match",\
+	"Prog flash failure",\
+	"Receive upgrade data length un-correct",\
+	"Firmware CRC error",\
+	"un-expect firmware ready flag",\
+	"RSV",\
+	"RSV",\
+	"RSV",\
+	"RSV"\
+};
+
 const unsigned char *ERR_GPRS[][1]= {\
 //	DISCONNECT_NO_ERR = 0,	//normal, no error
 	"Disconnect NO ERR",\
@@ -780,8 +799,8 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 	err_time = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[8];
 	//fprintf(stderr, "\r\nerr_time: %08X ",err_time);
 
-	//BKP_DR1, ERR index: 	15~12:reverse 
-	//						11~8:reverse
+	//BKP_DR1, ERR index: 	15~12:MCU reset 
+	//						11~8:upgrade fw success flag
 	//						7~4:GPRS disconnect reason
 	//						3~0:GSM module poweroff reason
 
@@ -797,6 +816,8 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 		if ( err_code & 0x0F00 ) { //higher priority
 			err_code = (err_code & 0x0F00) >> 8 ;
 			*part = 3 ;
+			snprintf(err_str, MAX_LOG_LENGTH-1, \
+				"STM32 fw: %s",*ERR_UPGRADE[err_code]);
 		}
 		else {	
 			if ( err_code & 0x00F0 ) { //GPRS disconnect err
@@ -804,7 +825,7 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 				*part = 2 ;
 				snprintf(err_str, MAX_LOG_LENGTH-1, \
 					"GPRS disconnect: %s",*ERR_GPRS[err_code]);
-			}
+		 	}
 			else {		
 				if ( err_code & 0x000F ) { //GSM module poweroff err
 					err_code = (err_code & 0x000F) ;
@@ -878,6 +899,7 @@ int ask_instruction(struct icar_data *mycar, unsigned char *buf, unsigned char *
 	unsigned long sqlrow_cnt = 0 ;
 
 	*ist = 0x55 ;//Upgrade firmware
+	//*ist = 0 ;//No new instruction
 	//input: HEAD+SEQ+PCB+LEN+CHK
 
 //Will inquire DB for instruction

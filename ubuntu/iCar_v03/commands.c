@@ -13,6 +13,7 @@
 extern int debug_flag ;
 
 // http://www.zorc.breitbandkatze.de/crctester.c
+//需要设置crcxor = 0x00000000;refin = 0;refout = 0;便可以得到和STM32内置硬件CRC32一致的结果
 // CRC parameters (default values are for CRC-32):
 const int order = 32;
 const unsigned long polynom = 0x4c11db7;
@@ -198,8 +199,8 @@ int cmd_err_log( struct icar_data *mycar, struct icar_command * cmd,\
 				unsigned char *rec_buf, unsigned char *snd_buf )
 {//case GSM_CMD_ERROR: //0x45,'E' Error, upload error log
 
-	//BKP_DR1, ERR index: 	15~12:reverse 
-	//						11~8:reverse
+	//BKP_DR1, ERR index: 	15~12:MCU reset 
+	//						11~8:upgrade fw failure code
 	//						7~4:GPRS disconnect reason
 	//						3~0:GSM module poweroff reason
 	unsigned char err_idx=0;//1: 3~0, 2:7~4, 3: 11~8, 4:15~12
@@ -653,7 +654,7 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 
 	int fd;
 	unsigned int i, chk_count , data_len, fpos, fw_size, fw_rev;
-	unsigned char *filename="./fw/stm32_v00/20120409.bin";
+	unsigned char *filename="./fw/stm32_v00/20120416.bin";
 	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
 
 	if ( debug_flag ) {
@@ -734,7 +735,7 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 		memset(snd_buf, '\0', BUFSIZE);
 		if ( rec_buf[5] == 0 ) { //HW,FW info
 			if ( debug_flag ) {
-				fprintf(stderr, "\r\nCurrent HW rev: %d, FW rev: %d\r\n",\
+				fprintf(stderr, "Current HW rev: %d, FW rev: %d\r\n",\
 					rec_buf[6],rec_buf[7]<<8 | rec_buf[8]);
 			}
 
@@ -754,17 +755,35 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 
 			//generate FW CRC:
 			lseek( fd, 0, SEEK_SET );
+			memset(rev_info, '\0', MAX_FW_SIZE);
 			fpos = read(fd, rev_info, MAX_FW_SIZE);
+
+			//data align 4
+			if ((fpos)%4) {
+				for ( chk_count = 0 ; chk_count < (4 - ((fpos)%4)) ; chk_count++) {
+					rev_info[chk_count+fpos]= 0xFF ;
+					fprintf(stderr, "rev_info[%d] = %X\r\n",\
+							chk_count+fpos,rev_info[chk_count+fpos]);
+				}
+				fpos = chk_count+fpos;
+				fprintf(stderr, "Add %d Byte for data align. %s: %d\r\n",\
+					chk_count,__FILE__,__LINE__);
+			}
+
 			chk_count = crctablefast(rev_info,fpos);
 
 			snd_buf[10] = (chk_count >> 24) & 0xFF ;
 			snd_buf[11] = (chk_count >> 16) & 0xFF ;
 			snd_buf[12] = (chk_count >> 8) & 0xFF ;
 			snd_buf[13] = (chk_count) & 0xFF ;
+
+			if ( debug_flag ) {
+				fprintf(stderr, "Read %d Bytes, CRC: %08X\r\n",fpos,chk_count);
+			}
 		}
 		else {//others : block seq
-			fprintf(stderr, "\r\nAsk Block %d, FW rev: %d\r\n",\
-					rec_buf[5]-1,rec_buf[6]<<8 | rec_buf[7]);
+			fprintf(stderr, "Ask Block %d, FW rev: %d  \t",\
+					rec_buf[5],rec_buf[6]<<8 | rec_buf[7]);
 
 			//send respond : Block data
 			//C9 57 D5 00 xx yy FW_Rev(2 Bytes) + data + CRC
@@ -778,23 +797,24 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 			snd_buf[6] =  (fw_rev >> 8)&0xFF;//Rev high
 			snd_buf[7] =  (fw_rev)&0xFF;//Rev low
 
-			//Block data
-			//data len
-			fw_size = fw_size + 3 ;//include blk seq, rev info
-			snd_buf[3] =  (fw_size >> 8)&0xFF;//Size high
-			snd_buf[4] =  (fw_size)&0xFF;//Size low
+			//Block data, Max data len is 1K!!!
+			//read fw according to block seq
+			lseek( fd, (rec_buf[5]-1)*1024, SEEK_SET );
+			fpos = read(fd, &snd_buf[8], 1*1024);
+			data_len = fpos + 3 ;//include blk seq, rev info
 
-			data_len = fw_size ;
+			fprintf(stderr, "Read: %d, BLK: %d\r\n",fpos,rec_buf[5]);
 
-			for ( chk_count = 0 ; chk_count < (data_len-3); chk_count++) {
-				snd_buf[8+chk_count]= chk_count+9 ;
-			}
+			//simu data, for test only
+			//for ( chk_count = 0 ; chk_count < (data_len-3); chk_count++) {
+				//snd_buf[8+chk_count]= chk_count+9 ;
+			//}
 
 			//data align 4
 			if ((data_len-3)%4) {
 				for ( chk_count = 0 ; chk_count < (4 - ((data_len-3)%4)) ; chk_count++) {
 					snd_buf[5+chk_count+data_len]= 0xFF ;
-					//fprintf(stderr, "snd_buf[%d] = %X\r\n",\
+					fprintf(stderr, "snd_buf[%d] = %X\r\n",\
 							5+chk_count+data_len,snd_buf[5+chk_count+data_len]);
 				}
 				data_len = chk_count+data_len;
