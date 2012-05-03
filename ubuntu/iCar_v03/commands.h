@@ -21,7 +21,7 @@
 #define GSM_CMD_TIME			0x54 //'T', time
 #define GSM_CMD_UPGRADE			0x55 //'U', Upgrade firmware
 
-#define MAX_FW_SIZE				61441 //60*1024+1
+#define MAX_FW_SIZE				61450 //60*1024+10
 
 unsigned int crctablefast (unsigned char* p, unsigned long len);
 
