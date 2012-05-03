@@ -3,6 +3,8 @@
 #define	BUILD_DATE "iCar Boot loader, built at "__DATE__" "__TIME__", $Rev$\r\n"
 
 unsigned int jump_address;
+unsigned int page_size; 
+unsigned int upgrade_base; 
 
 typedef  void (*pFunction)(void);
 pFunction jump_application;
@@ -92,12 +94,12 @@ static void blink_led( unsigned int i )
 {
 	led_on(POWER_LED);
 	led_on(ALARM_LED);
-	led_on(RELAY_LED);
+	//led_on(RELAY_LED);
 	led_on(ONLINE_LED);
 	delay_ms( i );
 	led_off(POWER_LED);
 	led_off(ALARM_LED);
-	led_off(RELAY_LED);
+	//led_off(RELAY_LED);
 	led_off(ONLINE_LED);
 	delay_ms( i );
 }
@@ -124,9 +126,21 @@ int	main(void)
 	putstring(BUILD_DATE);
 	putstring("\r\n");
 
+	if ( *(vu16*)(0x1FFFF7E0) >= 256 ) {
+		page_size = 0x800; //2KB
+		upgrade_base = 0x08000000 + ((*(vu16*)(0x1FFFF7E0))>>2)*page_size;
+		putstring("Page size: 2KB\r\n");
+	}
+	else { 
+		page_size = 0x400; //1KB
+		upgrade_base = 0x08010C00 ;	//Page67
+		putstring("Page size: 1KB\r\n");
+	}
+
+
 	//check flag correct?
-	if ( (*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD) == FW_READY_FLAG) &&\
-		(*(vu32*)(FLASH_UPGRADE_BASE_F+FW_READY_ADD+4) == ~FW_READY_FLAG ) ) {
+	if ( (*(vu32*)(upgrade_base+FW_READY_ADD) == FW_READY_FLAG) &&\
+		(*(vu32*)(upgrade_base+FW_READY_ADD+4) == ~FW_READY_FLAG ) ) {
 
 		putstring("Find new firmware, upgrade...\r\n");
 		if ( flash_upgrade( )) {
