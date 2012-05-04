@@ -29,13 +29,6 @@ unsigned char flash_upgrade(  )
 	/* Unlock the Flash Bank1 Program Erase controller */
 	FLASH_UnlockBank1();
 
-	// erase configuration block data
-	/* Clear All pending flags */
-	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
-	
-	//Erase the FLASH pages, test
-	//FLASHStatus = FLASH_ErasePage(upgrade_base);
-
 	//copy each block
 	for ( i = 0 ; i < blk_cnt ; i++ ) {
 
@@ -77,14 +70,14 @@ unsigned char flash_upgrade(  )
 			}
 			//printf("%04X ",*(vu16*)(APPLICATION_ADDRESS+i*page_size+var_u16));
 		}
-
-		// erase OTA data
-		/* Clear All pending flags */
-		FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
-		
-		//Erase the FLASH pages, need verify
-		//FLASHStatus = FLASH_ErasePage(upgrade_base+page_size*(i+1));
 	}
+
+	// erase configuration block data
+	/* Clear All pending flags */
+	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+	
+	//Erase the FLASH pages, test
+	FLASHStatus = FLASH_ErasePage(upgrade_base);
 
 	FLASH_LockBank1();
 	return 0 ;
