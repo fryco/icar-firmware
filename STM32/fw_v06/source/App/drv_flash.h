@@ -56,7 +56,9 @@ struct FIRMWARE_UPGRADE {
 #define ERR_UPGRADE_BLK_CRC				6	//Block CRC error
 #define ERR_UPGRADE_NO_MATCH			7	//Upgrading FW Rev no match
 #define ERR_UPGRADE_PROG_FAIL			8	//prog flash failure
-#define ERR_UPGRADE_STRING_LEN			9	//Upgrade string length un-correct
+#define ERR_UPGRADE_BUFFER_LEN			9	//Upgrade string length un-correct
+#define ERR_UPGRADE_FW_CRC				10	//firmware CRC error
+#define ERR_UNEXPECT_READY_FLAG			11	//un-expect firmware ready flag
 
 /* Includes ------------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/

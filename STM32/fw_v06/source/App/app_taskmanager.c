@@ -151,7 +151,32 @@ void  App_TaskManager (void *p_arg)
 		my_icar.upgrade.page_size = 0x400; //1KB
 		my_icar.upgrade.base = 0x08010C00 ;	//Page67
 	}
-	prompt("Flash size: %d BASE: %08X\r\n",*(vu16*)(0x1FFFF7E0),my_icar.upgrade.base);
+	prompt("Flash size: %dKB, BASE: %08X\r\n",*(vu16*)(0x1FFFF7E0),my_icar.upgrade.base);
+
+//flash_prog_u16(0x08040034,0);flash_prog_u16(0x0804015A,0);
+
+/*
+	for ( var_uchar = 0 ; var_uchar < 10 ; var_uchar++ ) {
+		//test only
+		prompt("Erase Page:%d, %08X\r\n",\
+			(my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size-0x08000000)/my_icar.upgrade.page_size,\
+			my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size);
+
+		flash_erase(my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size);
+	}
+
+	for ( var_uchar = 0 ; var_uchar < 20 ; var_uchar++ ) {
+		//test only
+		prompt("Read Page:%d, %08X\r\n",\
+			(my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size-0x08000000)/my_icar.upgrade.page_size,\
+			my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size);
+
+		flash_prog_u16(my_icar.upgrade.base + var_uchar*(my_icar.upgrade.page_size/2), var_uchar);
+	}
+
+	flash_erase(my_icar.upgrade.base + 2*my_icar.upgrade.page_size);
+prompt("Completed!\r\n");
+*/
 
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
 	//USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
@@ -1215,27 +1240,32 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 
 				if ( out_pcb == GSM_CMD_UPGRADE ) {//Max. TBD Bytes
 
-					flash_upgrade_ask( &c2s_data.tx[c2s_data.tx_len] );
-
-					if ( my_icar.debug > 3) {
-						prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+					if ( flash_upgrade_ask( &c2s_data.tx[c2s_data.tx_len] )){
+						//failure, maybe error
+						prompt("Flash upgrade CMD err, %s:%d\r\n",\
+							__FILE__,__LINE__);
 					}
-					chkbyte = GSM_HEAD ;
-					for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
-						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
-						if ( my_icar.debug > 2) {
-							printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+					else { //ok
+						if ( my_icar.debug > 3) {
+							prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 						}
+						chkbyte = GSM_HEAD ;
+						for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
+							chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
+							if ( my_icar.debug > 2) {
+								printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+							}
+						}
+						c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
+						if ( my_icar.debug > 2) {
+							printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+i]);
+						}
+						//update buf length
+						c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
+	
+						//For dev only, remove later...
+						c2s_data.tx_timer= 0 ;//need send immediately
 					}
-					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
-					if ( my_icar.debug > 2) {
-						printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+i]);
-					}
-					//update buf length
-					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
-
-					//For dev only, remove later...
-					c2s_data.tx_timer= 0 ;//need send immediately
 				}
 
 				OS_ENTER_CRITICAL();
@@ -1244,10 +1274,10 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 
 				return 0 ;
 			}//end of if ( !c2s_data.tx_lock && c2s_data.tx_len < (GSM_BUF_LENGTH-20))
-			else {//no buffer
+			else {//no buffer or had been locked by other task
 				if ( c2s_data.tx_lock ) {
 					prompt("TCP tx buffer lock: %d, can't add CMD: %c ",\
-							c2s_data.tx_lock,GSM_CMD_TIME);
+							c2s_data.tx_lock,out_pcb);
 				}
 				else {
 					prompt("TCP tx free buffer: %d ",GSM_BUF_LENGTH-c2s_data.tx_len);

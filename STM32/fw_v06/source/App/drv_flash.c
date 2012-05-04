@@ -124,7 +124,7 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 		for ( buf[5] = 1 ; buf[5] <= blk_cnt ; buf[5]++ ) {
 			crc_dat = *(vu32*)(my_icar.upgrade.base+BLK_CRC_DAT+buf[5]*8) ;
 			printf(".");
-			//prompt("Block %d CRC: %X @ %08X\t", buf[5],crc_dat,my_icar.upgrade.base+BLK_CRC_DAT+buf[5]*8);
+			//prompt("Block %d CRC: %X @ %08X\r\n", buf[5],crc_dat,my_icar.upgrade.base+BLK_CRC_DAT+buf[5]*8);
 			if ( crc_dat == 0xFFFFFFFF ) { //empty
 				//Check ~CRC again
 				crc_dat = *(vu32*)(my_icar.upgrade.base+BLK_CRC_DAT+buf[5]*8+4) ;
@@ -146,7 +146,11 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 						buf[7] = (*(vu16*)(my_icar.upgrade.base+NEW_FW_REV))&0xFF;//fw rev. low
 						return 0 ;
 					}
-					else {//Not FF, not 0, the flash failure?
+					else {//BLK_CRC_DAT+buf[5]*8 is FF but 
+						  //BLK_CRC_DAT+buf[5]*8+4 is not FF, and not 0, the flash failure?
+
+						//erase the info blk, re-get all data
+						flash_erase(my_icar.upgrade.base);
 						printf("\r\nFlash failure, check: %s: %d\r\n",__FILE__, __LINE__);
 					}
 				}
@@ -162,10 +166,13 @@ unsigned char flash_upgrade_ask( unsigned char *buf)
 					}
 				}
 				else { // crc result un-correct
-					//erase this block
-					//flash_erase(my_icar.upgrade.base+my_icar.upgrade.page_size*buf[5]);
-//´ýÑéÖ¤£º
-flash_erase(my_icar.upgrade.base+my_icar.upgrade.page_size*buf[5]);
+					//erase this block and info blk
+					prompt("Block %d CRC: %X @ %08X ERR!\r\n", buf[5],\
+						*(vu32*)(my_icar.upgrade.base+BLK_CRC_DAT+buf[5]*8),\
+						my_icar.upgrade.base+BLK_CRC_DAT+buf[5]*8);
+
+					flash_erase(my_icar.upgrade.base+0x400*buf[5]);
+					flash_erase(my_icar.upgrade.base);
 				}
 			}
 		}//end block check
@@ -184,11 +191,11 @@ flash_erase(my_icar.upgrade.base+my_icar.upgrade.page_size*buf[5]);
 			CRC->CR = CRC_CR_RESET;
 	
 			//Calc CRC for local fw in flash
-			for ( var_u16 = 0 ; var_u16 < fw_size ; var_u16 = var_u16+4 ) {
-				var_u32 = (*(vu8*)(my_icar.upgrade.base+my_icar.upgrade.page_size+var_u16))<<24 | \
-					(*(vu8*)(my_icar.upgrade.base+my_icar.upgrade.page_size+var_u16+1))<<16 | \
-					(*(vu8*)(my_icar.upgrade.base+my_icar.upgrade.page_size+var_u16+2))<<8 | \
-					(*(vu8*)(my_icar.upgrade.base+my_icar.upgrade.page_size+var_u16+3));
+			for ( var_u16 = 0 ; var_u16 < fw_size ; var_u16 += 4 ) {
+				var_u32 = (*(vu8*)(my_icar.upgrade.base+0x400+var_u16))<<24 | \
+					(*(vu8*)(my_icar.upgrade.base+0x400+var_u16+1))<<16 | \
+					(*(vu8*)(my_icar.upgrade.base+0x400+var_u16+2))<<8 | \
+					(*(vu8*)(my_icar.upgrade.base+0x400+var_u16+3));
 	
 				CRC->DR = var_u32 ;
 			}
@@ -212,12 +219,25 @@ flash_erase(my_icar.upgrade.base+my_icar.upgrade.page_size*buf[5]);
 				if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
 			}
 			else { //FW crc result un-correct, earse all data
-				prompt("FW crc err, erase all data! %s: %d\r\n",	__FILE__,__LINE__);
+				prompt("CRC in flash is: %08X FW CRC ERR, erase all data! %s: %d\r\n",\
+					*(vu32*)(my_icar.upgrade.base+FW_CRC_DAT),__FILE__,__LINE__);
 
-				for ( var_u16 = 0 ; var_u16 < blk_cnt ; var_u16++ ) {
-					prompt("Erase blk %02d @ %08X\r\n",var_u16, \
-						my_icar.upgrade.base+my_icar.upgrade.page_size*(var_u16+1));
-				}
+				//Just need erase the info blk, re-get all data
+				flash_erase(my_icar.upgrade.base);
+
+				//Record then upload err to server
+				//BKP_DR1, ERR index: 	15~12:MCU reset 
+				//						11~8:upgrade fw failure code
+				//						7~4:GPRS disconnect reason
+				//						3~0:GSM module poweroff reason
+				var_u16 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
+				var_u16 = var_u16 | (ERR_UPGRADE_FW_CRC<<8) ;
+			    BKP_WriteBackupRegister(BKP_DR1, var_u16);
+
+				//BKP_DR6, upgrade fw time(UTC Time) high
+				//BKP_DR7, upgrade fw time(UTC Time) low
+			    BKP_WriteBackupRegister(BKP_DR6, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+			    BKP_WriteBackupRegister(BKP_DR7, (RTC_GetCounter( ))&0xFFFF);//low
 			}
 
 			prompt("Flag in flash is: %08X",\
@@ -240,11 +260,23 @@ flash_erase(my_icar.upgrade.base+my_icar.upgrade.page_size*buf[5]);
 				//now just erase this sector
 				flash_erase(my_icar.upgrade.base);
 
-				return 1;
+				//Record then upload err to server
+				//BKP_DR1, ERR index: 	15~12:MCU reset 
+				//						11~8:upgrade fw failure code
+				//						7~4:GPRS disconnect reason
+				//						3~0:GSM module poweroff reason
+				var_u16 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
+				var_u16 = var_u16 | (ERR_UNEXPECT_READY_FLAG<<8) ;
+			    BKP_WriteBackupRegister(BKP_DR1, var_u16);
+
+				//BKP_DR6, upgrade fw time(UTC Time) high
+				//BKP_DR7, upgrade fw time(UTC Time) low
+			    BKP_WriteBackupRegister(BKP_DR6, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+			    BKP_WriteBackupRegister(BKP_DR7, (RTC_GetCounter( ))&0xFFFF);//low
 			}
 		}
 
-		return 0;
+		return 1;
 	}
 
 	//Default CMD: send current hardware and firmware revision
@@ -295,7 +327,7 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 		printf("\r\n");
 		prompt("Length: %d is un-correct! Check %s: %d\r\n",\
 				buf_len,__FILE__,__LINE__);
-		return ERR_UPGRADE_STRING_LEN ;
+		return ERR_UPGRADE_BUFFER_LEN ;
 	}
 
 	//extract 	fw_rev = buf[6] << 8 | buf[7];
@@ -535,7 +567,7 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 						flash_erase(my_icar.upgrade.base+my_icar.upgrade.page_size*buf_type);
 					}
 					else { //2K per block
-						if ( buf_type%2 == 0 ) {
+						if ( buf_type%1 == 0 ) {
 							flash_erase(my_icar.upgrade.base+my_icar.upgrade.page_size*buf_type);
 						}
 					}
@@ -565,7 +597,10 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 							my_icar.upgrade.base+my_icar.upgrade.page_size*buf_type,\
 							buf_index*2,fw_size);
 	
-						var_u32 = flash_prog_u16(my_icar.upgrade.base+my_icar.upgrade.page_size*buf_type+buf_index*2,fw_size);
+						//ok for 1K or 2K blk flash
+						var_u32 = flash_prog_u16(my_icar.upgrade.base+0x400*buf_type+buf_index*2,fw_size);
+						//var_u32 = flash_prog_u16(my_icar.upgrade.base+my_icar.upgrade.page_size*buf_type+buf_index*2,fw_size);
+
 						if ( var_u32 ) return ERR_UPGRADE_PROG_FAIL; //prog failure
 					}
 
