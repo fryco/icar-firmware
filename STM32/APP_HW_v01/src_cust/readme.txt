@@ -5,4 +5,4 @@ $URL$
 
 $Id$
 
-1, GPIO定义, for OBD LED
+1, GPIO定义, for Dual-LED
