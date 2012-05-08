@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/STM32/fw_v06/source/App/drv_uart.h $ 
-  * @version $Rev: 158 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-04-16 15:34:25 +0800 (周一, 2012-04-16) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This is uart driver in STM32
   ******************************************************************************
   */
