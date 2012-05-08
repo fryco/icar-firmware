@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: svn://172.30.0.1/repos/hardware_v01/src_cust/App/drv_gpio.h $ 
-  * @version $Rev: 49 $
-  * @author  $Author: jack.li $
-  * @date    $Date: 2012-05-08 09:45:48 +0800 (周二, 2012-05-08) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file is for general purpose input/output define in STM32
   ******************************************************************************
   */ 
