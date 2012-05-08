@@ -18,10 +18,10 @@
 
 typedef enum 
 {
-  OBD_UNKNOW = 0, //Green LED, OBD unknow
-  OBD_KWP = 1, //Green LED, KWP protocol
-  OBD_CAN20 = 2, //Green LED
-  OBD_CAN10 = 3, //Green LED
+  LED1_G = 0, //Green LED
+  LED1_R = 1, //Red   LED
+  LED2_G = 2, //Green LED
+  LED2_R = 3, //Red   LED
   GSM_PM = 4, //GSM power control
   GPS_PM = 5, //GPS module power control
   SD_PM  = 6  //SD card power control
@@ -31,30 +31,30 @@ typedef enum
 
 #define LEDn                             7
 
-#define OBD_UNKNOW_PIN                   GPIO_Pin_8
-#define OBD_UNKNOW_GPIO_PORT             GPIOB
-#define OBD_UNKNOW_GPIO_CLK              RCC_APB2Periph_GPIOB
-#define OBD_UNKNOW_GPIO_MODE             GPIO_Mode_Out_OD
+#define LED1_G_PIN                       GPIO_Pin_8
+#define LED1_G_GPIO_PORT                 GPIOC
+#define LED1_G_GPIO_CLK                  RCC_APB2Periph_GPIOC
+#define LED1_G_GPIO_MODE                 GPIO_Mode_Out_OD
 
-#define OBD_KWP_PIN                      GPIO_Pin_9
-#define OBD_KWP_GPIO_PORT                GPIOB
-#define OBD_KWP_GPIO_CLK                 RCC_APB2Periph_GPIOB
-#define OBD_KWP_GPIO_MODE                GPIO_Mode_Out_OD
+#define LED1_R_PIN                       GPIO_Pin_9
+#define LED1_R_GPIO_PORT                 GPIOC
+#define LED1_R_GPIO_CLK                  RCC_APB2Periph_GPIOC
+#define LED1_R_GPIO_MODE                 GPIO_Mode_Out_OD
 
-#define OBD_CAN20_PIN                    GPIO_Pin_0
-#define OBD_CAN20_GPIO_PORT              GPIOA
-#define OBD_CAN20_GPIO_CLK               RCC_APB2Periph_GPIOA
-#define OBD_CAN20_GPIO_MODE              GPIO_Mode_Out_OD
+#define LED2_G_PIN                       GPIO_Pin_2
+#define LED2_G_GPIO_PORT                 GPIOC
+#define LED2_G_GPIO_CLK                  RCC_APB2Periph_GPIOC
+#define LED2_G_GPIO_MODE                 GPIO_Mode_Out_OD
 
-#define OBD_CAN10_PIN                    GPIO_Pin_1
-#define OBD_CAN10_GPIO_PORT              GPIOA
-#define OBD_CAN10_GPIO_CLK               RCC_APB2Periph_GPIOA
-#define OBD_CAN10_GPIO_MODE              GPIO_Mode_Out_OD
+#define LED2_R_PIN                       GPIO_Pin_3
+#define LED2_R_GPIO_PORT                 GPIOC
+#define LED2_R_GPIO_CLK                  RCC_APB2Periph_GPIOC
+#define LED2_R_GPIO_MODE                 GPIO_Mode_Out_OD
 
 
-#define GSM_PM_PIN                       GPIO_Pin_6
-#define GSM_PM_GPIO_PORT                 GPIOC
-#define GSM_PM_GPIO_CLK                  RCC_APB2Periph_GPIOC
+#define GSM_PM_PIN                       GPIO_Pin_9
+#define GSM_PM_GPIO_PORT                 GPIOB
+#define GSM_PM_GPIO_CLK                  RCC_APB2Periph_GPIOB
 #define GSM_PM_GPIO_MODE                 GPIO_Mode_Out_PP
 
 #define GPS_PM_PIN                       GPIO_Pin_8  
@@ -62,7 +62,7 @@ typedef enum
 #define GPS_PM_GPIO_CLK                  RCC_APB2Periph_GPIOA
 #define GPS_PM_GPIO_MODE                 GPIO_Mode_Out_OD
 
-#define SD_PM_PIN                        GPIO_Pin_7
+#define SD_PM_PIN                        GPIO_Pin_6
 #define SD_PM_GPIO_PORT                  GPIOC
 #define SD_PM_GPIO_CLK                   RCC_APB2Periph_GPIOC  
 #define SD_PM_GPIO_MODE                  GPIO_Mode_Out_OD
@@ -77,10 +77,10 @@ typedef enum
 #define SD_PM_OFF                        led_off(SD_PM)
 #define SD_PM_ON                         led_on(SD_PM)
 
-#define POWER_LED                        OBD_UNKNOW
-#define ALARM_LED              	         OBD_KWP
-#define ONLINE_LED                       OBD_CAN10
-#define RELAY_LED              	         OBD_CAN20
+#define POWER_LED                        LED1_G
+#define ONLINE_LED                       LED1_R
+#define RELAY_LED              	         LED2_G
+#define ALARM_LED              	         LED2_R
 
 
 /* Exported functions ------------------------------------------------------- */

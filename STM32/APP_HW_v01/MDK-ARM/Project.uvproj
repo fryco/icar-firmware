@@ -7,7 +7,7 @@
 
   <Targets>
     <Target>
-      <TargetName>iCar4HW_v00</TargetName>
+      <TargetName>iCar4HW_v01</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
       <TargetOption>
@@ -43,7 +43,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\obj\</OutputDirectory>
-          <OutputName>iCar4HW_v00</OutputName>
+          <OutputName>iCar4HW_v01</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>
