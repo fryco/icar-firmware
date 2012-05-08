@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/STM32/fw_v06/source/App/drv_flash.h $ 
-  * @version $Rev: 167 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-05-04 09:10:46 +0800 (周五, 2012-05-04) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This is for STM32 internal flash
   ******************************************************************************
   */ 
