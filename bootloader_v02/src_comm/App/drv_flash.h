@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: svn://172.30.0.1/repos/bootloader_v02/src_comm/App/drv_flash.h $ 
-  * @version $Rev: 35 $
-  * @author  $Author: jack.li $
-  * @date    $Date: 2012-05-08 09:07:07 +0800 (周二, 2012-05-08) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This is for STM32 internal flash
   ******************************************************************************
   */ 
