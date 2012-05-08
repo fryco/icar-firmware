@@ -1,5 +1,0 @@
-Boot loader main.c
-
-为省空间，取消中断，取消 printf 
-
-ROM < 3K
