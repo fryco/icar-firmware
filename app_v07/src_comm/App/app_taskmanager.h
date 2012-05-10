@@ -77,6 +77,6 @@ struct CAR2SERVER_COMMUNICATION {
 
 /* Exported functions ------------------------------------------------------- */
 
-void  App_TaskManager		(void		 *p_arg);
+void  app_task_manager (void *p_arg);
 
 #endif /* __APP_TASKMANAGE_H */
