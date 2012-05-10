@@ -11,7 +11,7 @@ static unsigned char gsm_string_decode( unsigned char *, unsigned int *);
 static unsigned char read_tcp_data( unsigned char *,unsigned int * );
 static unsigned char send_tcp_data( unsigned char *, unsigned int * );
 
-void  App_TaskGsm (void *p_arg)
+void  app_task_gsm (void *p_arg)
 {
 	unsigned char rec_str[AT_CMD_LENGTH], err_code;
 	unsigned int  relay_timer=0, var_int_data = 0;

@@ -90,6 +90,6 @@ struct GSM_STATUS {
 /* Exported constants --------------------------------------------------------*/
 
 /* Exported functions ------------------------------------------------------- */
-void  App_TaskGsm        (void        *p_arg);
+void  app_task_gsm        (void        *p_arg);
 
 #endif /* __APP_GSM_H */

@@ -1,6 +1,6 @@
 #include "main.h"
 
-static	OS_STK		   App_TaskManagerStk[APP_TASK_MANAGER_STK_SIZE];
+static	OS_STK		   app_task_manager_stk[APP_TASK_MANAGER_STK_SIZE];
 
 struct ICAR_DEVICE my_icar;
 
@@ -139,12 +139,12 @@ int	main(void)
 	OSInit(); //include: OSTime = 0L;
 	//OSTimeSet(RTC_GetCounter( ));
 
-	os_err = OSTaskCreateExt((void (*)(void *)) App_TaskManager,  /* Create the start task.*/
+	os_err = OSTaskCreateExt((void (*)(void *)) app_task_manager,  /* Create the start task.*/
 						   (void		  *	) 0,
-						   (OS_STK		  *	)&App_TaskManagerStk[APP_TASK_MANAGER_STK_SIZE - 1],
+						   (OS_STK		  *	)&app_task_manager_stk[APP_TASK_MANAGER_STK_SIZE - 1],
 						   (INT8U			) APP_TASK_MANAGER_PRIO,
 						   (INT16U			) APP_TASK_MANAGER_PRIO,
-						   (OS_STK		  *	)&App_TaskManagerStk[0],
+						   (OS_STK		  *	)&app_task_manager_stk[0],
 						   (INT32U			) APP_TASK_MANAGER_STK_SIZE,
 						   (void		  *	)0,
 						   (INT16U			)(OS_TASK_OPT_STK_CLR |	OS_TASK_OPT_STK_CHK));

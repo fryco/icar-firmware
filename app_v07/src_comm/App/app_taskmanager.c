@@ -4,7 +4,8 @@
 
 unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
 
-static	OS_STK		   App_TaskGsmStk[APP_TASK_GSM_STK_SIZE];
+static	OS_STK		   app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
+
 static void calc_sn( void );
 static void conv_rev( unsigned char * );
 static void flash_led( unsigned int );
@@ -51,7 +52,7 @@ static unsigned char pro_sn[]="02P1xxxxxx";
 *********************************************************************************************************
 */
 
-void  App_TaskManager (void *p_arg)
+void  app_task_manager (void *p_arg)
 {
 
 	CPU_INT08U	os_err;
@@ -105,12 +106,12 @@ void  App_TaskManager (void *p_arg)
 	OSStatInit();												/* Determine CPU capacity.								*/
 #endif
 
-	os_err = OSTaskCreateExt((void (*)(void *)) App_TaskGsm,	/* Create the start	task.								*/
+	os_err = OSTaskCreateExt((void (*)(void *)) app_task_gsm,	/* Create the start	task.								*/
 						   (void		  *	) 0,
-						   (OS_STK		  *	)&App_TaskGsmStk[APP_TASK_GSM_STK_SIZE - 1],
+						   (OS_STK		  *	)&app_task_gsm_stk[APP_TASK_GSM_STK_SIZE - 1],
 						   (INT8U			) APP_TASK_GSM_PRIO,
 						   (INT16U			) APP_TASK_GSM_PRIO,
-						   (OS_STK		  *	)&App_TaskGsmStk[0],
+						   (OS_STK		  *	)&app_task_gsm_stk[0],
 						   (INT32U			) APP_TASK_GSM_STK_SIZE,
 						   (void		  *	)0,
 						   (INT16U			)(OS_TASK_OPT_STK_CLR |	OS_TASK_OPT_STK_CHK));
@@ -152,31 +153,6 @@ void  App_TaskManager (void *p_arg)
 		my_icar.upgrade.base = 0x08010C00 ;	//Page67
 	}
 	prompt("Flash size: %dKB, BASE: %08X\r\n",*(vu16*)(0x1FFFF7E0),my_icar.upgrade.base);
-
-//flash_prog_u16(0x08040034,0);flash_prog_u16(0x0804015A,0);
-
-/*
-	for ( var_uchar = 0 ; var_uchar < 10 ; var_uchar++ ) {
-		//test only
-		prompt("Erase Page:%d, %08X\r\n",\
-			(my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size-0x08000000)/my_icar.upgrade.page_size,\
-			my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size);
-
-		flash_erase(my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size);
-	}
-
-	for ( var_uchar = 0 ; var_uchar < 20 ; var_uchar++ ) {
-		//test only
-		prompt("Read Page:%d, %08X\r\n",\
-			(my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size-0x08000000)/my_icar.upgrade.page_size,\
-			my_icar.upgrade.base + var_uchar*my_icar.upgrade.page_size);
-
-		flash_prog_u16(my_icar.upgrade.base + var_uchar*(my_icar.upgrade.page_size/2), var_uchar);
-	}
-
-	flash_erase(my_icar.upgrade.base + 2*my_icar.upgrade.page_size);
-prompt("Completed!\r\n");
-*/
 
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
 	//USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
