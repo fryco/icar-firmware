@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/app_v07/src_comm/App/app_taskmanager.h $ 
-  * @version $Rev: 210 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-05-10 11:16:09 +0800 (周四, 2012-05-10) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   ******************************************************************************
 **/
 

@@ -5,6 +5,7 @@ CAN_InitTypeDef        CAN_InitStructure;
 CAN_FilterInitTypeDef  CAN_FilterInitStructure;
 extern CanTxMsg TxMessage;
 extern CanRxMsg RxMessage;
+extern unsigned int rx_msg_cnt ;
 
 void can_init( )
 {
@@ -104,7 +105,7 @@ void USB_HP_CAN1_TX_IRQHandler(void)
 ********************************************************************************/
 void USB_LP_CAN1_RX0_IRQHandler(void)
 {	
-	//prompt("RX0\r\n");
+	rx_msg_cnt++;
 	CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 	CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
 }
