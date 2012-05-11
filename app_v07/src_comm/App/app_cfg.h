@@ -41,7 +41,8 @@
 */
 
 #define  APP_TASK_MANAGER_PRIO                              3
-#define  APP_TASK_GSM_PRIO                                  6
+#define  APP_TASK_OBD_PRIO                                  6
+#define  APP_TASK_GSM_PRIO                                  9
 
 #define  OS_PROBE_TASK_PRIO              (OS_LOWEST_PRIO - 3)
 #define  OS_TASK_TMR_PRIO                (OS_LOWEST_PRIO - 2)
@@ -55,6 +56,7 @@
 
 #define  APP_TASK_MANAGER_STK_SIZE                    512	
 #define  APP_TASK_GSM_STK_SIZE                        512
+#define  APP_TASK_OBD_STK_SIZE                        512
 //#define  OS_PROBE_TASK_STK_SIZE                          128
 
 /*

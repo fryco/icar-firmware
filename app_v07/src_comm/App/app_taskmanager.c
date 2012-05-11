@@ -4,7 +4,8 @@
 
 unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
 
-static	OS_STK		   app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
+static	OS_STK		app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
+static	OS_STK		app_task_obd_stk[APP_TASK_OBD_STK_SIZE];
 
 static void calc_sn( void );
 static void conv_rev( unsigned char * );
@@ -103,21 +104,37 @@ void  app_task_manager (void *p_arg)
 	show_rst_flag( ), show_err_log( );
  	
 #if	(OS_TASK_STAT_EN > 0)
-	OSStatInit();												/* Determine CPU capacity.								*/
+	OSStatInit();
 #endif
 
-	os_err = OSTaskCreateExt((void (*)(void *)) app_task_gsm,	/* Create the start	task.								*/
+	/* Create the GSM task.	*/
+	os_err = OSTaskCreateExt((void (*)(void *)) app_task_gsm,
 						   (void		  *	) 0,
 						   (OS_STK		  *	)&app_task_gsm_stk[APP_TASK_GSM_STK_SIZE - 1],
 						   (INT8U			) APP_TASK_GSM_PRIO,
 						   (INT16U			) APP_TASK_GSM_PRIO,
 						   (OS_STK		  *	)&app_task_gsm_stk[0],
 						   (INT32U			) APP_TASK_GSM_STK_SIZE,
-						   (void		  *	)0,
+						   (void		  *	) 0,
 						   (INT16U			)(OS_TASK_OPT_STK_CLR |	OS_TASK_OPT_STK_CHK));
 
 #if	(OS_TASK_NAME_SIZE >= 11)
-	OSTaskNameSet(APP_TASK_GSM_PRIO, (CPU_INT08U *)"Gsm	Task", &os_err);
+	OSTaskNameSet(APP_TASK_GSM_PRIO, (CPU_INT08U *)"gsm	task", &os_err);
+#endif
+
+	/* Create the OBD task. */
+	os_err = OSTaskCreateExt((void (*)(void *)) app_task_obd,
+						   (void		  *	) 0,
+						   (OS_STK		  *	)&app_task_obd_stk[APP_TASK_OBD_STK_SIZE - 1],
+						   (INT8U			) APP_TASK_OBD_PRIO,
+						   (INT16U			) APP_TASK_OBD_PRIO,
+						   (OS_STK		  *	)&app_task_obd_stk[0],
+						   (INT32U			) APP_TASK_OBD_STK_SIZE,
+						   (void		  *	) 0,
+						   (INT16U			)(OS_TASK_OPT_STK_CLR |	OS_TASK_OPT_STK_CHK));
+
+#if	(OS_TASK_NAME_SIZE >= 11)
+	OSTaskNameSet(APP_TASK_GSM_PRIO, (CPU_INT08U *)"obd	task", &os_err);
 #endif
 
 	//enable temperature adc DMA
@@ -128,7 +145,8 @@ void  app_task_manager (void *p_arg)
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
 	my_icar.err_log_send_timer = 0 ;//
 	my_icar.need_sn = 3 ;
-	my_icar.mg323.ask_power = true ;
+	//my_icar.mg323.ask_power = true ;
+	my_icar.mg323.ask_power = false ;//for debug only
 	my_icar.upgrade.err_no = 0 ;
 	my_icar.upgrade.prog_fail_addr = 0 ;
 	my_icar.upgrade.q_idx = MAX_CMD_QUEUE+1 ;
@@ -161,12 +179,15 @@ void  app_task_manager (void *p_arg)
 	flash_led( 80 );//100ms
 
 	//independent watchdog init
-	iwdg_init( );
+	//iwdg_init( );
+
+	//Suspend GSM task for debug
+	os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
 
 	while	(1)
 	{
 		/* Reload IWDG counter */
-		IWDG_ReloadCounter();  
+		//IWDG_ReloadCounter();  
 
 		if ( my_icar.upgrade.new_fw_ready ) {
 			// new fw ready
