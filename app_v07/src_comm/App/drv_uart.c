@@ -136,7 +136,7 @@ void uart2_init( void )
 	*/
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2 , ENABLE);
 
-    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+    //RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
 	USART2_InitStructure.USART_BaudRate = 115200;
 	USART2_InitStructure.USART_WordLength = USART_WordLength_8b;
@@ -212,9 +212,7 @@ void uart3_init( void )
 	      - Hardware flow control disabled (RTS and CTS signals)
 	      - Receive and transmit enabled
 	*/
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | 
-            RCC_APB2Periph_AFIO ,
-            ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB,  ENABLE);
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
 

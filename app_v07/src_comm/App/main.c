@@ -36,11 +36,12 @@ void NVIC_Configuration(void)
 	//1: 
 	//2:  DMA1.7, 
 	//4:  DMA1.1, for adc   <==temperature convert
-	//6:  DMA1.4, 
-	//8:  Uart3 rx/tx       <==K-Line, OBD-II
+	//6:  CAN1 receive FIFO 1 
+	//7:  CAN1 receive FIFO 0
+	//8:  CAN1 transmit
+	//9:  Uart3 rx/tx       <==K-Line, OBD-II
 	//10: Uart2 rx/tx       <==GSM module
 	//12: Uart1 rx/tx       <==console
-	//...
 	//13: 
 	//14: RTC
 	//15: System tick timer, for os
@@ -69,9 +70,31 @@ void NVIC_Configuration(void)
 	/* Enable the USART3 Interrupt */
 	NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 8; 
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 9; 
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE; 
 	NVIC_Init(&NVIC_InitStructure); 
+
+	/* Init the NVIC for CAN1 transmit */
+	NVIC_InitStructure.NVIC_IRQChannel = USB_HP_CAN1_TX_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 8;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+
+	/* Init the NVIC for CAN1 receive FIFO 0 */
+	NVIC_InitStructure.NVIC_IRQChannel = USB_LP_CAN1_RX0_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+  	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 7;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+
+	/* Init the NVIC for CAN1 receive FIFO 1 */
+	NVIC_InitStructure.NVIC_IRQChannel = CAN1_RX1_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+  	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 6;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+
 
 	/* Init the NVIC for DMA1.1 global Interrupt for ADC */
 	//ADC only work with channel1, do not use other channel
@@ -115,11 +138,9 @@ int	main(void)
 	NVIC_Configuration( );
 	
 	gpio_init( ) ;
-	uart1_init( );
+	uart1_init( ); //console port
 
 	rtc_init();
-
-	uart3_init( );
 
 	ADCTEMP_Configuration( );
 
@@ -137,7 +158,6 @@ int	main(void)
 
 	/*	Initialize "uC/OS-II, The Real-Time	Kernel".		 */
 	OSInit(); //include: OSTime = 0L;
-	//OSTimeSet(RTC_GetCounter( ));
 
 	os_err = OSTaskCreateExt((void (*)(void *)) app_task_manager,  /* Create the start task.*/
 						   (void		  *	) 0,
@@ -146,7 +166,7 @@ int	main(void)
 						   (INT16U			) APP_TASK_MANAGER_PRIO,
 						   (OS_STK		  *	)&app_task_manager_stk[0],
 						   (INT32U			) APP_TASK_MANAGER_STK_SIZE,
-						   (void		  *	)0,
+						   (void		  *	) 0,
 						   (INT16U			)(OS_TASK_OPT_STK_CLR |	OS_TASK_OPT_STK_CHK));
 
 #if	(OS_TASK_NAME_SIZE >= 11)
