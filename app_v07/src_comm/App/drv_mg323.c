@@ -8,7 +8,7 @@
 
 extern struct ICAR_DEVICE my_icar;
 
-const unsigned char dest_server[] = "cqt.8866.org:25";
+const unsigned char dest_server[] = "cqt.8866.org:23";
 const unsigned char at_set_channel0_para[] = "AT^SICS=0,";
 //  Init sequence:
 //  AT
