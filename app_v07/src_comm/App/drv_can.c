@@ -5,7 +5,7 @@ CAN_InitTypeDef        CAN_InitStructure;
 CAN_FilterInitTypeDef  CAN_FilterInitStructure;
 extern CanTxMsg TxMessage;
 extern CanRxMsg RxMessage;
-extern unsigned int rx_msg_cnt ;
+extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
 
 void can_init( )
 {
@@ -60,20 +60,40 @@ void can_init( )
 	CAN_Init(CAN1, &CAN_InitStructure);
 
 	/* CAN filter init */
+	//Filter number 0
 	CAN_FilterInitStructure.CAN_FilterNumber = 0;
 	
+	//CAN_FilterMode: CAN_FilterMode_IdMask or CAN_FilterMode_IdList
+	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
+
+	//CAN_FilterScale: CAN_FilterScale_16bit or CAN_FilterScale_32bit
+	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
+
+	//0x0000 ~ 0xFFFF
+	CAN_FilterInitStructure.CAN_FilterIdHigh = (0x7FD)<<5;//11 bits,左对齐
+	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x7FF0;
+	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
+
+	//FIFOAssignment: 0 or 1
+	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 0;
+	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
+	CAN_FilterInit(&CAN_FilterInitStructure);
+
+	//Filter number 1
+	CAN_FilterInitStructure.CAN_FilterNumber = 1;
 	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
 	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
 	CAN_FilterInitStructure.CAN_FilterIdHigh = 0x0000;
 	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
 	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x0000;
 	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
-	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 0;
+	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 1;
 	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
 	CAN_FilterInit(&CAN_FilterInitStructure);
 
 	/* Transmit */
-	TxMessage.StdId = 0x321;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
+	TxMessage.StdId = 0x7FD;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
 	TxMessage.ExtId = 0x01; //扩展帧
 	TxMessage.RTR = CAN_RTR_DATA;//远程发送请求位。如果这个帧是数据帧，则该位为0，
 								 //如果是远程帧，则为1。
@@ -105,7 +125,7 @@ void USB_HP_CAN1_TX_IRQHandler(void)
 ********************************************************************************/
 void USB_LP_CAN1_RX0_IRQHandler(void)
 {	
-	rx_msg_cnt++;
+	rx_msg_cnt0++;
 	CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 	CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
 }
@@ -118,7 +138,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 ********************************************************************************/
 void CAN1_RX1_IRQHandler(void)
 {
-	//prompt("RX1\r\n");
+	rx_msg_cnt1++;
 	CAN_Receive(CAN1,CAN_FIFO1, &RxMessage);
 	CAN_ClearITPendingBit(CAN1, CAN_IT_FMP1);
 }

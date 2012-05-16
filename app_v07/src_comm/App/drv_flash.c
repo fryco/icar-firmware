@@ -653,3 +653,74 @@ unsigned char flash_upgrade_rec( unsigned char *buf, unsigned char *buf_start)
 	return 0;
 }
 
+static void init_parameters( )
+{
+	//erase the parameters
+	if ( my_icar.upgrade.page_size == 0x800 ) { //2KB
+		flash_erase( my_icar.upgrade.base - 0x800 );
+	}
+	else { //1KB
+		flash_erase( my_icar.upgrade.base - 0x800 );//page 65
+		flash_erase( my_icar.upgrade.base - 0x400 );//page 66
+	}
+
+	//restore to default factory value
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_RELAY_ON,60);//60 seconds for relay on
+
+	//for OBD CAN para:
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_STD_ID1,0x07DF);
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_STD_ID2,0x07E0);
+
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_RCV_STD_ID1,0x07E8);
+
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_EXT_ID1,(0x18DB33F1)&0xFFFF);
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_EXT_ID1+2,(0x18DB33F1>>16)&0xFFFF);
+
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_EXT_ID2,(0x18DA10F1)&0xFFFF);
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_EXT_ID2+2,(0x18DA10F1>>16)&0xFFFF);
+
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_RCV_EXT_ID1,(0x18DAF111)&0xFFFF);
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_RCV_EXT_ID1+2,(0x18DAF111>>16)&0xFFFF);
+
+	//Calc CRC
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_CRC,0xA5A5);
+}
+
+//get parameters from flash
+void get_parameters( )
+{
+	u16 var_u16;
+	unsigned int var_u32;
+
+	//prompt("Parameters base address: %08X\r\n", my_icar.upgrade.base - 0x800);//-2K
+
+	if ( *(vu32*)(my_icar.upgrade.base - 0x800 + PARA_CRC) == 0xFFFFFFFF ) {
+		//empty, need initialize
+		prompt("Parameters empty, need init...\r\n");
+		init_parameters( );
+	}
+
+	//verify data integrated by CRC
+	/* Reset CRC generator */
+	CRC->CR = CRC_CR_RESET;
+
+	for ( var_u16 = 0 ; var_u16 < PARA_COUNT ; var_u16 += 4 ) {
+		var_u32 = (*(vu8*)(my_icar.upgrade.base-0x800+var_u16+4))<<24 | \
+			(*(vu8*)(my_icar.upgrade.base-0x800+var_u16+5))<<16 | \
+			(*(vu8*)(my_icar.upgrade.base-0x800+var_u16+6))<<8 | \
+			(*(vu8*)(my_icar.upgrade.base-0x800+var_u16+7));
+
+		CRC->DR = var_u32 ;
+	}
+
+	var_u32 = CRC->DR ;
+	prompt("Calc %d Bytes, CRC: %08X\r\n",var_u16, var_u32);
+
+
+	prompt("Parameters PARA_OBD_CAN_SND_EXT_ID2 : %08X\r\n",\
+				*(vu32*)(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_EXT_ID2));
+
+	prompt("Parameters PARA_OBD_CAN_SND_EXT_ID1 : %08X\r\n",\
+				*(vu32*)(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_EXT_ID1));
+
+}

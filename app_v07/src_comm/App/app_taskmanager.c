@@ -172,6 +172,8 @@ void  app_task_manager (void *p_arg)
 	}
 	prompt("Flash size: %dKB, BASE: %08X\r\n",*(vu16*)(0x1FFFF7E0),my_icar.upgrade.base);
 
+	get_parameters( );//use (my_icar.upgrade.base - 2K) for para base address
+
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
 	//USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
 
