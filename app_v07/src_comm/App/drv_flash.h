@@ -36,6 +36,8 @@ struct FIRMWARE_UPGRADE {
  * ...
  */
 
+//my_icar.upgrade.base define in app_taskmanager.c
+
 //FW info and FW data read as: *(vu16*)
 #define NEW_FW_REV						0	//4 bytes for rev. 4 B for !rev., start addr
 #define NEW_FW_SIZE						8	//4 bytes for size 4 B for !size, start addr
@@ -45,6 +47,30 @@ struct FIRMWARE_UPGRADE {
 #define BLK_CRC_DAT						32	//4 bytes for CRC, 4 B for !CRC, start addr
 
 #define FW_READY_FLAG					0xAA55A5A5
+
+#define PARA_COUNT						100	//parameters count, 0~2044 Bytes, no include CRC
+//Parameters offset address, all read as *(vu32*) for convenient:
+#define PARA_CRC						0	//parameters CRC result
+#define PARA_RELAY_ON					4	//Relay on period, seconds, *OS_TICKS_PER_SEC
+#define PARA_RSV1						8	//parameters reserve
+#define PARA_RSV2						12	//parameters reserve
+
+#define PARA_OBD_TYPE					32	//0x20, OBD type, 4: KWP
+											//      0:CAN_STD_250, 1: CAN_EXT_250
+											//      2:CAN_STD_500, 3: CAN_EXT_500
+
+#define PARA_OBD_CAN_SND_STD_ID1		48	//0x30 OBD, CAN send standard ID1 
+#define PARA_OBD_CAN_SND_STD_ID2		52	//     OBD, CAN send standard ID2 
+
+#define PARA_OBD_CAN_RCV_STD_ID1		64	//0x40 OBD, CAN receive standard ID1 
+#define PARA_OBD_CAN_RCV_STD_ID2		68	//     OBD, CAN receive standard ID2 
+
+#define PARA_OBD_CAN_SND_EXT_ID1		80	//0x50 OBD, CAN send extend ID1
+#define PARA_OBD_CAN_SND_EXT_ID2		84	//     OBD, CAN send extend ID2
+
+#define PARA_OBD_CAN_RCV_EXT_ID1		96	//0x60 OBD, CAN send extend ID1
+#define PARA_OBD_CAN_RCV_EXT_ID2		100	//     OBD, CAN send extend ID2
+
 
 //Error define for upgrade firmware
 #define ERR_UPGRADE_NO_ERR				0	//No ERR
@@ -72,4 +98,5 @@ struct FIRMWARE_UPGRADE {
 unsigned char flash_prog_u16( uint32_t addr, uint16_t data);
 unsigned char flash_upgrade_ask( unsigned char * ) ;
 unsigned char flash_upgrade_rec( unsigned char *, unsigned char * ) ;
+void get_parameters( void );
 #endif /* __APP_FLASH_H */
