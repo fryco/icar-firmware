@@ -284,7 +284,7 @@ void  app_task_gsm (void *p_arg)
 		}
 
 		//update relay status even gsm power off
-		if ( OSTime - relay_timer > my_icar.mg323.ring_count*RELAY_ON_PERIOD ) { //10 mins.
+		if ( OSTime - relay_timer > my_icar.mg323.ring_count*my_icar.para_relay_on ) { //10 mins.
 			led_off(RELAY_LED);//shutdown relay
 			my_icar.mg323.ring_count = 0 ;
 			my_icar.mg323.need_dial = true ;

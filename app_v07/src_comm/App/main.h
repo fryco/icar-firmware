@@ -55,7 +55,7 @@
 #define TCP_SEND_PERIOD			1*1*30*OS_TICKS_PER_SEC //30 secs
 #define TCP_CHECK_PERIOD		1*1*30*OS_TICKS_PER_SEC //30 secs
 #define CLEAN_QUEUE_PERIOD		1*2*60*OS_TICKS_PER_SEC //2  mins
-#define RELAY_ON_PERIOD			1*3*60*OS_TICKS_PER_SEC //3  mins
+
 #define RE_DIAL_PERIOD			1*2*60*OS_TICKS_PER_SEC //2  mins
 
 //#define RTC_UPDATE_PERIOD		1*60*60 //1 Hour
@@ -83,6 +83,8 @@ struct ICAR_DEVICE {
 	unsigned int err_log_send_timer;
 	unsigned char *sn ;//serial number
 	unsigned char need_sn;//server need SN
+
+	unsigned int para_relay_on ;
 
 	struct RTC_STATUS stm32_rtc;
 	struct ADC_STATUS stm32_adc;
