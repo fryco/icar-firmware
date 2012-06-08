@@ -27,7 +27,8 @@ GSM_CMD_ERROR,\
 GSM_CMD_RECORD,\
 GSM_CMD_SN,\
 GSM_CMD_TIME,\
-GSM_CMD_UPGRADE\
+GSM_CMD_UPGRADE,\
+GSM_CMD_UPDATE\
 };
 
 static unsigned char pro_sn[]="02P1xxxxxx";
@@ -145,8 +146,8 @@ void  app_task_manager (void *p_arg)
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
 	my_icar.err_log_send_timer = 0 ;//
 	my_icar.need_sn = 3 ;
-	//my_icar.mg323.ask_power = true ;
-	my_icar.mg323.ask_power = false ;//for debug only
+	my_icar.mg323.ask_power = true ;
+	//my_icar.mg323.ask_power = false ;//for develop CAN only
 	my_icar.upgrade.err_no = 0 ;
 	my_icar.upgrade.prog_fail_addr = 0 ;
 	my_icar.upgrade.q_idx = MAX_CMD_QUEUE+1 ;
@@ -181,24 +182,24 @@ void  app_task_manager (void *p_arg)
 	flash_led( 80 );//100ms
 
 	//independent watchdog init
-	//iwdg_init( );
+	iwdg_init( );
 
-	//Suspend GSM task for debug
-	os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+	//Suspend GSM task for develop CAN
+	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
 
 	while	(1)
 	{
 		/* Reload IWDG counter */
-		//IWDG_ReloadCounter();  
+		IWDG_ReloadCounter();  
 
 		if ( my_icar.upgrade.new_fw_ready ) {
 			// new fw ready
 			// check others conditions, like: ECU off? ...
 			// TBD
 
-			while ( 1 ) {
-				prompt("New fw ready, will be reboot by watchdog!\r\n");
-			}
+			//prompt("Reboot and upgrade new FW!\r\n");
+			__set_FAULTMASK(1);	// 关闭所有中端
+			NVIC_SystemReset();	// 复位
 		}
 
 		if ( c2s_data.tx_len > 0 || !my_icar.login_timer ) {//have command, need online
@@ -951,6 +952,23 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					}
 					break;
 
+				case GSM_CMD_UPDATE://0x75,'u' update parameter
+					//C9 57 D5 00 xx yy data
+
+					switch (*((buf->start)+4)) {
+
+					case 0x1://need upload SN first, C9 77 D5 00 01 01 6B
+							;
+						break;
+
+					default:
+							;
+						break;
+					}
+
+					prompt("GSM_CMD_UPDATE return %d\r\n",*((buf->start)+4));
+					break;
+
 				default:
 					prompt("Unknow respond PCB: 0x%X %s:%d\r\n",buf->pcb&0x7F,__FILE__,__LINE__);
 
@@ -1265,6 +1283,24 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 						//For dev only, remove later...
 						c2s_data.tx_timer= 0 ;//need send immediately
 					}
+				}
+
+				if ( out_pcb == GSM_CMD_UPDATE ) {//Max. 6 Bytes
+					//HEAD SEQ PCB Length(2 bytes) xx(1 byte) check
+					//xx: 01: 1st page para, 02: 2nd page para
+
+					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
+					c2s_data.tx[c2s_data.tx_len+4] = 1;//length low
+					c2s_data.tx[c2s_data.tx_len+5] = 1;//1st page para
+
+					chkbyte = GSM_HEAD ;
+					for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
+						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
+					}
+					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
+
+					//update buf length
+					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
 				}
 
 				OS_ENTER_CRITICAL();
