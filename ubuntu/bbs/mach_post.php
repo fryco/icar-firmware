@@ -4,7 +4,7 @@
  *      [Discuz!] (C)2001-2099 Comsenz Inc.
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $Id: forum_post.php 28214 2012-02-24 06:38:56Z zhengqingpeng $
+ *      $Id$
  */
 require './source/class/class_core.php';
 require './source/function/function_forum.php';
