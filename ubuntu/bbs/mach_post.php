@@ -1,9 +1,11 @@
 <?php
 
 /**
- *      [Discuz!] (C)2001-2099 Comsenz Inc.
+ *      [M2C] (C)2011-2099 Cloudinfo Inc.
  *      This is NOT a freeware, use is subject to license terms
  *
+ *      $URL$ 
+ *      $Rev$, $Date$
  *      $Id$
  */
 require './source/class/class_core.php';
