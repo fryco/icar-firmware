@@ -5,12 +5,17 @@
 #include <stdlib.h>  
 #include <string.h>  
 #include <sys/types.h>  
-#include <sys/socket.h>
+#include <sys/wait.h>
 #include <syslog.h>
 #include <unistd.h>  
-#include <linux/in.h>
 #include <signal.h>  
 #include <time.h> 
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
 #include "database.h"
 #include "commands.h"
 #include "misc.h"
@@ -35,6 +40,16 @@ void sig_proccess_server(int signo)
 	fprintf(stderr, "\nClose socket and exit.\n");  
 	exit(1);  
 }  
+
+void child_exit(int num) 
+{
+	//Received SIGCHLD signal
+	int status;
+	int pid = waitpid(-1, &status, WNOHANG);
+	if (WIFEXITED(status)) {
+		;//fprintf(stderr, "The child %d exit with code %d\n", pid, WEXITSTATUS(status));
+	}
+}
 
 static void usage(void)
 {
@@ -185,6 +200,12 @@ void process_conn_server(struct icar_data *mycar)
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
+					case GSM_CMD_UPDATE://0x75, 'u', Update parameter
+						cmd_update_para( mycar,&cmd,\
+							&recv_buf[buf_index], send_buf );
+						buf_index = buf_index + cmd.len ;//update index
+						break;
+
 					default:
 						fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
 			
@@ -225,6 +246,7 @@ int main(int ac, char **av)
 	pid_t pid;
 	struct icar_data mycar ;
 
+	signal(SIGCHLD, child_exit);
 	signal(SIGINT, sig_proccess_server);
 
 	/* Parse command-line arguments. */

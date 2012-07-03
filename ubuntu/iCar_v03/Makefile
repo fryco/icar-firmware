@@ -7,8 +7,8 @@ MYSQL_LIB = -l mysqlclient
 
 LIBS=-lm
 
-DEPS = misc.h database.h commands.h
-OBJ = misc.o tcp_server.o database.o commands.o
+DEPS = misc.h database.h commands.h cloud_post.h
+OBJ = misc.o tcp_server.o database.o commands.o cloud_post.o
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
