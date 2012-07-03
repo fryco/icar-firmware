@@ -9,6 +9,7 @@
 #include <limits.h>
 #include "database.h"
 #include "commands.h"
+#include "cloud_post.h"
 
 extern int debug_flag ;
 
@@ -113,6 +114,8 @@ int cmd_ask_ist( struct icar_data *mycar, struct icar_command * cmd,\
 
 	unsigned char new_ist;
 	unsigned int chk_count ;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
 
 	if ( debug_flag ) {
 		fprintf(stderr, "CMD is ask IST...\n");
@@ -151,7 +154,20 @@ int cmd_ask_ist( struct icar_data *mycar, struct icar_command * cmd,\
 
 			write(mycar->client_socket,snd_buf,7);
 
+			//Create new process (non-block) for cloud post
+			cloud_pid = fork();
+			if (cloud_pid == 0) { //In child process
+				//fprintf(stderr, "In child:%d for cloud post\n",getpid());
 
+				sprintf(post_buf,"subject=%s&message=CMD is %c",mycar->sn,cmd->pcb);
+				cloud_post( &post_buf );
+				exit( 0 );
+			}
+			//process_conn_server(&mycar);
+			else {//In parent process
+				//fprintf(stderr, "In parent:%d and return\n",getpid());
+				return 0 ;
+			}
 		}
 	}//end of strlen(cmd->pro_sn) == 10
 	else { //no SN
@@ -654,7 +670,7 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 
 	int fd;
 	unsigned int i, chk_count , data_len, fpos, fw_size, fw_rev;
-	unsigned char *filename="./fw/stm32_v00/20120416.bin";
+	unsigned char *filename="./fw/stm32_v00/20120608.bin";
 	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
 
 	if ( debug_flag ) {
@@ -901,5 +917,113 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 	}
 
 	close(fd);
+	return 0 ;
+}
+
+//0: ok, others: error
+int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
+				unsigned char *rec_buf, unsigned char *snd_buf )
+{//case GSM_CMD_UPDATE://0x75, 'u', Update parameter
+
+	unsigned int i, chk_count , data_len ;
+
+	if ( debug_flag ) {
+		fprintf(stderr, "CMD is Update parameter...\n");
+	}
+
+	if ( strlen(mycar->sn) == 10 ) {
+
+		fprintf(stderr, "SN: %s\t",mycar->sn);
+		fprintf(stderr, "cmd->pro_sn: %s\r\n",cmd->pro_sn);
+
+		//record this command
+		if ( record_command(mycar,rec_buf,"NO_ERR",7)) {
+			if ( debug_flag ) {
+				fprintf(stderr, "Record command err= %d: %s",\
+					mycar->err_code,mycar->err_msg);
+				}
+		}
+
+
+		//Check input detail
+		//C9 F9 55 00 04 00 00 00 5E
+		//buf[5] = 0x00 ;//00: mean buf[6] is hw rev, others: block seq
+
+		memset(snd_buf, '\0', BUFSIZE);
+
+			snd_buf[0] = GSM_HEAD ;
+			snd_buf[1] = cmd->seq ;
+			snd_buf[2] = cmd->pcb | 0x80 ;
+			snd_buf[3] = 0;
+			snd_buf[4] = 1;
+
+			snd_buf[5] = 5;//
+
+		//Calc chk
+		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
+		cmd->chk = GSM_HEAD ;
+		for ( chk_count = 1 ; chk_count < data_len+5 ; chk_count++) {
+			cmd->chk ^= snd_buf[chk_count] ;
+		}
+
+		snd_buf[chk_count] =  cmd->chk ;
+
+		if ( debug_flag ) {
+			fprintf(stderr, "CMD %c ok, will return: ",cmd->pcb);
+			if ( data_len < 128 ) {
+				for ( chk_count = 0 ; chk_count < data_len+6 ; chk_count++ ) {
+					fprintf(stderr, "%02X ",snd_buf[chk_count]);
+				}
+			}
+			else {
+				for ( chk_count = data_len - 8 ; chk_count < data_len+6 ; chk_count++ ) {
+					fprintf(stderr, "%02X ",snd_buf[chk_count]);
+				}
+			}
+			fprintf(stderr, "to %s\n",cmd->pro_sn);
+		} 
+
+		write(mycar->client_socket,snd_buf,data_len+6);
+	}
+
+	else { //no SN
+		fprintf(stderr, "Please upload SN first!\n");
+
+		//record this command
+		if ( record_command(mycar,rec_buf,"NEED_SN",7)) {//error
+			if ( debug_flag ) {
+				fprintf(stderr, "Record command err= %d: %s",\
+					mycar->err_code,mycar->err_msg);
+				}
+		}
+
+		//send respond 
+		memset(snd_buf, '\0', BUFSIZE);
+		snd_buf[0] = GSM_HEAD ;
+		snd_buf[1] = cmd->seq ;
+		snd_buf[2] = cmd->pcb | 0x80 ;
+		snd_buf[3] =  00;//len high
+		snd_buf[4] =  01;//len low
+		snd_buf[5] =  01;//error code, need product SN.
+
+		//Calc chk
+		cmd->chk = GSM_HEAD ;
+		for ( chk_count = 1 ; chk_count < 1+5 ; chk_count++) {
+			cmd->chk ^= snd_buf[chk_count] ;
+		}
+
+		snd_buf[6] =  cmd->chk ;
+
+		if ( debug_flag ) {
+			fprintf(stderr, "CMD %c error, will return: ",cmd->pcb);
+			for ( chk_count = 0 ; chk_count < 7 ; chk_count++ ) {
+				fprintf(stderr, "%02X ",snd_buf[chk_count]);
+			}
+			fprintf(stderr, "\n");
+		}
+
+		write(mycar->client_socket,snd_buf,7);
+	}
+
 	return 0 ;
 }

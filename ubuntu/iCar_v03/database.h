@@ -13,8 +13,10 @@
 #define _DATABASE_H
 
 #include <mysql.h>
+#include <sys/types.h>
 #include <sys/socket.h>
-#include <linux/in.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
 #define BUFSIZE 1024*2
 

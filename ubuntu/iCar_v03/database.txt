@@ -114,6 +114,11 @@ FROM `t_log_command`
 WHERE date >1326954101
 ORDER BY date DESC
 
+SELECT `ID` , FROM_UNIXTIME( date ) , `SN` , `cmd_seq` , char( cmd_pcb ), `cmd_str`, `tx_len`
+FROM `t_log_command_s`
+ORDER BY date DESC
+LIMIT 0 , 30
+
 /**** insert into ip_address_varbinary values ****/
 insert ip_address_varbinary values(
 cast( convert(tinyint, parsename(@ip, 4)) as varbinary)+
