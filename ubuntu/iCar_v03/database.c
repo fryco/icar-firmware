@@ -743,7 +743,7 @@ int record_ip(struct icar_data *mycar, unsigned char *buf, unsigned char *p_buf)
 
 	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => login&message=System run(H:M:S): %d:%02d:%02d\r\nLAN ip:%s\r\nip: %s",\
 				(char *)inet_ntoa(mycar->client_addr.sin_addr),mycar->sn,\
-				ostime/360000,(ostime%3600)/6000,((ostime/100)%3600)%60,\
+				ostime/360000,((ostime/100)%3600)/60,((ostime/100)%3600)%60,\
 				gsm_ip,(char *)inet_ntoa(mycar->client_addr.sin_addr));
 
 	//insert GSM IP and signal to table t_log_ip:
