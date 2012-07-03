@@ -154,21 +154,26 @@ int cmd_ask_ist( struct icar_data *mycar, struct icar_command * cmd,\
 
 			write(mycar->client_socket,snd_buf,7);
 
-			//Create new process (non-block) for cloud post
-			cloud_pid = fork();
-			if (cloud_pid == 0) { //In child process
-				//fprintf(stderr, "In child:%d for cloud post\n",getpid());
+			if ( new_ist ) {
+				//Create new process (non-block) for cloud post
+				cloud_pid = fork();
+				if (cloud_pid == 0) { //In child process
+					//fprintf(stderr, "In child:%d for cloud post\n",getpid());
 
-				sprintf(post_buf,"ip=%s&subject=%s => Ask instruction&message=New instruction is %c\r\nip: %s",\
-						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
-						mycar->sn,new_ist,\
-						(char *)inet_ntoa(mycar->client_addr.sin_addr));
-				cloud_post( &post_buf );
-				exit( 0 );
+					sprintf(post_buf,"ip=%s&subject=%s => Ask instruction&message=New instruction is %c\r\nip: %s",\
+							(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+							mycar->sn,new_ist,\
+							(char *)inet_ntoa(mycar->client_addr.sin_addr));
+	
+					cloud_post( &post_buf );
+					exit( 0 );
+				}
+				else {//In parent process
+					//fprintf(stderr, "In parent:%d and return\n",getpid());
+					return 0 ;
+				}
 			}
-			//process_conn_server(&mycar);
-			else {//In parent process
-				//fprintf(stderr, "In parent:%d and return\n",getpid());
+			else { //no new instruction
 				return 0 ;
 			}
 		}
