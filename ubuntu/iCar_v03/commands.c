@@ -159,7 +159,10 @@ int cmd_ask_ist( struct icar_data *mycar, struct icar_command * cmd,\
 			if (cloud_pid == 0) { //In child process
 				//fprintf(stderr, "In child:%d for cloud post\n",getpid());
 
-				sprintf(post_buf,"subject=%s&message=CMD is %c",mycar->sn,cmd->pcb);
+				sprintf(post_buf,"ip=%s&subject=%s => Ask instruction&message=New instruction is %c\r\nip: %s",\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+						mycar->sn,new_ist,\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr));
 				cloud_post( &post_buf );
 				exit( 0 );
 			}
@@ -221,6 +224,8 @@ int cmd_err_log( struct icar_data *mycar, struct icar_command * cmd,\
 	//						3~0:GSM module poweroff reason
 	unsigned char err_idx=0;//1: 3~0, 2:7~4, 3: 11~8, 4:15~12
 	unsigned int chk_count ;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
 
 	//C9 SEQ 45 LEN DATA CHK
 
@@ -229,7 +234,7 @@ int cmd_err_log( struct icar_data *mycar, struct icar_command * cmd,\
 	}
 
 	if ( strlen(mycar->sn) == 10 ) {
-		if ( record_error(mycar,rec_buf,&err_idx)){//error
+		if ( record_error(mycar,rec_buf,&err_idx,post_buf)){//error
 			if ( debug_flag ) {
 				fprintf(stderr, "Insert error log err= %d: %s",\
 					mycar->err_code,mycar->err_msg);
@@ -304,6 +309,20 @@ int cmd_err_log( struct icar_data *mycar, struct icar_command * cmd,\
 			}
 
 			write(mycar->client_socket,snd_buf,7);
+
+			//Create new process (non-block) for cloud post
+			cloud_pid = fork();
+			if (cloud_pid == 0) { //In child process
+				//fprintf(stderr, "In child:%d for cloud post\n",getpid());
+
+				cloud_post( &post_buf );
+				exit( 0 );
+			}
+			//process_conn_server(&mycar);
+			else {//In parent process
+				//fprintf(stderr, "In parent:%d and return\n",getpid());
+				return 0 ;
+			}
 		}
 	}//end of strlen(cmd->pro_sn) == 10
 	else { //no SN
@@ -352,6 +371,8 @@ int cmd_rec_signal( struct icar_data *mycar, struct icar_command * cmd,\
 {//case GSM_CMD_RECORD: //0x52, 'R' Record GSM signal,adc ...
 
 	unsigned int chk_count ;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
 
 	//C9 SEQ 52 LEN IP GSM_S Vol CHK
 
@@ -361,7 +382,7 @@ int cmd_rec_signal( struct icar_data *mycar, struct icar_command * cmd,\
 
 	if ( strlen(mycar->sn) == 10 ) {
 
-		if ( record_signal(mycar,rec_buf)) {//error
+		if ( record_signal(mycar,rec_buf,post_buf)) {//error
 			if ( debug_flag ) {
 				fprintf(stderr, "Record GSM signal err= %d: %s",\
 					mycar->err_code,mycar->err_msg);
@@ -485,6 +506,8 @@ int cmd_sn_upload( struct icar_data *mycar, struct icar_command * cmd,\
 {//case GSM_CMD_SN: //0x53, 'S', upload SN to server
 
 	unsigned int chk_count ;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
 
 	//HEAD SEQ CMD Length(2 bytes) OSTime SN(char 10) IP check
 	//C9 01 53 00 1B 00 00 0D 99 //CMD + OSTime
@@ -512,7 +535,7 @@ int cmd_sn_upload( struct icar_data *mycar, struct icar_command * cmd,\
 		cmd->pro_sn[10] = 0x0;
 
 		//Update IP to server's DB
-		if ( record_ip(mycar,rec_buf)) 
+		if ( record_ip(mycar,rec_buf,post_buf)) 
 		{//no error
 			if ( debug_flag ) {
 				fprintf(stderr, "Update GSM IP err= %d: %s",\
@@ -562,7 +585,17 @@ int cmd_sn_upload( struct icar_data *mycar, struct icar_command * cmd,\
 
 	write(mycar->client_socket,snd_buf,10);
 
-	return 0 ;
+	//Create new process (non-block) for cloud post
+	cloud_pid = fork();
+	if (cloud_pid == 0) { //In child process
+
+		cloud_post( &post_buf );
+		exit( 0 );
+	}
+	else {//In parent process
+		//fprintf(stderr, "In parent:%d and return\n",getpid());
+		return 0 ;
+	}
 }
 
 int cmd_get_time( struct icar_data *mycar, struct icar_command * cmd,\

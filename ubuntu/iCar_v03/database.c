@@ -630,7 +630,7 @@ int record_command(struct icar_data *mycar, unsigned char *buf, unsigned char * 
 
 //0: ok
 //others: error, check err_code and err_msg
-int record_signal(struct icar_data *mycar, unsigned char *buf)
+int record_signal(struct icar_data *mycar, unsigned char *buf, unsigned char *p_buf)
 {
 	char sql_buf[BUFSIZE];
 	unsigned int buf_index, buf_len;
@@ -661,6 +661,12 @@ int record_signal(struct icar_data *mycar, unsigned char *buf)
 
 	adc_voltage = buf[8] << 8 | buf[9];
 	fprintf(stderr, "adc_voltage: %d\r\n",adc_voltage);
+
+	//prepare cloud post string
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => GSM signal&message=GSM signal: %d\r\nip: %s",\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+						mycar->sn,gsm_signal,\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr));
 
 	//insert GSM IP and signal to table t_log_signal:
 	snprintf(sql_buf,BUFSIZE-1,"insert into t_log_signal values ( '',\
@@ -699,7 +705,7 @@ int record_signal(struct icar_data *mycar, unsigned char *buf)
 
 //0: ok
 //others: error, check err_code and err_msg
-int record_ip(struct icar_data *mycar, unsigned char *buf)
+int record_ip(struct icar_data *mycar, unsigned char *buf, unsigned char *p_buf)
 {
 	char sql_buf[BUFSIZE];
 	unsigned int buf_index, buf_len, ostime=0;
@@ -734,6 +740,12 @@ int record_ip(struct icar_data *mycar, unsigned char *buf)
 	if ( debug_flag ) {
 		fprintf(stderr, "GSM IP: %s\r\n",gsm_ip);
 	}
+
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => login&message=\
+				System run(H:M:S): %d-%02d-%02d\r\nLAN ip:%s\r\nip: %s",\
+				(char *)inet_ntoa(mycar->client_addr.sin_addr),mycar->sn,\
+				ostime/3600,(ostime%3600)/60,(ostime%3600)%60,\
+				gsm_ip,(char *)inet_ntoa(mycar->client_addr.sin_addr));
 
 	//insert GSM IP and signal to table t_log_ip:
 	snprintf(sql_buf,BUFSIZE-1,"insert into t_log_ip values ( '',\
@@ -775,7 +787,8 @@ int record_ip(struct icar_data *mycar, unsigned char *buf)
 
 //0: ok
 //others: error, check err_code and err_msg
-int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *part)
+int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *part, \
+				unsigned char *p_buf)
 {
 	char sql_buf[BUFSIZE];
 	unsigned int buf_index, buf_len, err_time=0, err_len, err_code;
@@ -847,6 +860,14 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 	//err_len = strlen( err_str );
 
 	err_str[MAX_LOG_LENGTH-1] = 0x0; //prevent overflow
+
+	//prepare cloud post string
+
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => log error&message=%s\r\n\r\nip: %s",\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+						mycar->sn,err_str,\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
 
 	if ( debug_flag ) {
 		fprintf(stderr, "err_str: %s\r\n",err_str);
