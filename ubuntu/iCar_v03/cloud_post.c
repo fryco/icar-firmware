@@ -1,5 +1,5 @@
-//$URL: https://icar-firmware.googlecode.com/svn/ubuntu/iCar_v03/tcp_server.c $ 
-//$Rev: 99 $, $Date: 2012-02-29 09:32:56 +0800 (Wed, 29 Feb 2012) $
+//$URL$ 
+//$Rev$, $Date$
 
 #include <stdio.h>
 #include <stdlib.h>
