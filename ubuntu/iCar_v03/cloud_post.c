@@ -13,7 +13,6 @@
 #include "cloud_post.h"
 #include "database.h"
 
-const char *cloud_host="cn0086.info";
 extern int debug_flag ;
 
 //return 0: ok, others: err
@@ -103,7 +102,7 @@ int cloud_tcpclient_close(cloud_tcpclient *pclient){
 	pclient->connected = 0;
 }
 
-int http_post(cloud_tcpclient *pclient,char *page,char *request,char **response){
+int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char *request,char **response){
 
 	char post[300],host[100],content_len[100];
 	char *lpbuf,*ptmp;
@@ -113,7 +112,7 @@ int http_post(cloud_tcpclient *pclient,char *page,char *request,char **response)
 	const char *header2="User-Agent: Mozilla/4.0 Http 0.1\r\nCache-Control: no-cache\r\nContent-Type: application/x-www-form-urlencoded\r\nAccept: */*\r\n";
 
 	sprintf(post,"POST %s HTTP/1.0\r\n",page);
-	sprintf(host,"HOST: %s:%d\r\n",cloud_host,pclient->remote_port);
+	sprintf(host,"HOST: %s:%d\r\n",remote_host,pclient->remote_port);
 	sprintf(content_len,"Content-Length: %d\r\n\r\n",strlen(request));
 
 	len = strlen(post)+strlen(host)+strlen(header2)+strlen(content_len)+strlen(request)+1;
@@ -195,15 +194,15 @@ int http_post(cloud_tcpclient *pclient,char *page,char *request,char **response)
 	return 0;
 }
 
-int cloud_post( char *request )
+int cloud_post( char *remote_host, char *request, int port )
 {  
 	cloud_tcpclient client;
 
 	char *response = NULL;
 
-	cloud_tcpclient_create(&client,cloud_host,80);
+	cloud_tcpclient_create(&client,remote_host,port);
 
-	if(http_post(&client,"/bbs/mach_post.php",request,&response)){
+	if(http_post(&client,remote_host,"/bbs/mach_post.php",request,&response)){
 		fprintf(stderr,"Error! check %s:%d\n",__FILE__, __LINE__);
 		return 1;
 	}
