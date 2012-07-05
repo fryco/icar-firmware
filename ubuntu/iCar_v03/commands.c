@@ -11,6 +11,8 @@
 #include "commands.h"
 #include "cloud_post.h"
 
+const char *cloud_host="cn0086.info";
+const char *log_host="127.0.0.1";
 extern int debug_flag ;
 
 // http://www.zorc.breitbandkatze.de/crctester.c
@@ -165,7 +167,8 @@ int cmd_ask_ist( struct icar_data *mycar, struct icar_command * cmd,\
 							mycar->sn,new_ist,\
 							(char *)inet_ntoa(mycar->client_addr.sin_addr));
 	
-					cloud_post( &post_buf );
+					cloud_post( cloud_host, &post_buf, 80 );
+					cloud_post( log_host, &post_buf, 86 );
 					exit( 0 );
 				}
 				else {//In parent process
@@ -320,7 +323,8 @@ int cmd_err_log( struct icar_data *mycar, struct icar_command * cmd,\
 			if (cloud_pid == 0) { //In child process
 				//fprintf(stderr, "In child:%d for cloud post\n",getpid());
 
-				cloud_post( &post_buf );
+				cloud_post( cloud_host, &post_buf, 80 );
+				cloud_post( log_host, &post_buf, 86 );
 				exit( 0 );
 			}
 			//process_conn_server(&mycar);
@@ -594,7 +598,8 @@ int cmd_sn_upload( struct icar_data *mycar, struct icar_command * cmd,\
 	cloud_pid = fork();
 	if (cloud_pid == 0) { //In child process
 
-		cloud_post( &post_buf );
+		cloud_post( cloud_host, &post_buf, 80 );
+		cloud_post( log_host, &post_buf, 86 );
 		exit( 0 );
 	}
 	else {//In parent process
