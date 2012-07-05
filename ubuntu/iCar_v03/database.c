@@ -663,7 +663,7 @@ int record_signal(struct icar_data *mycar, unsigned char *buf, unsigned char *p_
 	fprintf(stderr, "adc_voltage: %d\r\n",adc_voltage);
 
 	//prepare cloud post string
-	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => GSM signal&message=GSM signal: %d\r\nip: %s",\
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => GSM signal&message=GSM signal: %d\r\n\r\nip: %s",\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 						mycar->sn,gsm_signal,\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr));
@@ -741,7 +741,8 @@ int record_ip(struct icar_data *mycar, unsigned char *buf, unsigned char *p_buf)
 		fprintf(stderr, "GSM IP: %s\r\n",gsm_ip);
 	}
 
-	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => login&message=uptime(H:M:S): %d:%02d:%02d\r\nLAN ip:%s\r\nip: %s",\
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => login&message=uptime(H:M:S): %d:%02d:%02d\r\n\
+				\r\nLAN ip:%s\r\n\r\nip: %s",\
 				(char *)inet_ntoa(mycar->client_addr.sin_addr),mycar->sn,\
 				ostime/360000,((ostime/100)%3600)/60,((ostime/100)%3600)%60,\
 				gsm_ip,(char *)inet_ntoa(mycar->client_addr.sin_addr));
