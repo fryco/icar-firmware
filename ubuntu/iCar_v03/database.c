@@ -643,7 +643,6 @@ int record_signal(struct icar_data *mycar, unsigned char *buf, unsigned char *p_
 
 	//input: HEAD+SEQ+PCB+LEN+DATA+CHK
 	//DATA: Record_seq(2 bytes)+GSM signal(1byte)+voltage(2 bytes)
-	//IP(123.123.123.123) 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33
 	//i.e:  C9 01 52 00 14 FF FF 1C 0F FF 73 
 	cmd_seq = buf[1];
 	buf_len = buf[3] << 8 | buf[4];
@@ -663,9 +662,9 @@ int record_signal(struct icar_data *mycar, unsigned char *buf, unsigned char *p_
 	fprintf(stderr, "adc_voltage: %d\r\n",adc_voltage);
 
 	//prepare cloud post string
-	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => GSM signal&message=GSM signal: %d\r\n\r\nip: %s",\
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=38&subject=%s => GSM signal: %d&message=Record sequence: %d\r\n\r\nip: %s",\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
-						mycar->sn,gsm_signal,\
+						mycar->sn,gsm_signal,record_seq,\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr));
 
 	//insert GSM IP and signal to table t_log_signal:
@@ -741,7 +740,7 @@ int record_ip(struct icar_data *mycar, unsigned char *buf, unsigned char *p_buf)
 		fprintf(stderr, "GSM IP: %s\r\n",gsm_ip);
 	}
 
-	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => login&message=uptime(H:M:S): %d:%02d:%02d\r\n\
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=40&subject=%s => login&message=uptime(H:M:S): %d:%02d:%02d\r\n\
 				\r\nLAN ip:%s\r\n\r\nip: %s",\
 				(char *)inet_ntoa(mycar->client_addr.sin_addr),mycar->sn,\
 				ostime/360000,((ostime/100)%3600)/60,((ostime/100)%3600)%60,\
@@ -863,7 +862,7 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 
 	//prepare cloud post string
 
-	snprintf(p_buf,BUFSIZE-1,"ip=%s&subject=%s => log error&message=%s\r\n\r\nip: %s",\
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=41&subject=%s => log error&message=%s\r\n\r\nip: %s",\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 						mycar->sn,err_str,\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr));
@@ -919,10 +918,11 @@ int ask_instruction(struct icar_data *mycar, unsigned char *buf, unsigned char *
 	MYSQL_ROW sqlrow;
 	unsigned long sqlrow_cnt = 0 ;
 
-	//*ist = 0x55 ;//Upgrade firmware
-	//*ist = 0x75 ;//Update parameter
+	// *ist = 0x55 ;//Upgrade firmware
+	// *ist = 0x75 ;//Update parameter
 
 	*ist = 0 ;//No new instruction
+
 	//input: HEAD+SEQ+PCB+LEN+CHK
 
 //Will inquire DB for instruction

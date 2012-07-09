@@ -13,6 +13,14 @@
 
 const char *cloud_host="cn0086.info";
 const char *log_host="127.0.0.1";
+//Forum id:
+//'36' ==> Machine
+//'37' ==> Instruction 	
+//'38' ==> Signal 	
+//'39' ==> Sync time
+//'40' ==> Login
+//'41' ==> Log err
+
 extern int debug_flag ;
 
 // http://www.zorc.breitbandkatze.de/crctester.c
@@ -162,7 +170,7 @@ int cmd_ask_ist( struct icar_data *mycar, struct icar_command * cmd,\
 				if (cloud_pid == 0) { //In child process
 					//fprintf(stderr, "In child:%d for cloud post\n",getpid());
 
-					sprintf(post_buf,"ip=%s&subject=%s => Ask instruction&message=New instruction is %c\r\nip: %s",\
+					sprintf(post_buf,"ip=%s&fid=37&subject=%s => Ask instruction&message=New instruction is %c\r\n\r\nip: %s",\
 							(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 							mycar->sn,new_ist,\
 							(char *)inet_ntoa(mycar->client_addr.sin_addr));
@@ -323,11 +331,10 @@ int cmd_err_log( struct icar_data *mycar, struct icar_command * cmd,\
 			if (cloud_pid == 0) { //In child process
 				//fprintf(stderr, "In child:%d for cloud post\n",getpid());
 
-				cloud_post( cloud_host, &post_buf, 80 );
+				//cloud_post( cloud_host, &post_buf, 80 );
 				cloud_post( log_host, &post_buf, 86 );
 				exit( 0 );
 			}
-			//process_conn_server(&mycar);
 			else {//In parent process
 				//fprintf(stderr, "In parent:%d and return\n",getpid());
 				return 0 ;
@@ -466,6 +473,19 @@ int cmd_rec_signal( struct icar_data *mycar, struct icar_command * cmd,\
 			}
 
 			write(mycar->client_socket,snd_buf,7);
+
+			//Create new process (non-block) for cloud post
+			cloud_pid = fork();
+			if (cloud_pid == 0) { //In child process
+
+				cloud_post( cloud_host, &post_buf, 80 );
+				cloud_post( log_host, &post_buf, 86 );
+				exit( 0 );
+			}
+			else {//In parent process
+				//fprintf(stderr, "In parent:%d and return\n",getpid());
+				return 0 ;
+			}
 		}
 	}//end of strlen(cmd->pro_sn) == 10
 	else { //no SN
@@ -613,6 +633,8 @@ int cmd_get_time( struct icar_data *mycar, struct icar_command * cmd,\
 {//case GSM_CMD_TIME: //0x54, 'T', Get server Time
 
 	unsigned int chk_count ;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
 
 	//C9 A4 54 00 00 23
 
@@ -662,6 +684,24 @@ int cmd_get_time( struct icar_data *mycar, struct icar_command * cmd,\
 		}
 
 		write(mycar->client_socket,snd_buf,10);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+			//fprintf(stderr, "In child:%d for cloud post\n",getpid());
+
+			sprintf(post_buf,"ip=%s&fid=39&subject=%s => Sync time&message=Synchronize server time to client.\r\n\
+					\r\nip: %s",(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					mycar->sn,(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
+		else {//In parent process
+			//fprintf(stderr, "In parent:%d and return\n",getpid());
+			return 0 ;
+		}
 	}
 
 	else { //no SN
@@ -715,6 +755,8 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 	unsigned int i, chk_count , data_len, fpos, fw_size, fw_rev;
 	unsigned char *filename="./fw/stm32_v00/20120608.bin";
 	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
 
 	if ( debug_flag ) {
 		fprintf(stderr, "CMD is Upgrade fw...\n");
