@@ -20,6 +20,8 @@ const char *log_host="127.0.0.1";
 //'39' ==> Sync time
 //'40' ==> Login
 //'41' ==> Log err
+//'42' ==> Upgrade firmware / Update parameter
+//'43' ==> 
 
 extern int debug_flag ;
 
@@ -881,6 +883,21 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 			if ( debug_flag ) {
 				fprintf(stderr, "Read %d Bytes, CRC: %08X\r\n",fpos,chk_count);
 			}
+
+			//Create new process (non-block) for cloud post
+			cloud_pid = fork();
+			if (cloud_pid == 0) { //In child process
+	
+				sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, firmware info&message=Current HW rev: %d, FW rev: %d\r\n\
+						\r\nNew firmware rev: %d, size: %d \r\n\r\nip: %s",\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+						mycar->sn,rec_buf[6],rec_buf[7]<<8 | rec_buf[8],fw_rev,fw_size,\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr));
+	
+				cloud_post( cloud_host, &post_buf, 80 );
+				cloud_post( log_host, &post_buf, 86 );
+				exit( 0 );
+			}
 		}
 		else {//others : block seq
 			fprintf(stderr, "Ask Block %d, FW rev: %d  \t",\
@@ -932,6 +949,21 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 			//update len
 			snd_buf[3] = ((data_len+4) >> 8) & 0xFF;
 			snd_buf[4] = ((data_len+4) ) & 0xFF;
+
+			//Create new process (non-block) for cloud post
+			cloud_pid = fork();
+			if (cloud_pid == 0) { //In child process
+	
+				sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, Block %d&message=Sending block: %d, data length: %d\r\n\
+						\r\nNew firmware rev: %d, size: %d \r\n\r\nip: %s",\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+						mycar->sn,rec_buf[5],rec_buf[5],data_len-3,fw_rev,fw_size,\
+						(char *)inet_ntoa(mycar->client_addr.sin_addr));
+	
+				cloud_post( cloud_host, &post_buf, 80 );
+				cloud_post( log_host, &post_buf, 86 );
+				exit( 0 );
+			}
 		}
 
 		//Calc chk
