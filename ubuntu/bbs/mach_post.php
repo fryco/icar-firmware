@@ -60,7 +60,7 @@ else {
 //echo $u_ip;
 
 //Get parameter: fid, forum id
-if( in_array($_POST["fid"], array('36', '37', '38', '39', '40', '41'))) {
+if( in_array($_POST["fid"], array('36', '37', '38', '39', '40', '41', '42', '43'))) {
 	$fid = $_POST["fid"];
 }
 else {
