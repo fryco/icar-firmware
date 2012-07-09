@@ -11,6 +11,7 @@
 require './source/class/class_core.php';
 require './source/function/function_forum.php';
 
+
 if(!defined('IN_DISCUZ')) {
         define('IN_DISCUZ', true);
 }
@@ -47,11 +48,26 @@ runhooks();
 require DISCUZ_ROOT.'./source/module/member/mach_'.$mod.'.php';
 */
 
-//echo $_POST["subject"];
-//echo "<br>";
-//echo $_POST["message"];
+//Get parameter: u_ip
+if( $_POST["ip"] ) {
+	//echo "Define ip";
+	$u_ip = $_POST["ip"];
+}
+else {
+	//echo "No Define ip";
+	$u_ip = "127.0.0.1";
+}
+//echo $u_ip;
 
-$fid = "36";
+//Get parameter: fid, forum id
+if( in_array($_POST["fid"], array('36', '37', '38', '39', '40', '41'))) {
+	$fid = $_POST["fid"];
+}
+else {
+	echo "Forum id: ".$_POST["fid"]." error!<br>";
+	$fid = "36";
+}
+
 $publishdate = $_G['timestamp'];
 $author = "machine";
 $authorid = "2";
@@ -94,7 +110,7 @@ $authorid = "2";
 			'subject' => $_POST["subject"],
 			'dateline' => $publishdate,
 			'message' => $_POST["message"],
-			'useip' => '192.168.0.1',
+			'useip' => $u_ip,
 			'invisible' => '0',
 			'anonymous' => '0',
 			'usesig' => '1',
@@ -123,7 +139,7 @@ $authorid = "2";
 	C::t('common_member')->increase($authorid, array('credits' => 2));
 	
 	$last_status = array(
-			'lastip' => '192.168.2.254',
+			'lastip' => $u_ip,
 			'lastvisit' => $publishdate,
 			'lastactivity' => $publishdate,
 			'lastpost' => TIMESTAMP
