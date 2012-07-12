@@ -31,7 +31,7 @@ GSM_CMD_UPGRADE,\
 GSM_CMD_UPDATE\
 };
 
-static unsigned char pro_sn[]="02P1xxxxxx";
+static unsigned char pro_sn[]="DEMOxxxxxx";
 //Last 6 bytes replace by MCU ID xor result
 /* SN, char(10): 0  2  P  1 1  A  H  0 0 0
  *               ¢Ù ¢Ú ¢Û ¢Ü¢Ý ¢Þ ¢ß ¢à¢á¢â
@@ -257,8 +257,8 @@ void  app_task_manager (void *p_arg)
 					}
 	
 					//lowest task, just send when online
-					if ( (OSTime/100)%5 == 0 ) {				
-						;//gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
+					if ( (OSTime/100)%15 == 0 ) {				
+						gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
 					}
 				}
 			}
