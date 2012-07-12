@@ -450,6 +450,16 @@
               <FileType>1</FileType>
               <FilePath>..\src_comm\App\drv_flash.c</FilePath>
             </File>
+            <File>
+              <FileName>app_obd.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src_comm\App\app_obd.c</FilePath>
+            </File>
+            <File>
+              <FileName>drv_can.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src_comm\App\drv_can.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
