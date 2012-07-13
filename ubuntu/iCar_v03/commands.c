@@ -11,6 +11,8 @@
 #include "commands.h"
 #include "cloud_post.h"
 
+#define OS_TICKS_PER_SEC	100
+
 const char *cloud_host="cn0086.info";
 const char *log_host="127.0.0.1";
 //Forum id:
@@ -228,6 +230,19 @@ int cmd_ask_ist( struct icar_data *mycar, struct icar_command * cmd,\
 		}
 
 		write(mycar->client_socket,snd_buf,7);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
 	}
 	return 0 ;
 }
@@ -380,6 +395,19 @@ int cmd_err_log( struct icar_data *mycar, struct icar_command * cmd,\
 		}
 
 		write(mycar->client_socket,snd_buf,7);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
 	}
 	return 0 ;
 }
@@ -527,6 +555,19 @@ int cmd_rec_signal( struct icar_data *mycar, struct icar_command * cmd,\
 		}
 
 		write(mycar->client_socket,snd_buf,7);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
 	}
 	return 0 ;
 }
@@ -744,6 +785,19 @@ int cmd_get_time( struct icar_data *mycar, struct icar_command * cmd,\
 		}
 
 		write(mycar->client_socket,snd_buf,7);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
 	}
 	return 0 ;
 }
@@ -888,8 +942,8 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 			cloud_pid = fork();
 			if (cloud_pid == 0) { //In child process
 	
-				sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, firmware info&message=Current HW rev: %d, FW rev: %d\r\n\
-						\r\nNew firmware rev: %d, size: %d \r\n\r\nip: %s",\
+				sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, firmware info&message=Current HW rev: %d,  FW rev: %d\r\n\
+						\r\nNew firmware rev: %d,  size: %d \r\n\r\nip: %s",\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 						mycar->sn,rec_buf[6],rec_buf[7]<<8 | rec_buf[8],fw_rev,fw_size,\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr));
@@ -954,8 +1008,8 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 			cloud_pid = fork();
 			if (cloud_pid == 0) { //In child process
 	
-				sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, Block %d&message=Sending block: %d, data length: %d\r\n\
-						\r\nNew firmware rev: %d, size: %d \r\n\r\nip: %s",\
+				sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, Block %d&message=Sending block: %d,  data length: %d\r\n\
+						\r\nNew firmware rev: %d,  size: %d \r\n\r\nip: %s",\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 						mycar->sn,rec_buf[5],rec_buf[5],data_len-3,fw_rev,fw_size,\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr));
@@ -1031,6 +1085,19 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 		}
 
 		write(mycar->client_socket,snd_buf,7);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
 	}
 
 	close(fd);
@@ -1042,7 +1109,12 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 				unsigned char *rec_buf, unsigned char *snd_buf )
 {//case GSM_CMD_UPDATE://0x75, 'u', Update parameter
 
-	unsigned int i, chk_count , data_len ;
+	unsigned int i, chk_count , data_len, var_u32;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
+
+	//HEAD SEQ PCB Length(2 bytes) HW rev + FW rev + xx(1 byte) check
+	//xx: 01: 1st page para, 02: 2nd page para
 
 	if ( debug_flag ) {
 		fprintf(stderr, "CMD is Update parameter...\n");
@@ -1061,10 +1133,18 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 				}
 		}
 
+		//1，从数据库取需要更新的参数
+		//2，按照偏移量逐一填写好，如 01 xx xx xx xx 表示offset 01的参数，数值是xxxxxxxx
+		//3, 数据传回MCU后，按此格式逐一解析，并保存。
+		//4, Offset 与 drv_flash.h 保持一致
+		//Offset 摘要：
+		//#define PARA_RELAY_ON				4/4=1
+		//#define PARA_OBD_TYPE				32/4=8
 
-		//Check input detail
-		//C9 F9 55 00 04 00 00 00 5E
-		//buf[5] = 0x00 ;//00: mean buf[6] is hw rev, others: block seq
+		if ( debug_flag ) {
+			fprintf(stderr, "Current HW rev: %d, FW rev: %d\r\n",\
+				rec_buf[5],rec_buf[6]<<8 | rec_buf[7]);
+		}
 
 		memset(snd_buf, '\0', BUFSIZE);
 
@@ -1072,9 +1152,14 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
 			snd_buf[3] = 0;
-			snd_buf[4] = 1;
+			snd_buf[4] = 5;//data len
 
-			snd_buf[5] = 5;//
+			snd_buf[5] = 1;//PARA_RELAY_ON
+			var_u32 = 3*60*OS_TICKS_PER_SEC;// 3 mins
+			snd_buf[6] = (var_u32>>24)&0xFF;
+			snd_buf[7] = (var_u32>>16)&0xFF;
+			snd_buf[8] = (var_u32>>8)&0xFF;
+			snd_buf[9] = (var_u32)&0xFF;
 
 		//Calc chk
 		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
@@ -1101,6 +1186,21 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 		} 
 
 		write(mycar->client_socket,snd_buf,data_len+6);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=42&subject=%s => Update parameter&message=Current HW rev: %d,  FW rev: %d\r\n\
+					\r\n \r\n\r\nip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					mycar->sn,rec_buf[5],rec_buf[6]<<8 | rec_buf[7],\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
 	}
 
 	else { //no SN
@@ -1140,6 +1240,19 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 		}
 
 		write(mycar->client_socket,snd_buf,7);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
 	}
 
 	return 0 ;
