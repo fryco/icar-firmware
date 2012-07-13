@@ -144,11 +144,11 @@ void process_conn_server(struct icar_data *mycar)
 				else {
 					cmd.seq = recv_buf[buf_index+1];
 					cmd.pcb = recv_buf[buf_index+2];
-					fprintf(stderr, "cmd seq=0x%X pcb=0x%X len=%d\t",\
+					fprintf(stderr, "cmd seq=0x%X pcb=0x%X len=%d  ",\
 									cmd.seq,cmd.pcb,cmd.len);
 
 					if ( debug_flag ) {
-						fprintf(stderr, "At %d CMD: %c Len:%d\r\n",buf_index,cmd.pcb,cmd.len);
+						fprintf(stderr, "at %d CMD: %c Len:%d\r\n",buf_index,cmd.pcb,cmd.len);
 					}
 					//handle the input cmd
 					switch (cmd.pcb) {
