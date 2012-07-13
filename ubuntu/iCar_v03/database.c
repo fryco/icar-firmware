@@ -809,6 +809,7 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 	//fprintf(stderr, "\r\nLen: %d ",buf_len);
 
 	err_time = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[8];
+
 	//fprintf(stderr, "\r\nerr_time: %08X ",err_time);
 
 	//BKP_DR1, ERR index: 	15~12:MCU reset 
@@ -862,9 +863,9 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 
 	//prepare cloud post string
 
-	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=41&subject=%s => log error&message=%s\r\n\r\nip: %s",\
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=41&subject=%s =>Err: %s&message=Client time: %s\r\n\r\nip: %s",\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
-						mycar->sn,err_str,\
+						mycar->sn,err_str,(char *)ctime(&err_time),\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr));
 
 
