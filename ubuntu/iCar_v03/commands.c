@@ -11,8 +11,6 @@
 #include "commands.h"
 #include "cloud_post.h"
 
-#define OS_TICKS_PER_SEC	100
-
 const char *cloud_host="cn0086.info";
 const char *log_host="127.0.0.1";
 //Forum id:
@@ -1114,7 +1112,7 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 	unsigned char post_buf[BUFSIZE];
 
 	//HEAD SEQ PCB Length(2 bytes) HW rev + FW rev + xx(1 byte) check
-	//xx: 01: 1st page para, 02: 2nd page para
+	//xx:  parameter_revision
 
 	if ( debug_flag ) {
 		fprintf(stderr, "CMD is Update parameter...\n");
@@ -1133,17 +1131,18 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 				}
 		}
 
-		//1，从数据库取需要更新的参数
+		//1，从数据库取需要更新的参数及参数版本号
 		//2，按照偏移量逐一填写好，如 01 xx xx xx xx 表示offset 01的参数，数值是xxxxxxxx
-		//3, 数据传回MCU后，按此格式逐一解析，并保存。
+		//3, 数据传回MCU后，先核对参数版本号是否一致，然后按格式逐一解析，并保存。
 		//4, Offset 与 drv_flash.h 保持一致
 		//Offset 摘要：
+		//#define PARA_REV					0/4=0	//parameters revision
 		//#define PARA_RELAY_ON				4/4=1
 		//#define PARA_OBD_TYPE				32/4=8
 
 		if ( debug_flag ) {
-			fprintf(stderr, "Current HW rev: %d, FW rev: %d\r\n",\
-				rec_buf[5],rec_buf[6]<<8 | rec_buf[7]);
+			fprintf(stderr, "Current HW rev: %d, FW rev: %d, Para rev: %d\r\n",\
+				rec_buf[5],rec_buf[6]<<8 | rec_buf[7], rec_buf[8]);
 		}
 
 		memset(snd_buf, '\0', BUFSIZE);
@@ -1152,14 +1151,20 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
 			snd_buf[3] = 0;
-			snd_buf[4] = 5;//data len
+			snd_buf[4] = 10;//data len
 
-			snd_buf[5] = 1;//PARA_RELAY_ON
-			var_u32 = 3*60*OS_TICKS_PER_SEC;// 3 mins
-			snd_buf[6] = (var_u32>>24)&0xFF;
-			snd_buf[7] = (var_u32>>16)&0xFF;
-			snd_buf[8] = (var_u32>>8)&0xFF;
-			snd_buf[9] = (var_u32)&0xFF;
+			snd_buf[5] = 0;//PARA rev offset, fix
+			snd_buf[6] = 0;//para rev, get from database
+			snd_buf[7] = 0;
+			snd_buf[8] = 0;
+			snd_buf[9] = 1; //for test only
+
+			var_u32 = 3*60;// 3 mins
+			snd_buf[10] = 1;//PARA_RELAY_ON
+			snd_buf[11] = (var_u32>>24)&0xFF;
+			snd_buf[12] = (var_u32>>16)&0xFF;
+			snd_buf[13] = (var_u32>>8)&0xFF;
+			snd_buf[14] = (var_u32)&0xFF;
 
 		//Calc chk
 		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
@@ -1191,10 +1196,10 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 		cloud_pid = fork();
 		if (cloud_pid == 0) { //In child process
 
-			sprintf(post_buf,"ip=%s&fid=42&subject=%s => Update parameter&message=Current HW rev: %d,  FW rev: %d\r\n\
+			sprintf(post_buf,"ip=%s&fid=42&subject=%s => Para rev: %d update&message=Current HW rev: %d,  FW rev: %d\r\n\
 					\r\n \r\n\r\nip: %s",\
 					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
-					mycar->sn,rec_buf[5],rec_buf[6]<<8 | rec_buf[7],\
+					mycar->sn,rec_buf[8],rec_buf[5],rec_buf[6]<<8 | rec_buf[7],\
 					(char *)inet_ntoa(mycar->client_addr.sin_addr));
 
 			cloud_post( cloud_host, &post_buf, 80 );
