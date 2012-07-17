@@ -25,6 +25,10 @@ struct FIRMWARE_UPGRADE {
 	unsigned int base; //my_icar.upgrade.base
 };
 
+struct PARA_UPDATE {
+	//for update parameter
+	unsigned char err_no;//indicate error number
+};
 
 /* 说明 :
  * firmware限制在60KB以内，升级时先保存在 page68~127 里
@@ -37,6 +41,10 @@ struct FIRMWARE_UPGRADE {
  */
 
 //my_icar.upgrade.base define in app_taskmanager.c
+//参数储存格式：01 xx xx xx xx 表示offset 01的参数，数值是xxxxxxxx
+//参数数量：从 00 开始，到 PARA_COUNT 个
+//参数更新：先更新RAM中参数，然后删除原内容，重新写入
+
 
 //FW info and FW data read as: *(vu16*)
 #define NEW_FW_REV						0	//4 bytes for rev. 4 B for !rev., start addr
@@ -48,29 +56,34 @@ struct FIRMWARE_UPGRADE {
 
 #define FW_READY_FLAG					0xAA55A5A5
 
-#define PARA_COUNT						100	//parameters count, 0~2044 Bytes, no include CRC
+#define PARA_COUNT						12	//parameters count, 0~2044 Bytes, no include CRC
 //Parameters offset address, all read as *(vu32*) for convenient:
-#define PARA_CRC						0	//parameters CRC result
+#define PARA_REV						0	//parameters revision
 #define PARA_RELAY_ON					4	//Relay on period, seconds, *OS_TICKS_PER_SEC
-#define PARA_RSV1						8	//parameters reserve
-#define PARA_RSV2						12	//parameters reserve
+#define PARA_RSV						8	//Reserve
 
-#define PARA_OBD_TYPE					32	//0x20, OBD type, 4: KWP
-											//      0:CAN_STD_250, 1: CAN_EXT_250
-											//      2:CAN_STD_500, 3: CAN_EXT_500
+#define PARA_OBD_TYPE					12	//OBD type, 4: KWP
+											//0:CAN_STD_250, 1: CAN_EXT_250
+											//2:CAN_STD_500, 3: CAN_EXT_500
 
-#define PARA_OBD_CAN_SND_STD_ID1		48	//0x30 OBD, CAN send standard ID1 
-#define PARA_OBD_CAN_SND_STD_ID2		52	//     OBD, CAN send standard ID2 
+#define PARA_OBD_CAN_SND_STD_ID1		16	//OBD, CAN send standard ID1 
+#define PARA_OBD_CAN_SND_STD_ID2		20	//OBD, CAN send standard ID2 
 
-#define PARA_OBD_CAN_RCV_STD_ID1		64	//0x40 OBD, CAN receive standard ID1 
-#define PARA_OBD_CAN_RCV_STD_ID2		68	//     OBD, CAN receive standard ID2 
+#define PARA_OBD_CAN_RCV_STD_ID1		24	//OBD, CAN receive standard ID1 
+#define PARA_OBD_CAN_RCV_STD_ID2		28	//OBD, CAN receive standard ID2 
 
-#define PARA_OBD_CAN_SND_EXT_ID1		80	//0x50 OBD, CAN send extend ID1
-#define PARA_OBD_CAN_SND_EXT_ID2		84	//     OBD, CAN send extend ID2
+#define PARA_OBD_CAN_SND_EXT_ID1		32	//OBD, CAN send extend ID1
+#define PARA_OBD_CAN_SND_EXT_ID2		36	//OBD, CAN send extend ID2
 
-#define PARA_OBD_CAN_RCV_EXT_ID1		96	//0x60 OBD, CAN send extend ID1
-#define PARA_OBD_CAN_RCV_EXT_ID2		100	//     OBD, CAN send extend ID2
+#define PARA_OBD_CAN_RCV_EXT_ID1		40	//OBD, CAN send extend ID1
+#define PARA_OBD_CAN_RCV_EXT_ID2		44	//OBD, CAN send extend ID2
 
+#define PARA_CRC						48	//parameters CRC result
+
+//参数历史
+#define parameter_revision				00	//7/17/2012 10:10:25 AM, draft
+//#define parameter_revision			01	//time
+											//add xxx
 
 //Error define for upgrade firmware
 #define ERR_UPGRADE_NO_ERR				0	//No ERR
@@ -85,6 +98,9 @@ struct FIRMWARE_UPGRADE {
 #define ERR_UPGRADE_BUFFER_LEN			9	//Upgrade string length un-correct
 #define ERR_UPGRADE_FW_CRC				10	//firmware CRC error
 #define ERR_UNEXPECT_READY_FLAG			11	//un-expect firmware ready flag
+#define ERR_UPDATE_BUFFER_LEN			12	//Update para length un-correct
+#define ERR_UPDATE_PARA_REV				13	//Update para revision un match
+
 
 /* Includes ------------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
@@ -98,5 +114,6 @@ struct FIRMWARE_UPGRADE {
 unsigned char flash_prog_u16( uint32_t addr, uint16_t data);
 unsigned char flash_upgrade_ask( unsigned char * ) ;
 unsigned char flash_upgrade_rec( unsigned char *, unsigned char * ) ;
+unsigned char para_update_rec( unsigned char *, unsigned char * ) ;
 void get_parameters( void );
 #endif /* __APP_FLASH_H */

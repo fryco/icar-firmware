@@ -102,6 +102,7 @@ struct ICAR_DEVICE {
 	struct GSM_STATUS mg323;
 
 	struct FIRMWARE_UPGRADE upgrade;
+	struct PARA_UPDATE update;
 };
 
 #endif /* __MAIN_H */

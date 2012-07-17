@@ -786,13 +786,13 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 						break;
 
-					case 0x30://record err log part 3: fw upgrade success
-						prompt("Upload fw upgrade log success, CMD_seq: %02X\r\n",*((buf->start)+1));
+					case 0x30://record err log part 3: fw upgrade or para update
+						prompt("Upload upgrade/update log success, CMD_seq: %02X\r\n",*((buf->start)+1));
 						//Clear the error flag
 						//BKP_DR6, upgrade fw time(UTC Time) high
 						//BKP_DR7, upgrade fw time(UTC Time) low
-					    BKP_WriteBackupRegister(BKP_DR6, 0);//fw rev
-					    BKP_WriteBackupRegister(BKP_DR7, 0);//fw size
+					    BKP_WriteBackupRegister(BKP_DR6, 0);//time high
+					    BKP_WriteBackupRegister(BKP_DR7, 0);//time low
 						BKP_WriteBackupRegister(BKP_DR1, \
 							((BKP_ReadBackupRegister(BKP_DR1))&0xF0FF));
 
@@ -958,15 +958,35 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					switch (*((buf->start)+4)) {
 
 					case 0x1://need upload SN first, C9 77 D5 00 01 01 6B
-							;
+						my_icar.need_sn = 3 ;
 						break;
 
 					default:
-							;
+						prompt("GSM_CMD_UPDATE return %d\r\n",*((buf->start)+4));
+						my_icar.update.err_no = para_update_rec(buf->start,c2s_data.rx) ;
+						if ( my_icar.update.err_no && \
+								!((BKP_ReadBackupRegister(BKP_DR1))&0x0F00) ) {
+
+							//BKP_DR1, ERR index: 	15~12:MCU reset 
+							//						11~8:upgrade fw or update para failure code
+							//						7~4:GPRS disconnect reason
+							//						3~0:GSM module poweroff reason
+							var_u16 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
+							var_u16 = var_u16 | (my_icar.update.err_no<<8) ;
+						    BKP_WriteBackupRegister(BKP_DR1, var_u16);
+
+							//BKP_DR6, upgrade fw time(UTC Time) high
+							//BKP_DR7, upgrade fw time(UTC Time) low
+						    BKP_WriteBackupRegister(BKP_DR6, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+						    BKP_WriteBackupRegister(BKP_DR7, (RTC_GetCounter( ))&0xFFFF);//low
+
+							prompt("Upgrade fw err: %d, check %s: %d\r\n",\
+									my_icar.update.err_no,__FILE__,__LINE__);
+						}
+
 						break;
 					}
 
-					prompt("GSM_CMD_UPDATE return %d\r\n",*((buf->start)+4));
 					break;
 
 				default:
@@ -1277,21 +1297,22 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 						if ( my_icar.debug > 2) {
 							printf("%02X\r\n",c2s_data.tx[c2s_data.tx_len+i]);
 						}
+
 						//update buf length
 						c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
-	
-						//For dev only, remove later...
-						c2s_data.tx_timer= 0 ;//need send immediately
 					}
 				}
 
 				if ( out_pcb == GSM_CMD_UPDATE ) {//Max. 6 Bytes
-					//HEAD SEQ PCB Length(2 bytes) xx(1 byte) check
-					//xx: 01: 1st page para, 02: 2nd page para
+					//HEAD SEQ PCB Length(2 bytes) HW rev + FW rev + xx(1 byte) check
+					//xx:  parameter_revision
 
 					c2s_data.tx[c2s_data.tx_len+3] = 0;//length high
-					c2s_data.tx[c2s_data.tx_len+4] = 1;//length low
-					c2s_data.tx[c2s_data.tx_len+5] = 1;//1st page para
+					c2s_data.tx[c2s_data.tx_len+4] = 4;//length low
+					c2s_data.tx[c2s_data.tx_len+5] = my_icar.hw_rev;
+					c2s_data.tx[c2s_data.tx_len+6] = (my_icar.fw_rev>>8)&0xFF;//fw rev. high
+					c2s_data.tx[c2s_data.tx_len+7] = (my_icar.fw_rev)&0xFF;//fw rev. low
+					c2s_data.tx[c2s_data.tx_len+8] = parameter_revision;
 
 					chkbyte = GSM_HEAD ;
 					for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
@@ -1301,6 +1322,9 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 
 					//update buf length
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
+
+					//For dev only, remove later...
+					c2s_data.tx_timer= 0 ;//need send immediately
 				}
 
 				OS_ENTER_CRITICAL();
