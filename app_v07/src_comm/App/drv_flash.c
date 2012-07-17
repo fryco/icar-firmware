@@ -667,6 +667,7 @@ static void init_parameters( )
 	}
 
 	//restore to default factory value
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_REV,parameter_revision);
 	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_RELAY_ON,30);//30 seconds for relay on
 
 	//for OBD CAN para:
@@ -709,6 +710,12 @@ void get_parameters( )
 		init_parameters( );
 	}
 
+	//Check parameter revision, if no match, init...
+	if ( parameter_revision != (*(vu16*)(my_icar.upgrade.base - 0x800 + PARA_REV)) ){
+		prompt("Parameters revision not same, need init...\r\n");
+		init_parameters( );
+	}
+
 	//verify data integrated by CRC
 	/* Reset CRC generator */
 	CRC->CR = CRC_CR_RESET;
@@ -736,4 +743,86 @@ void get_parameters( )
 	prompt("Parameters my_icar.para_relay_on : %d\r\n",\
 				my_icar.para_relay_on);
 
+	prompt("Parameters revision : %d\r\n",\
+				*(vu16*)(my_icar.upgrade.base - 0x800 + PARA_REV));
+
+}
+
+//Return 0: ok, others error.
+unsigned char para_update_rec( unsigned char *buf, unsigned char *buf_start) 
+{//receive update data ...
+	u16 buf_len ;
+
+	unsigned int var_u32 ;
+
+	//C9 1F F5 00 0A 00 00 00 00 01 01 00 00 00 B4 9D
+	//                ¡üpara offset
+	//
+
+
+	if ( (buf+4) < buf_start+GSM_BUF_LENGTH ) {
+		buf_len = *(buf+4);
+	}
+	else {
+		buf_len = *(buf+4-GSM_BUF_LENGTH);
+	}
+
+	if ( (buf+3) < buf_start+GSM_BUF_LENGTH ) {
+		buf_len = ((*(buf+3))<<8) | buf_len;
+	}
+	else {
+		buf_len = ((*(buf+3-GSM_BUF_LENGTH))<<8) | buf_len;
+	}
+
+	//if ( my_icar.debug ) {
+	{
+		prompt("Update len= %d : ",buf_len);
+	}
+
+	if ( buf_len < 10 || buf_len > 1024+7) { 
+		//err, Min.: 00 + para(4Bytes) + xx + para(4B) = 10 Bytes
+
+		printf("\r\n");
+		prompt("Length: %d is un-correct! Check %s: %d\r\n",\
+				buf_len,__FILE__,__LINE__);
+		return ERR_UPDATE_BUFFER_LEN ;
+	}
+
+	//extract 	fw_rev = buf[6] << 24 | buf[7] << 16 | buf[8] << 8 | buf[9];
+	if ( (buf+9) < buf_start+GSM_BUF_LENGTH ) {
+		var_u32 = *(buf+9);
+	}
+	else {
+		var_u32 = *(buf+9-GSM_BUF_LENGTH);
+	}
+
+	if ( (buf+8) < buf_start+GSM_BUF_LENGTH ) {
+		var_u32 = ((*(buf+8))<<8) | var_u32;
+	}
+	else {
+		var_u32 = ((*(buf+8-GSM_BUF_LENGTH))<<8) | var_u32;
+	}
+
+	if ( (buf+7) < buf_start+GSM_BUF_LENGTH ) {
+		var_u32 = ((*(buf+7))<<16) | var_u32;
+	}
+	else {
+		var_u32 = ((*(buf+7-GSM_BUF_LENGTH))<<16) | var_u32;
+	}
+
+	if ( (buf+6) < buf_start+GSM_BUF_LENGTH ) {
+		var_u32 = ((*(buf+6))<<24) | var_u32;
+	}
+	else {
+		var_u32 = ((*(buf+6-GSM_BUF_LENGTH))<<24) | var_u32;
+	}
+
+	//check para revision
+	if ( var_u32 !=  parameter_revision ) {//para rev not same
+		prompt("Error, server para rev: %d is diff than current: %d\r\n",var_u32,parameter_revision);
+		return ERR_UPDATE_PARA_REV;
+	}
+
+	
+	return 0;
 }

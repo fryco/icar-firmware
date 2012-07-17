@@ -57,7 +57,7 @@ typedef enum
 #define GSM_PM_GPIO_CLK                  RCC_APB2Periph_GPIOB
 #define GSM_PM_GPIO_MODE                 GPIO_Mode_Out_PP
 
-#define GPS_PM_PIN                       GPIO_Pin_8  
+#define GPS_PM_PIN                       GPIO_Pin_11  
 #define GPS_PM_GPIO_PORT                 GPIOA
 #define GPS_PM_GPIO_CLK                  RCC_APB2Periph_GPIOA
 #define GPS_PM_GPIO_MODE                 GPIO_Mode_Out_OD
