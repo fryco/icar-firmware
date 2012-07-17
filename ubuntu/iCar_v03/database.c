@@ -59,8 +59,8 @@ const unsigned char *ERR_UPGRADE[][1]= {\
 	"Receive upgrade data length un-correct",\
 	"Firmware CRC error",\
 	"un-expect firmware ready flag",\
-	"RSV",\
-	"RSV",\
+	"Receive update parameter length un-correct",\
+	"Update parameter rev no match",\
 	"RSV",\
 	"RSV"\
 };
@@ -863,7 +863,7 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 
 	//prepare cloud post string
 
-	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=41&subject=%s =>Err: %s&message=Client time: %s\r\n\r\nip: %s",\
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=41&subject=%s =>ERR: %s&message=Client time: %s\r\n\r\nip: %s",\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 						mycar->sn,err_str,(char *)ctime(&err_time),\
 						(char *)inet_ntoa(mycar->client_addr.sin_addr));
@@ -920,9 +920,9 @@ int ask_instruction(struct icar_data *mycar, unsigned char *buf, unsigned char *
 	unsigned long sqlrow_cnt = 0 ;
 
 	// *ist = 0x55 ;//Upgrade firmware
-	// *ist = 0x75 ;//Update parameter
+	 *ist = 0x75 ;//Update parameter
 
-	*ist = 0 ;//No new instruction
+	// *ist = 0 ;//No new instruction
 
 	//input: HEAD+SEQ+PCB+LEN+CHK
 
