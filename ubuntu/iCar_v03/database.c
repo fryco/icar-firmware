@@ -62,7 +62,7 @@ const unsigned char *ERR_UPGRADE[][1]= {\
 	"Receive update parameter length un-correct",\
 	"Update parameter rev no match",\
 	"RSV",\
-	"RSV"\
+	"Parameters update successful"\
 };
 
 const unsigned char *ERR_GPRS[][1]= {\
@@ -920,9 +920,9 @@ int ask_instruction(struct icar_data *mycar, unsigned char *buf, unsigned char *
 	unsigned long sqlrow_cnt = 0 ;
 
 	// *ist = 0x55 ;//Upgrade firmware
-	 *ist = 0x75 ;//Update parameter
+	// *ist = 0x75 ;//Update parameter
 
-	// *ist = 0 ;//No new instruction
+	 *ist = 0 ;//No new instruction
 
 	//input: HEAD+SEQ+PCB+LEN+CHK
 

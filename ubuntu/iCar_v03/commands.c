@@ -1138,7 +1138,9 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 		//Offset ÕªÒª£º
 		//#define PARA_REV					0/4=0	//parameters revision
 		//#define PARA_RELAY_ON				4/4=1
-		//#define PARA_OBD_TYPE				32/4=8
+		//#define PARA_RSV					8/4=2	//Reserve
+		//...
+		//#define PARA_OBD_CAN_RCV_EXT_ID2	44/4=11	//OBD, CAN send extend ID2
 
 		if ( debug_flag ) {
 			fprintf(stderr, "Current HW rev: %d, FW rev: %d, Para rev: %d\r\n",\
@@ -1151,13 +1153,13 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
 			snd_buf[3] = 0;
-			snd_buf[4] = 10;//data len
+			snd_buf[4] = 15;//data len
 
 			snd_buf[5] = 0;//PARA rev offset, fix
 			snd_buf[6] = 0;//para rev, get from database
 			snd_buf[7] = 0;
 			snd_buf[8] = 0;
-			snd_buf[9] = 1; //for test only
+			snd_buf[9] = 0; //para revision lowest
 
 			var_u32 = 3*60;// 3 mins
 			snd_buf[10] = 1;//PARA_RELAY_ON
@@ -1165,6 +1167,13 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 			snd_buf[12] = (var_u32>>16)&0xFF;
 			snd_buf[13] = (var_u32>>8)&0xFF;
 			snd_buf[14] = (var_u32)&0xFF;
+
+			var_u32 = 0x789ABCDE;// for test
+			snd_buf[15] = 11;//CAN_RCV_EXT_ID2
+			snd_buf[16] = (var_u32>>24)&0xFF;
+			snd_buf[17] = (var_u32>>16)&0xFF;
+			snd_buf[18] = (var_u32>>8)&0xFF;
+			snd_buf[19] = (var_u32)&0xFF;
 
 		//Calc chk
 		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
