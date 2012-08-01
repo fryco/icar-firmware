@@ -18,7 +18,7 @@
 struct FIRMWARE_UPGRADE {
 	//for upgrade firmware
 	unsigned char err_no;//indicate error number
-	unsigned char q_idx; //the point for upgrade command queue
+	//unsigned char q_idx; //the point for upgrade command queue
 	unsigned int prog_fail_addr;//flash address for prog failure
 	bool new_fw_ready ;
 	u16 page_size; //my_icar.upgrade.page_size
@@ -30,19 +30,42 @@ struct PARA_UPDATE {
 	unsigned char err_no;//indicate error number
 };
 
+struct PARA_METERS { //need same as below offset define
+	//for each parameter
+	unsigned int rev;		//#define PARA_REV			0	//parameters revision
+	unsigned int relay_on;	//#define RELAY_ON_PERIOD	1*3*60*OS_TICKS_PER_SEC //3  mins
+	unsigned int rsv;		//#define PARA_RSV			8	//Reserve
+	unsigned int obd_type;	//#define PARA_OBD_TYPE		12	//OBD type, 4: KWP, FF: Auto
+															//0:CAN_STD_250, 1: CAN_EXT_250
+															//2:CAN_STD_500, 3: CAN_EXT_500
+	unsigned int obd_can_snd_std_id1;//#define PARA_OBD_CAN_SND_STD_ID1		16	//OBD, CAN send standard ID1
+	unsigned int obd_can_snd_std_id2;//#define PARA_OBD_CAN_SND_STD_ID2		20	//OBD, CAN send standard ID2 
+
+	unsigned int obd_can_rcv_std_id1;//#define PARA_OBD_CAN_RCV_STD_ID1		24	//OBD, CAN receive standard ID1 
+	unsigned int obd_can_rcv_std_id2;//#define PARA_OBD_CAN_RCV_STD_ID2		28	//OBD, CAN receive standard ID2 
+
+	unsigned int obd_can_snd_ext_id1;//#define PARA_OBD_CAN_SND_EXT_ID1		32	//OBD, CAN send extend ID1
+	unsigned int obd_can_snd_ext_id2;//#define PARA_OBD_CAN_SND_EXT_ID2		36	//OBD, CAN send extend ID2
+
+	unsigned int obd_can_rcv_ext_id1;//#define PARA_OBD_CAN_RCV_EXT_ID1		40	//OBD, CAN send extend ID1
+	unsigned int obd_can_rcv_ext_id2;//#define PARA_OBD_CAN_RCV_EXT_ID2		44	//OBD, CAN send extend ID2
+
+	unsigned int crc;		//#define PARA_CRC			48	//parameters CRC result
+};
+
 /* 说明 :
- * firmware限制在60KB以内，升级时先保存在 page68~127 里
- × page67 记录对应的CRC值, 偏移量从BLK_CRC_DAT 开始
- * 0~3   Bytes: 对应page68的CRC值， 4~7  Bytes: CRC值取反
- * 8~11  Bytes: 对应page69的CRC值，12~15 Bytes: CRC值取反
- * 16~19 Bytes: 对应page70的CRC值，20~23 Bytes: CRC值取反
- * 24~27 Bytes: 对应page71的CRC值，28~31 Bytes: CRC值取反
+ * firmware限制�0KB以内，升级时先保存在 page68~127 �
+ × page67 记录对应的CRC� 偏移量从BLK_CRC_DAT 开�
+ * 0~3   Bytes: 对应page68的CRC值， 4~7  Bytes: CRC值取�
+ * 8~11  Bytes: 对应page69的CRC值，12~15 Bytes: CRC值取�
+ * 16~19 Bytes: 对应page70的CRC值，20~23 Bytes: CRC值取�
+ * 24~27 Bytes: 对应page71的CRC值，28~31 Bytes: CRC值取�
  * ...
  */
 
 //my_icar.upgrade.base define in app_taskmanager.c
-//参数储存格式：01 xx xx xx xx 表示offset 01的参数，数值是xxxxxxxx
-//参数数量：从 00 开始，到 PARA_COUNT 个
+//参数储存格式�1 xx xx xx xx 表示offset 01的参数，数值是xxxxxxxx
+//参数数量：从 00 开始，�PARA_COUNT �
 //参数更新：先更新RAM中参数，然后删除原内容，重新写入
 
 
@@ -56,13 +79,13 @@ struct PARA_UPDATE {
 
 #define FW_READY_FLAG					0xAA55A5A5
 
-#define PARA_COUNT						12	//parameters count, 0~2044 Bytes, no include CRC
+//#define PARA_COUNT						12	//parameters count, 0~2044 Bytes, no include CRC
 //Parameters offset address, all read as *(vu32*) for convenient:
 #define PARA_REV						0	//parameters revision
 #define PARA_RELAY_ON					4	//Relay on period, seconds, *OS_TICKS_PER_SEC
 #define PARA_RSV						8	//Reserve
 
-#define PARA_OBD_TYPE					12	//OBD type, 4: KWP
+#define PARA_OBD_TYPE					12	//OBD type, 4: KWP, FF: Auto
 											//0:CAN_STD_250, 1: CAN_EXT_250
 											//2:CAN_STD_500, 3: CAN_EXT_500
 
@@ -99,8 +122,9 @@ struct PARA_UPDATE {
 #define ERR_UPGRADE_FW_CRC				10	//firmware CRC error
 #define ERR_UNEXPECT_READY_FLAG			11	//un-expect firmware ready flag
 #define ERR_UPDATE_BUFFER_LEN			12	//Update para length un-correct
-#define ERR_UPDATE_PARA_REV				13	//Update para revision un match
-
+#define ERR_UPDATE_PARA_REV				13	//Update para revision no match
+#define ERR_UPGRADE_ERR_RSV				14	//Reserve
+#define ERR_UPDATE_SUCCESSFUL			15	//Parameters update successful
 
 /* Includes ------------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/

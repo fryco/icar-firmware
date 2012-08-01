@@ -44,6 +44,7 @@
 
 #define AT_CMD_LENGTH			64 //for GSM command, must < RX_BUF_SIZE in drv_uart.h
 #define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online_cnt_cnt > MAX_ONLINE_TRY )
+#define MAX_WARN_MSG			3  //Warn message, uint32
 #define MIN_GSM_SIGNAL			8  //Min. GSM Signal require
 
 #define MAX_PROG_TRY			16 //Max. program flash retry
@@ -70,6 +71,7 @@
 #define GSM_CMD_TIME			0x54 //'T', time
 #define GSM_CMD_UPGRADE			0x55 //'U', Upgrade firmware
 #define GSM_CMD_UPDATE			0x75 //'u', Update parameter
+#define GSM_CMD_WARN			0x57 //'W', warn msg, report to server
 
 #define	prompt(x, args...)	printf("[%d,%02d%%]> ",OSTime/100,OSCPUUsage);printf(x,	##args);
 
@@ -85,8 +87,8 @@ struct ICAR_DEVICE {
 	unsigned char *sn ;//serial number
 	unsigned char need_sn;//server need SN
 
-	unsigned int para_relay_on ;
-
+	unsigned int warn_msg[MAX_WARN_MSG];//file name(1 Byte), msg(1 Byte), line(2 B)
+	
 	struct RTC_STATUS stm32_rtc;
 	struct ADC_STATUS stm32_adc;
 
@@ -103,6 +105,13 @@ struct ICAR_DEVICE {
 
 	struct FIRMWARE_UPGRADE upgrade;
 	struct PARA_UPDATE update;
+	struct PARA_METERS para;
 };
+
+//File name define, for warn msg report
+#define F_MAIN				01	//main.c
+#define F_APP_TASKMANAGER	02	//app_taskmanager.c
+#define F_APP_GSM			03	//app_gsm.c
+
 
 #endif /* __MAIN_H */
