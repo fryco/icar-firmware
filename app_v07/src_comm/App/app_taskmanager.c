@@ -28,7 +28,8 @@ GSM_CMD_RECORD,\
 GSM_CMD_SN,\
 GSM_CMD_TIME,\
 GSM_CMD_UPGRADE,\
-GSM_CMD_UPDATE\
+GSM_CMD_UPDATE,\
+GSM_CMD_WARN\
 };
 
 static unsigned char pro_sn[]="DEMOxxxxxx";
@@ -44,7 +45,9 @@ static unsigned char pro_sn[]="DEMOxxxxxx";
  *               ⑧⑨⑩ serial number, 0~9, a~z, except i,l,o
 */
 
- 
+//warn code define, internal use only
+#define	W_TEST				01	//
+
 /*
 *********************************************************************************************************
 *										   App_TaskManage()
@@ -104,10 +107,6 @@ void  app_task_manager (void *p_arg)
 
 	show_rst_flag( ), show_err_log( );
  	
-#if	(OS_TASK_STAT_EN > 0)
-	OSStatInit();
-#endif
-
 	/* Create the GSM task.	*/
 	os_err = OSTaskCreateExt((void (*)(void *)) app_task_gsm,
 						   (void		  *	) 0,
@@ -150,8 +149,18 @@ void  app_task_manager (void *p_arg)
 	//my_icar.mg323.ask_power = false ;//for develop CAN only
 	my_icar.upgrade.err_no = 0 ;
 	my_icar.upgrade.prog_fail_addr = 0 ;
-	my_icar.upgrade.q_idx = MAX_CMD_QUEUE+1 ;
+	//my_icar.upgrade.q_idx = MAX_CMD_QUEUE+1 ;
 	my_icar.upgrade.new_fw_ready = false ;
+
+	/* Initialize the warn msg.	*/
+	for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+		//prompt("MSG:%d : %08X @ %08X\r\n",var_uchar,\
+			my_icar.warn_msg[var_uchar],&my_icar.warn_msg[var_uchar]);
+		my_icar.warn_msg[var_uchar]= 0 ;
+	}
+	my_icar.warn_msg[0] = (F_APP_TASKMANAGER) << 24 ;
+	my_icar.warn_msg[0] |= (W_TEST) << 16 ;
+	my_icar.warn_msg[0] |= __LINE__ ;
 
 	mg323_rx_cmd.timer = OSTime ;
 	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
@@ -171,7 +180,10 @@ void  app_task_manager (void *p_arg)
 		my_icar.upgrade.page_size = 0x400; //1KB
 		my_icar.upgrade.base = 0x08010C00 ;	//Page67
 	}
-	prompt("Flash size: %dKB, BASE: %08X\r\n",*(vu16*)(0x1FFFF7E0),my_icar.upgrade.base);
+	prompt("Flash: %dKB, Page: %dB, Parameter: %08X, Firmware: %08X\r\n",\
+			*(vu16*)(0x1FFFF7E0),my_icar.upgrade.page_size,\
+			my_icar.upgrade.base - 0x800,\
+			my_icar.upgrade.base);
 
 	get_parameters( );//use (my_icar.upgrade.base - 2K) for para base address
 
@@ -186,6 +198,10 @@ void  app_task_manager (void *p_arg)
 
 	//Suspend GSM task for develop CAN
 	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+
+#if	(OS_TASK_STAT_EN > 0)
+	OSStatInit();
+#endif
 
 	while	(1)
 	{
@@ -210,20 +226,18 @@ void  app_task_manager (void *p_arg)
 		}
 
 		//Send command
+
+		//high task
 		if ( my_icar.need_sn && c2s_data.tx_sn_len == 0 ) {//no in sending process
 			gsm_send_sn( &gsm_sequence );//will be return time also
 		}
 
 		if ( my_icar.login_timer ) {//send others CMD after login
 
-			if ( (RTC_GetCounter( ) - my_icar.stm32_rtc.update_timer) > RTC_UPDATE_PERIOD ) {
-				//need update RTC by server time, will be return time from server
-				gsm_send_pcb(&gsm_sequence, GSM_CMD_TIME,&record_sequence);
-			}
-
+			//middle task
+			//由于其它原因，此时连接有可能中断，但也必须把错误日志存放到发送队列里
 			if ( (OSTime - my_icar.err_log_send_timer) > TCP_RESPOND_TIMEOUT \
 					&& BKP_ReadBackupRegister(BKP_DR1) ) {//ERR log index
-				//middle task 
 				if ( !gsm_send_pcb(&gsm_sequence, GSM_CMD_ERROR, &record_sequence)){
 					//prompt("Upload err log and reset send_timer...\r\n");
 					my_icar.err_log_send_timer = OSTime ;
@@ -231,34 +245,51 @@ void  app_task_manager (void *p_arg)
 				}
 			}
 
-			if ( my_icar.mg323.tcp_online ) {//record GSM signal and ADC, for testing
+			if ( my_icar.mg323.tcp_online ) {//Send command when online
 
-				if ( c2s_data.next_ist ) {
-					//Got new instruction
-					gsm_send_pcb(&gsm_sequence, c2s_data.next_ist, &record_sequence);
-					c2s_data.next_ist = 0 ;//reset if run
+				//upload warn msg
+				for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+					if ( my_icar.warn_msg[var_uchar] ) {//have warn msg
+						//send it
+						gsm_send_pcb(&gsm_sequence, GSM_CMD_WARN,&my_icar.warn_msg[var_uchar]);
+					}
 				}
-				else {//No new instruction from server
-					ist_cnt = 0 ;
-					//Check the IST runing or no
-					for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
-						if ( GSM_ASK_IST==(c2s_data.queue_sent[var_uchar].send_pcb)) { 
 
-							ist_cnt++ ;
-							if ( ist_cnt > 2 ) { //no need send more
-								var_uchar = MAX_CMD_QUEUE+1 ;//end loop
+				if ( (RTC_GetCounter( ) - my_icar.stm32_rtc.update_timer) > RTC_UPDATE_PERIOD ) {
+					//need update RTC by server time, will be return time from server
+					gsm_send_pcb(&gsm_sequence, GSM_CMD_TIME,&record_sequence);
+				}
+
+				//low task 
+
+				if ( (OSTime/100)%3 == 0 ) { //run every 3 sec
+					if ( c2s_data.next_ist ) {
+						//Got new instruction
+						gsm_send_pcb(&gsm_sequence, c2s_data.next_ist, &record_sequence);
+						c2s_data.next_ist = 0 ;//reset if run
+					}
+					else {//No new instruction from server
+						ist_cnt = 0 ;
+						//Check the IST runing or no
+						for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
+							if ( GSM_ASK_IST==(c2s_data.queue_sent[var_uchar].send_pcb)) { 
+	
+								ist_cnt++ ;
+								if ( ist_cnt > 2 ) { //no need send more
+									var_uchar = MAX_CMD_QUEUE+1 ;//end loop
+								}
 							}
 						}
-					}
-
-					//Ask instruction from server, return 0 if no instruction
-					if ( ist_cnt <= 2 ) {
-						gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
-					}
 	
-					//lowest task, just send when online
-					if ( (OSTime/100)%15 == 0 ) {				
-						gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
+						//Ask instruction from server, return 0 if no instruction
+						if ( ist_cnt <= 2 ) {
+							gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
+						}
+		
+						//lowest task, just send every 15 sec
+						if ( (OSTime/100)%15 == 0 ) {
+							gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
+						}
 					}
 				}
 			}
@@ -1322,9 +1353,34 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 
 					//update buf length
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
+				}
 
-					//For dev only, remove later...
-					c2s_data.tx_timer= 0 ;//need send immediately
+				if ( out_pcb == GSM_CMD_WARN ) {//Max. 10 Bytes
+					//HEAD SEQ PCB Length(2 bytes) DATA(4 Bytes) check
+					//DATA: file(1 byte)+warn_code(1 byte)+line(2 B)
+					//warn_msg in: *record_seq
+
+					c2s_data.tx[c2s_data.tx_len+3] = 0 ;//length high
+					c2s_data.tx[c2s_data.tx_len+4] = 4 ;//length low
+
+					i = *record_seq;
+
+					c2s_data.tx[c2s_data.tx_len+5] = (i >> 24)&0xFF; //file name
+					c2s_data.tx[c2s_data.tx_len+6] = (i >> 16)&0xFF; //warn code
+					c2s_data.tx[c2s_data.tx_len+7] = (i >> 8)&0xFF;  //line, high
+					c2s_data.tx[c2s_data.tx_len+8] = i & 0xFF;       //line, low
+
+
+					prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+					chkbyte = GSM_HEAD ;
+					for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
+						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
+						printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+					}
+					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
+					printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+					//update buf length
+					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
 				}
 
 				OS_ENTER_CRITICAL();

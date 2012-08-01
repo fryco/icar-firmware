@@ -663,12 +663,15 @@ static void init_parameters( )
 	}
 	else { //1KB
 		flash_erase( my_icar.upgrade.base - 0x800 );//page 65
-		flash_erase( my_icar.upgrade.base - 0x400 );//page 66
+		//flash_erase( my_icar.upgrade.base - 0x400 );//page 66
 	}
 
 	//restore to default factory value
-	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_REV,parameter_revision);
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_REV,parameter_revision&0xFFFF);
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_REV+2,(parameter_revision>>16)&0xFFFF);
+
 	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_RELAY_ON,30);//30 seconds for relay on
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_RELAY_ON+2,0);
 
 	//for OBD CAN para:
 	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_STD_ID1,0x07DF);
@@ -685,13 +688,17 @@ static void init_parameters( )
 	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_RCV_EXT_ID1,(0x18DAF111)&0xFFFF);
 	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_RCV_EXT_ID1+2,(0x18DAF111>>16)&0xFFFF);
 
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_RCV_EXT_ID2,(0xDDDDDDDD)&0xFFFF);
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_RCV_EXT_ID2+2,(0xDDDDDDDD>>16)&0xFFFF);
+
 	//Calc CRC
 
 	/* Reset CRC generator */
 	CRC->CR = CRC_CR_RESET;
 
-	for ( var_u16 = 0 ; var_u16 < PARA_COUNT ; var_u16 += 4 ) {
-		CRC->DR = (*(vu32*)(my_icar.upgrade.base-0x800+var_u16+4));
+	for ( var_u16 = 0 ; var_u16 < (sizeof(my_icar.para)/4)-1 ; var_u16++ ) {
+		prompt("%08X = %08X\r\n",my_icar.upgrade.base-0x800+var_u16*4, (*(vu32*)(my_icar.upgrade.base-0x800+var_u16*4)));
+		CRC->DR = (*(vu32*)(my_icar.upgrade.base-0x800+var_u16*4));
 	}
 	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_CRC,(CRC->DR)&0xFFFF);
 	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_CRC+2,(CRC->DR>>16)&0xFFFF);
@@ -720,8 +727,9 @@ void get_parameters( )
 	/* Reset CRC generator */
 	CRC->CR = CRC_CR_RESET;
 
-	for ( var_u16 = 0 ; var_u16 < PARA_COUNT ; var_u16 += 4 ) {
-		CRC->DR = (*(vu32*)(my_icar.upgrade.base-0x800+var_u16+4));
+	for ( var_u16 = 0 ; var_u16 < sizeof(my_icar.para)-4 ; var_u16 += 4 ) {
+		//prompt("%08X = %08X\r\n",my_icar.upgrade.base-0x800+var_u16, (*(vu32*)(my_icar.upgrade.base-0x800+var_u16)));
+		CRC->DR = (*(vu32*)(my_icar.upgrade.base-0x800+var_u16));
 	}
 
 	if ( CRC->DR != (*(vu32*)(my_icar.upgrade.base-0x800+PARA_CRC ))) {
@@ -732,33 +740,34 @@ void get_parameters( )
 		init_parameters( );
 	}
 
-	my_icar.para_relay_on = (*(vu16*)(my_icar.upgrade.base - 0x800 + PARA_RELAY_ON))*OS_TICKS_PER_SEC;
-	if ( my_icar.para_relay_on > 24*60*60 ) { // > 1 day
-		my_icar.para_relay_on = 24*60*60 ; //Max. is 1 day
+	//update to RAM
+	for ( var_u16 = 0 ; var_u16 < (sizeof(my_icar.para)/4)-1 ; var_u16++ ) {
+		//prompt("var_u16= %04X %08X = %08X\r\n",var_u16,(unsigned int *)&my_icar.para+var_u16, \
+			*((unsigned int *)&my_icar.para+var_u16));
+
+		*((unsigned int *)&my_icar.para+var_u16) = *(vu32*)(my_icar.upgrade.base - 0x800 + var_u16*4);
 	}
 
-	prompt("Parameters PARA_OBD_CAN_SND_EXT_ID2 : %08X\r\n",\
-				*(vu32*)(my_icar.upgrade.base - 0x800 + PARA_OBD_CAN_SND_EXT_ID2));
 
-	prompt("Parameters my_icar.para_relay_on : %d\r\n",\
-				my_icar.para_relay_on);
+	if ( my_icar.para.relay_on*OS_TICKS_PER_SEC > 24*60*60 ) { // > 1 day
+		my_icar.para.relay_on = (24*60*60)/OS_TICKS_PER_SEC ; //Max. is 1 day
+	}
 
-	prompt("Parameters revision : %d\r\n",\
-				*(vu16*)(my_icar.upgrade.base - 0x800 + PARA_REV));
+	prompt("Para rev: %d, items: %d\r\n",\
+				my_icar.para.rev,(sizeof(my_icar.para)/4)-1);
 
 }
 
-//Return 0: ok, others error.
+//Return ERR_UPDATE_SUCCESSFUL: ok, others error.
 unsigned char para_update_rec( unsigned char *buf, unsigned char *buf_start) 
 {//receive update data ...
-	u16 buf_len ;
+	u16 buf_index, buf_len ;
 
 	unsigned int var_u32 ;
 
 	//C9 1F F5 00 0A 00 00 00 00 01 01 00 00 00 B4 9D
 	//                ¡üpara offset
 	//
-
 
 	if ( (buf+4) < buf_start+GSM_BUF_LENGTH ) {
 		buf_len = *(buf+4);
@@ -774,9 +783,8 @@ unsigned char para_update_rec( unsigned char *buf, unsigned char *buf_start)
 		buf_len = ((*(buf+3-GSM_BUF_LENGTH))<<8) | buf_len;
 	}
 
-	//if ( my_icar.debug ) {
-	{
-		prompt("Update len= %d : ",buf_len);
+	if ( my_icar.debug ) {
+		prompt("Update len= %d\r\n",buf_len);
 	}
 
 	if ( buf_len < 10 || buf_len > 1024+7) { 
@@ -823,6 +831,120 @@ unsigned char para_update_rec( unsigned char *buf, unsigned char *buf_start)
 		return ERR_UPDATE_PARA_REV;
 	}
 
-	
-	return 0;
+	//show income data
+	prompt("Update data: ");
+	for ( buf_index = 0 ; buf_index < buf_len + 6 ; buf_index++ ) {
+
+		if ( (buf+buf_index) < buf_start+GSM_BUF_LENGTH ) {
+			printf("%02X ", *(buf+buf_index));
+		}
+		else {//data in begin of buffer
+			printf("%02X ", *(buf+buf_index - GSM_BUF_LENGTH));
+		}
+	}
+	printf("\r\n");
+
+	//update the parameter in RAM
+	//C9 06 F5 00 0A 00 00 00 00 00 01 00 00 00 B4 85
+	for ( buf_index = 0 ; buf_index < (buf_len); buf_index=buf_index+5) {
+
+		//get the value
+		if ( (buf+buf_index+6) < buf_start+GSM_BUF_LENGTH ) {
+			var_u32 =  (*(buf+buf_index+6))<<24;
+		}
+		else {//data in begin of buffer
+			var_u32 =  (*(buf+buf_index+6 - GSM_BUF_LENGTH))<<24;
+		}
+
+		if ( (buf+buf_index+7) < buf_start+GSM_BUF_LENGTH ) {
+			var_u32 =  (*(buf+buf_index+7))<<16  | var_u32;
+		}
+		else {//data in begin of buffer
+			var_u32 =  (*(buf+buf_index+7 - GSM_BUF_LENGTH))<<16  | var_u32;
+		}
+
+		if ( (buf+buf_index+8) < buf_start+GSM_BUF_LENGTH ) {
+			var_u32 =  (*(buf+buf_index+8))<<8  | var_u32;
+		}
+		else {//data in begin of buffer
+			var_u32 =  (*(buf+buf_index+8 - GSM_BUF_LENGTH))<<8  | var_u32;
+		}
+
+		if ( (buf+buf_index+9) < buf_start+GSM_BUF_LENGTH ) {
+			var_u32 =  (*(buf+buf_index+9))  | var_u32;
+		}
+		else {//data in begin of buffer
+			var_u32 =  (*(buf+buf_index+9 - GSM_BUF_LENGTH))  | var_u32;
+		}
+		printf(" value: %08X\r\n", var_u32);
+
+		//update to RAM
+		//get the para index
+		if ( (buf+buf_index+5) < buf_start+GSM_BUF_LENGTH ) {
+			prompt("Para:%02X ", *(buf+buf_index+5));
+			*((unsigned int *)&my_icar.para+(*(buf+buf_index+5))) = var_u32;
+		}
+		else {//data in begin of buffer
+			prompt("Para:%02X ", *(buf+buf_index+5 - GSM_BUF_LENGTH));
+			*((unsigned int *)&my_icar.para+(*(buf+buf_index+5 - GSM_BUF_LENGTH))) = var_u32;
+		}
+	}
+	/*
+	for ( var_u32 = 0 ; var_u32 < (sizeof(my_icar.para)/4)-1 ; var_u32++ ) {
+		prompt("var_u16= %04X %08X = %08X\r\n",var_u32,(unsigned int *)&my_icar.para+var_u32, \
+			*((unsigned int *)&my_icar.para+var_u32));
+	}*/
+
+	//update to flash
+
+	//erase the parameters
+	if ( my_icar.upgrade.page_size == 0x800 ) { //2KB
+		//prompt("Erase 2K Page:\r\n");
+		flash_erase( my_icar.upgrade.base - 0x800 );
+	}
+	else { //1KB
+		flash_erase( my_icar.upgrade.base - 0x800 );//page 65
+		//flash_erase( my_icar.upgrade.base - 0x400 );//page 66
+	}
+
+	//save to flash 
+
+	for ( buf_index = 0 ; buf_index < (sizeof(my_icar.para)/4)-1 ; buf_index++ ) {
+
+		var_u32 = *((unsigned int *)&my_icar.para+buf_index) ;
+		//prompt("buf_index= %04X %08X = %08X ==> %08X\r\n",buf_index,(unsigned int *)&my_icar.para+buf_index, \
+			var_u32,my_icar.upgrade.base - 0x800 + buf_index*4);
+
+		flash_prog_u16(my_icar.upgrade.base - 0x800 + buf_index*4,\
+						var_u32&0xFFFF);
+
+		flash_prog_u16(my_icar.upgrade.base - 0x800 + buf_index*4+2,\
+						(var_u32>>16)&0xFFFF);
+	}
+
+	//Calc CRC
+
+	/* Reset CRC generator */
+	CRC->CR = CRC_CR_RESET;
+
+	for ( var_u32 = 0 ; var_u32 < (sizeof(my_icar.para)/4)-1 ; var_u32++ ) {
+		//prompt("%08X = %08X\r\n",my_icar.upgrade.base-0x800+var_u32*4, (*(vu32*)(my_icar.upgrade.base-0x800+var_u32*4)));
+		CRC->DR = (*(vu32*)(my_icar.upgrade.base-0x800+var_u32*4));
+	}
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_CRC,(CRC->DR)&0xFFFF);
+	flash_prog_u16(my_icar.upgrade.base - 0x800 + PARA_CRC+2,(CRC->DR>>16)&0xFFFF);
+
+/*
+	//for verify RAM:
+	for ( var_u32 = 0 ; var_u32 < (sizeof(my_icar.para)/4)-1 ; var_u32++ ) {
+		prompt("var_u32= %04X %08X = %08X\r\n",var_u32,(unsigned int *)&my_icar.para+var_u32, \
+			*((unsigned int *)&my_icar.para+var_u32));
+	}
+
+	//for verify Flash:
+	for ( var_u32 = 0 ; var_u32 < (sizeof(my_icar.para)/4) ; var_u32++ ) {
+		prompt("%08X = %08X\r\n",my_icar.upgrade.base-0x800+var_u32*4, (*(vu32*)(my_icar.upgrade.base-0x800+var_u32*4)));
+	}
+*/
+	return ERR_UPDATE_SUCCESSFUL;
 }
