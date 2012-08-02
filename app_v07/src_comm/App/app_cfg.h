@@ -54,7 +54,7 @@
 *********************************************************************************************************
 */
 
-#define  APP_TASK_MANAGER_STK_SIZE                    1024	
+#define  APP_TASK_MANAGER_STK_SIZE                    512	
 #define  APP_TASK_GSM_STK_SIZE                        512
 #define  APP_TASK_OBD_STK_SIZE                        512
 //#define  OS_PROBE_TASK_STK_SIZE                          128
