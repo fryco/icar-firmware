@@ -44,7 +44,9 @@
 
 #define AT_CMD_LENGTH			64 //for GSM command, must < RX_BUF_SIZE in drv_uart.h
 #define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online_cnt_cnt > MAX_ONLINE_TRY )
+#define MAX_ERR_MSG				4  //ERR message, BackupRegister1 最多存储4种错误类型
 #define MAX_WARN_MSG			3  //Warn message, uint32
+
 #define MIN_GSM_SIGNAL			8  //Min. GSM Signal require
 
 #define MAX_PROG_TRY			16 //Max. program flash retry
@@ -78,16 +80,23 @@
 /* Exported functions ------------------------------------------------------- */
 
 /* Exported types ------------------------------------------------------------*/
+struct WARN_MSG {
+	unsigned char queue_idx;//send queue index
+	unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+};
+
 struct ICAR_DEVICE {
 	unsigned char hw_rev ;//iCar hardware revision, up to 255
 	u16 fw_rev ;//iCar firmware revision, up to 9999
 	unsigned char debug ;//debug flag
 	unsigned int login_timer;
-	unsigned int err_log_send_timer;
+
 	unsigned char *sn ;//serial number
 	unsigned char need_sn;//server need SN
 
-	unsigned int warn_msg[MAX_WARN_MSG];//file name(1 Byte), msg(1 Byte), line(2 B)
+	unsigned char err_q_idx[MAX_ERR_MSG];
+
+	struct WARN_MSG warn[MAX_WARN_MSG];
 	
 	struct RTC_STATUS stm32_rtc;
 	struct ADC_STATUS stm32_adc;
