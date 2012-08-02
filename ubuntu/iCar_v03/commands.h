@@ -21,7 +21,7 @@
 #define GSM_CMD_TIME			0x54 //'T', time
 #define GSM_CMD_UPGRADE			0x55 //'U', Upgrade firmware
 #define GSM_CMD_UPDATE			0x75 //'u', Update parameter
-
+#define GSM_CMD_WARN			0x57 //'W', warn msg report
 
 #define MAX_FW_SIZE				61450 //60*1024+10
 
@@ -46,6 +46,9 @@ int cmd_upgrade_fw(struct icar_data *, struct icar_command *,\
 				unsigned char *, unsigned char * );
 
 int cmd_update_para(struct icar_data *, struct icar_command *,\
+				unsigned char *, unsigned char * );
+
+int cmd_unknow_cmd(struct icar_data *, struct icar_command *,\
 				unsigned char *, unsigned char * );
 
 #endif /* _COMMANDS_H */
