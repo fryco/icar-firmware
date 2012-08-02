@@ -12,8 +12,8 @@ static void conv_rev( unsigned char * );
 static void flash_led( unsigned int );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
 static unsigned char mcu_id_eor( unsigned int );
-static unsigned char gsm_send_sn( unsigned char *);
-static unsigned char gsm_send_pcb( unsigned char *, unsigned char, unsigned int *);//protocol control byte
+static unsigned char gsm_send_sn( unsigned char *, unsigned char );
+static unsigned char gsm_send_pcb( unsigned char *, unsigned char, unsigned int *, unsigned char);//protocol control byte
 static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *);
 
 struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
@@ -143,24 +143,31 @@ void  app_task_manager (void *p_arg)
 
 	my_icar.debug = 0 ;
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
-	my_icar.err_log_send_timer = 0 ;//
+	//my_icar.err_log_send_timer = 0 ;
+
 	my_icar.need_sn = 3 ;
 	my_icar.mg323.ask_power = true ;
 	//my_icar.mg323.ask_power = false ;//for develop CAN only
 	my_icar.upgrade.err_no = 0 ;
 	my_icar.upgrade.prog_fail_addr = 0 ;
-	//my_icar.upgrade.q_idx = MAX_CMD_QUEUE+1 ;
+
 	my_icar.upgrade.new_fw_ready = false ;
 
-	/* Initialize the warn msg.	*/
-	for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
-		//prompt("MSG:%d : %08X @ %08X\r\n",var_uchar,\
-			my_icar.warn_msg[var_uchar],&my_icar.warn_msg[var_uchar]);
-		my_icar.warn_msg[var_uchar]= 0 ;
+	/* Initialize the err msg	*/
+	for ( var_uchar = 0 ; var_uchar < MAX_ERR_MSG ; var_uchar++) {
+		my_icar.err_q_idx[var_uchar] = MAX_CMD_QUEUE + 1 ;
+		//prompt("ERR @ %08X\r\n",&my_icar.err_q_idx[var_uchar]);
 	}
-	my_icar.warn_msg[0] = (F_APP_TASKMANAGER) << 24 ;
-	my_icar.warn_msg[0] |= (W_TEST) << 16 ;
-	my_icar.warn_msg[0] |= __LINE__ ;
+
+	/* Initialize the warn msg	*/
+	for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+
+		//my_icar.warn[var_uchar].msg = (F_APP_TASKMANAGER) << 24 ;
+		//my_icar.warn[var_uchar].msg |= var_uchar << 16 ;
+		//my_icar.warn[var_uchar].msg |= __LINE__ ;
+		my_icar.warn[var_uchar].queue_idx = MAX_CMD_QUEUE + 1 ;
+		//prompt("MSG %08X @ %08X\r\n",my_icar.warn[var_uchar].msg,&my_icar.warn[var_uchar].msg);
+	}
 
 	mg323_rx_cmd.timer = OSTime ;
 	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
@@ -180,8 +187,8 @@ void  app_task_manager (void *p_arg)
 		my_icar.upgrade.page_size = 0x400; //1KB
 		my_icar.upgrade.base = 0x08010C00 ;	//Page67
 	}
-	prompt("Flash: %dKB, Page: %dB, Parameter: %08X, Firmware: %08X\r\n",\
-			*(vu16*)(0x1FFFF7E0),my_icar.upgrade.page_size,\
+	prompt("Flash: %dKB, Page: %dKB, Parameter: %08X, FW star: %08X\r\n",\
+			*(vu16*)(0x1FFFF7E0),(my_icar.upgrade.page_size)>>10,\
 			my_icar.upgrade.base - 0x800,\
 			my_icar.upgrade.base);
 
@@ -194,7 +201,7 @@ void  app_task_manager (void *p_arg)
 	flash_led( 80 );//100ms
 
 	//independent watchdog init
-	iwdg_init( );
+	//iwdg_init( );
 
 	//Suspend GSM task for develop CAN
 	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
@@ -206,7 +213,7 @@ void  app_task_manager (void *p_arg)
 	while	(1)
 	{
 		/* Reload IWDG counter */
-		IWDG_ReloadCounter();  
+		//IWDG_ReloadCounter();  
 
 		if ( my_icar.upgrade.new_fw_ready ) {
 			// new fw ready
@@ -228,36 +235,57 @@ void  app_task_manager (void *p_arg)
 		//Send command
 
 		//high task
-		if ( my_icar.need_sn && c2s_data.tx_sn_len == 0 ) {//no in sending process
-			gsm_send_sn( &gsm_sequence );//will be return time also
+		if ( my_icar.need_sn && c2s_data.tx_sn_len == 0 ) {//not in sending process
+			gsm_send_sn( &gsm_sequence, MAX_CMD_QUEUE-1 );//will be return time also
 		}
 
 		if ( my_icar.login_timer ) {//send others CMD after login
 
 			//middle task
 			//由于其它原因，此时连接有可能中断，但也必须把错误日志存放到发送队列里
-			if ( (OSTime - my_icar.err_log_send_timer) > TCP_RESPOND_TIMEOUT \
-					&& BKP_ReadBackupRegister(BKP_DR1) ) {//ERR log index
-				if ( !gsm_send_pcb(&gsm_sequence, GSM_CMD_ERROR, &record_sequence)){
-					//prompt("Upload err log and reset send_timer...\r\n");
-					my_icar.err_log_send_timer = OSTime ;
-					c2s_data.tx_timer = 0 ;//need send ASAP
+			for ( var_uchar = MAX_ERR_MSG ; var_uchar > 0  ; var_uchar--) {
+				//高位：MCU复位原因，优先级最高
+				//if ( BKP_ReadBackupRegister(BKP_DR1) ) {//have err msg
+
+
+				if ( ((BKP_ReadBackupRegister(BKP_DR1))>>(var_uchar-1)*4)&0x0F ) {//have err msg
+
+					if ( (my_icar.err_q_idx[var_uchar-1] == MAX_CMD_QUEUE + 1) ||\
+						(c2s_data.queue_sent[my_icar.err_q_idx[var_uchar-1]].send_pcb != GSM_CMD_ERROR)){
+						//not init value or not in send queue
+
+						//send it
+						if ( !gsm_send_pcb(&gsm_sequence, GSM_CMD_ERROR, (unsigned int *)&my_icar.err_q_idx[var_uchar-1], MAX_CMD_QUEUE-2)){
+							//prompt("Upload err log and reset send_timer...\r\n");
+							//my_icar.err_log_send_timer = OSTime ;
+							c2s_data.tx_timer = 0 ;//need send ASAP
+						}
+					}
 				}
 			}
 
 			if ( my_icar.mg323.tcp_online ) {//Send command when online
 
-				//upload warn msg
+				//upload warn msg, 每次从my_icar.warn_msg[0]开始发
 				for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
-					if ( my_icar.warn_msg[var_uchar] ) {//have warn msg
-						//send it
-						gsm_send_pcb(&gsm_sequence, GSM_CMD_WARN,&my_icar.warn_msg[var_uchar]);
+
+					if ( my_icar.warn[var_uchar].msg ) { //have msg
+						if ( (my_icar.warn[var_uchar].queue_idx == MAX_CMD_QUEUE + 1) ||\
+							(c2s_data.queue_sent[my_icar.warn[var_uchar].queue_idx].send_pcb != GSM_CMD_WARN)){
+							//not init value or not in send queue
+
+							//send it
+							//prompt("Warn MSG is: %08X\r\n",my_icar.warn[var_uchar].msg);
+							if ( !gsm_send_pcb(&gsm_sequence, GSM_CMD_WARN,&my_icar.warn[var_uchar].msg,MAX_CMD_QUEUE-3)){
+								//var_uchar = MAX_WARN_MSG ;//每次只发一个
+							}
+						}
 					}
 				}
-
+	
 				if ( (RTC_GetCounter( ) - my_icar.stm32_rtc.update_timer) > RTC_UPDATE_PERIOD ) {
 					//need update RTC by server time, will be return time from server
-					gsm_send_pcb(&gsm_sequence, GSM_CMD_TIME,&record_sequence);
+					gsm_send_pcb(&gsm_sequence, GSM_CMD_TIME,&record_sequence,MAX_CMD_QUEUE-4);
 				}
 
 				//low task 
@@ -265,7 +293,7 @@ void  app_task_manager (void *p_arg)
 				if ( (OSTime/100)%3 == 0 ) { //run every 3 sec
 					if ( c2s_data.next_ist ) {
 						//Got new instruction
-						gsm_send_pcb(&gsm_sequence, c2s_data.next_ist, &record_sequence);
+						gsm_send_pcb(&gsm_sequence, c2s_data.next_ist, &record_sequence,MAX_CMD_QUEUE-4);
 						c2s_data.next_ist = 0 ;//reset if run
 					}
 					else {//No new instruction from server
@@ -283,12 +311,12 @@ void  app_task_manager (void *p_arg)
 	
 						//Ask instruction from server, return 0 if no instruction
 						if ( ist_cnt <= 2 ) {
-							gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence);
+							gsm_send_pcb(&gsm_sequence, GSM_ASK_IST, &record_sequence,MAX_CMD_QUEUE-4);
 						}
 		
 						//lowest task, just send every 15 sec
 						if ( (OSTime/100)%15 == 0 ) {
-							gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence);
+							gsm_send_pcb(&gsm_sequence, GSM_CMD_RECORD, &record_sequence,MAX_CMD_QUEUE-5);
 						}
 					}
 				}
@@ -542,10 +570,9 @@ static void flash_led( unsigned int i )
 //return 1: failure
 static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 {
-	unsigned char chkbyte, queue_index=0;
-	unsigned int  chk_index, free_len=0;
-	unsigned char len_high=0, len_low=0;
-	u16 var_u16 ;
+	unsigned char chkbyte, queue_index=0, var_u8=0;
+	unsigned int  chk_index, var_u32=0;
+
 #if OS_CRITICAL_METHOD == 3   /* Allocate storage for CPU status register           */
     OS_CPU_SR  cpu_sr = 0;
 #endif
@@ -591,8 +618,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			c2s_data.rx_out_last++	 ;
 		}
 
-		free_len = calc_free_buffer(c2s_data.rx_in_last,c2s_data.rx_out_last,GSM_BUF_LENGTH);
-		if ( free_len > 5 ) {
+		var_u32 = calc_free_buffer(c2s_data.rx_in_last,c2s_data.rx_out_last,GSM_BUF_LENGTH);
+		if ( var_u32 > 5 ) {
 			//HEAD SEQ CMD Length(2 bytes) = 5 bytes
 
 			//get PCB
@@ -621,24 +648,22 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			//get len high
 			if ( (buf->start + 3)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
 				//LEN no in the end of buffer
-				len_high = *(buf->start + 3);
+				var_u8 = *(buf->start + 3);
 			}
 			else { //LEN in the end of buffer
-				len_high = *(buf->start + 3 - GSM_BUF_LENGTH);
+				var_u8 = *(buf->start + 3 - GSM_BUF_LENGTH);
 			}//end of GSM_BUF_LENGTH - (buf->start - c2s_data.rx)
-			//printf("respond LEN H: %02d\t",len_high);
+			//printf("respond LEN H: %02d\t",var_u8);
 
 			//get len low
 			if ( (buf->start + 4)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
 				//LEN no in the end of buffer
-				len_low = *(buf->start + 4);
+				buf->len = var_u8 << 8 | *(buf->start + 4) ;
 			}
 			else { //LEN in the end of buffer
-				len_low = *(buf->start + 4 - GSM_BUF_LENGTH);
+				buf->len = var_u8 << 8 | *(buf->start + 4 - GSM_BUF_LENGTH) ;
 			}//end of GSM_BUF_LENGTH - (buf->start - c2s_data.rx)
-			//printf("L: %02d ",len_low);
 
-			buf->len = len_high << 8 | len_low ;
 			if ( my_icar.debug > 1) {
 				printf("Len: %d\t",buf->len);
 			}
@@ -659,8 +684,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 			c2s_data.rx_out_last++	 ;
 		}
 
-		free_len = calc_free_buffer(c2s_data.rx_in_last,c2s_data.rx_out_last,GSM_BUF_LENGTH);
-		if ( free_len > (5+buf->len) ) {
+		var_u32 = calc_free_buffer(c2s_data.rx_in_last,c2s_data.rx_out_last,GSM_BUF_LENGTH);
+		if ( var_u32 > (5+buf->len) ) {
 			//buffer > HEAD SEQ CMD Length(2 bytes) = 5 bytes + LEN + CHK(1)
 
 			//get CHK
@@ -698,9 +723,10 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
 					if ( c2s_data.queue_sent[queue_index].send_seq == buf->seq \
 						&& buf->pcb==(c2s_data.queue_sent[queue_index].send_pcb | 0x80)) { 
-						if ( my_icar.debug > 1 ) {
-							printf("queue: %d seq: %d match.\r\n",queue_index,buf->seq);
-						}
+						//if ( my_icar.debug > 1 ) {
+							printf("queue: %d seq: %d match, free CMD %c\r\n",queue_index,\
+								buf->seq, c2s_data.queue_sent[queue_index].send_pcb);
+						//}
 						//found, free this record
 						c2s_data.queue_sent[queue_index].send_pcb = 0 ;
 						if ( c2s_data.queue_count > 0 ) {
@@ -718,8 +744,14 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 				case GSM_ASK_IST://0x3F,'?'
 					//C9 CD BF 00 01 xx E8, xx is new instruction
+					if ( (buf->start + 5)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+						var_u8 = *(buf->start + 5);
+					}
+					else { //in the end of buffer
+						var_u8 = *(buf->start + 5 - GSM_BUF_LENGTH);
+					}
 
-					switch (*((buf->start)+5)) {
+					switch (var_u8) {
 					case 0x0://no new instruction
 						if ( my_icar.debug ) {
 							prompt("No new instruction! CMD_seq: %02X\r\n",\
@@ -734,7 +766,7 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 							*((buf->start)+1));
 						break;
 
-					default:
+					default://get a new instruction
 
 						for ( chkbyte = 0 ; chkbyte < sizeof(commands) ; chkbyte++ ) {
 							if ( commands[chkbyte] == *((buf->start)+5) ) {//legal instruction
@@ -774,8 +806,16 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				case GSM_CMD_ERROR://0x45,'E'  C9 3B C5 00 01 00 36
 					//prompt("Record respond PCB @ %08X, %08X~%08X\r\n",\
 						//buf->start,c2s_data.rx,c2s_data.rx+GSM_BUF_LENGTH);
-					my_icar.err_log_send_timer = 0 ;//can send others
-					switch (*((buf->start)+5)) {
+					//my_icar.err_log_send_timer = 0 ;//can send others
+
+					if ( (buf->start + 5)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+						var_u8 = *(buf->start + 5);
+					}
+					else { //in the end of buffer
+						var_u8 = *(buf->start + 5 - GSM_BUF_LENGTH);
+					}
+
+					switch (var_u8) {
 
 					case 0x1://need upload SN first
 						my_icar.need_sn = 3 ;
@@ -803,6 +843,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						BKP_WriteBackupRegister(BKP_DR1, \
 							((BKP_ReadBackupRegister(BKP_DR1))&0xFFF0));
 
+						//reset err_q_idx
+						my_icar.err_q_idx[0] = MAX_CMD_QUEUE + 1 ;
 						break;
 
 					case 0x20://record err log part 2: GPRS disconnect success
@@ -815,6 +857,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						BKP_WriteBackupRegister(BKP_DR1, \
 							((BKP_ReadBackupRegister(BKP_DR1))&0xFF0F));
 
+						//reset err_q_idx
+						my_icar.err_q_idx[1] = MAX_CMD_QUEUE + 1 ;
 						break;
 
 					case 0x30://record err log part 3: fw upgrade or para update
@@ -827,6 +871,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						BKP_WriteBackupRegister(BKP_DR1, \
 							((BKP_ReadBackupRegister(BKP_DR1))&0xF0FF));
 
+						//reset err_q_idx
+						my_icar.err_q_idx[2] = MAX_CMD_QUEUE + 1 ;
 						break;
 
 					case 0x40://record err log part 4: MCU reset
@@ -839,6 +885,8 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 						BKP_WriteBackupRegister(BKP_DR1, \
 							((BKP_ReadBackupRegister(BKP_DR1))&0x0FFF));
 
+						//reset err_q_idx
+						my_icar.err_q_idx[3] = MAX_CMD_QUEUE + 1 ;
 						break;
 
 					default:
@@ -854,7 +902,14 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					//prompt("Record respond PCB @ %08X, %08X~%08X\r\n",\
 						//buf->start,c2s_data.rx,c2s_data.rx+GSM_BUF_LENGTH);
 
-					switch (*((buf->start)+5)) {
+					if ( (buf->start + 5)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+						var_u8 = *(buf->start + 5);
+					}
+					else { //in the end of buffer
+						var_u8 = *(buf->start + 5 - GSM_BUF_LENGTH);
+					}
+
+					switch (var_u8) {
 
 					case 0x0://record success
 						if ( my_icar.debug > 2) {
@@ -885,7 +940,14 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				case GSM_CMD_SN://0x53,'S'
 					//C9 08 D4 00 04 4F 0B CD E5 7D
 
-					switch (*((buf->start)+4)) {
+					if ( (buf->start + 4)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+						var_u8 = *(buf->start + 4);
+					}
+					else { //in the end of buffer
+						var_u8 = *(buf->start + 4 - GSM_BUF_LENGTH);
+					}
+
+					switch (var_u8) {
 
 					case 0x1://need upload SN first
 						my_icar.need_sn = 3 ;
@@ -914,7 +976,14 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				case GSM_CMD_TIME://0x54,'T'
 					//C9 08 D4 00 04 4F 0B CD E5 7D
 
-					switch (*((buf->start)+4)) {
+					if ( (buf->start + 4)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+						var_u8 = *(buf->start + 4);
+					}
+					else { //in the end of buffer
+						var_u8 = *(buf->start + 4 - GSM_BUF_LENGTH);
+					}
+
+					switch (var_u8) {
 
 					case 0x1://need upload SN first
 						my_icar.need_sn = 3 ;
@@ -945,7 +1014,15 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					//xx: data len, 
 					//yy: KB sequence, 00: data is latest firmware revision
 					//                 01: 1st KB of FW, 02: 2nd KB, 03: 3rd KB
-					switch (*((buf->start)+4)) {
+
+					if ( (buf->start + 4)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+						var_u8 = *(buf->start + 4);
+					}
+					else { //in the end of buffer
+						var_u8 = *(buf->start + 4 - GSM_BUF_LENGTH);
+					}
+
+					switch (var_u8) {
 
 					case 0x1://need upload SN first, C9 77 D5 00 01 01 6B
 						my_icar.need_sn = 3 ;
@@ -967,9 +1044,9 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 							//						11~8:upgrade fw failure code
 							//						7~4:GPRS disconnect reason
 							//						3~0:GSM module poweroff reason
-							var_u16 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
-							var_u16 = var_u16 | (my_icar.upgrade.err_no<<8) ;
-						    BKP_WriteBackupRegister(BKP_DR1, var_u16);
+							var_u32 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
+							var_u32 = var_u32 | (my_icar.upgrade.err_no<<8) ;
+						    BKP_WriteBackupRegister(BKP_DR1, var_u32&0xFFFF);
 
 							//BKP_DR6, upgrade fw time(UTC Time) high
 							//BKP_DR7, upgrade fw time(UTC Time) low
@@ -986,7 +1063,14 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				case GSM_CMD_UPDATE://0x75,'u' update parameter
 					//C9 57 D5 00 xx yy data
 
-					switch (*((buf->start)+4)) {
+					if ( (buf->start + 4)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+						var_u8 = *(buf->start + 4);
+					}
+					else { //in the end of buffer
+						var_u8 = *(buf->start + 4 - GSM_BUF_LENGTH);
+					}
+
+					switch (var_u8) {
 
 					case 0x1://need upload SN first, C9 77 D5 00 01 01 6B
 						my_icar.need_sn = 3 ;
@@ -1002,9 +1086,9 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 							//						11~8:upgrade fw or update para failure code
 							//						7~4:GPRS disconnect reason
 							//						3~0:GSM module poweroff reason
-							var_u16 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
-							var_u16 = var_u16 | (my_icar.update.err_no<<8) ;
-						    BKP_WriteBackupRegister(BKP_DR1, var_u16);
+							var_u32 = (BKP_ReadBackupRegister(BKP_DR1))&0xF0FF;
+							var_u32 = var_u32 | (my_icar.update.err_no<<8) ;
+						    BKP_WriteBackupRegister(BKP_DR1, var_u32&0xFFFF);
 
 							//BKP_DR6, upgrade fw time(UTC Time) high
 							//BKP_DR7, upgrade fw time(UTC Time) low
@@ -1017,7 +1101,52 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 
 						break;
 					}
+					break;
 
+				case GSM_CMD_WARN://0x57,'W' warn msg report
+					//C9 16 D7 00 01 00 01
+
+					if ( (buf->start + 5)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+						var_u8 = *(buf->start + 5);
+					}
+					else { //in the end of buffer
+						var_u8 = *(buf->start + 5 - GSM_BUF_LENGTH);
+					}
+
+					switch (var_u8) {
+
+					case 0x0://report warn msg success
+						if ( my_icar.debug > 2) {
+							prompt("Report warn msg success, CMD_seq: %02X\r\n",*((buf->start)+1));
+						}
+
+						if ( (buf->start + 6)  < (c2s_data.rx+GSM_BUF_LENGTH) ) {
+							var_u8 = *(buf->start + 6);
+						}
+						else { //in the end of buffer
+							var_u8 = *(buf->start + 6 - GSM_BUF_LENGTH);
+						}
+
+						if ( var_u8 < MAX_WARN_MSG ) {//correct
+							my_icar.warn[var_u8].msg = 0;
+							my_icar.warn[var_u8].queue_idx = MAX_CMD_QUEUE + 1;
+						}
+						//prompt("Report warn msg in %d\r\n",var_u8);
+						break;
+
+					case 0x1://need upload SN first
+						my_icar.need_sn = 3 ;
+						prompt("Report warn msg failure, need product SN first! CMD_seq: %02X\r\n",\
+							*((buf->start)+1));
+
+						break;
+
+					default:
+						prompt("Report warn msg failure, unknow error code: 0x%02X CMD_seq: %02X ",\
+								*((buf->start)+5),*((buf->start)+1));
+						printf("check %s: %d\r\n",__FILE__,__LINE__);
+						break;
+					}
 					break;
 
 				default:
@@ -1097,7 +1226,8 @@ static unsigned int calc_free_buffer(unsigned char *in,unsigned char *out,unsign
 //return 0: ok
 //return 1: no send queue
 //return 2: no free buffer or buffer busy
-static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pcb, unsigned int *record_seq)
+static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pcb,\
+								 unsigned int *record_seq, unsigned char queue_cnt)
 {
 	static unsigned char chkbyte, index;
 	static u16 i ;
@@ -1109,7 +1239,7 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 
 	i = 0 , seq = 0 ;
 	//find a no use SENT_QUEUE to record the SEQ/CMD
-	for ( index = 0 ; index < MAX_CMD_QUEUE-4 ; index++) {
+	for ( index = 0 ; index < queue_cnt ; index++) {
 
 		if ( c2s_data.queue_sent[index].send_pcb == 0 ) { //no use
 
@@ -1210,11 +1340,68 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					c2s_data.tx[c2s_data.tx_len+3] = 0 ;//length high
 					c2s_data.tx[c2s_data.tx_len+4] = 6 ;//length low
 
-					i = BKP_ReadBackupRegister(BKP_DR1);
-					//err_code, 2 byte
-					c2s_data.tx[c2s_data.tx_len+9] = (i>>8)&0xFF;
-					c2s_data.tx[c2s_data.tx_len+10]= (i)&0xFF;
-					if ( i & 0xF000 ) { //highest priority, send first
+					i = (unsigned char *)record_seq - &my_icar.err_q_idx[0];
+					my_icar.err_q_idx[i] = index ;
+					//prompt("Send ERR in Q: %d i=% d\r\n",index,i);
+
+					switch ( i ) {
+					case 0x0://GSM module poweroff err
+						//GSM reason
+						seq = (BKP_ReadBackupRegister(BKP_DR1))&0x0F;
+						//err_code, 2 byte
+						c2s_data.tx[c2s_data.tx_len+9] = (seq>>8)&0xFF;
+						c2s_data.tx[c2s_data.tx_len+10]= (seq)&0xFF;
+
+						//GSM power off time, 4 bytes
+						seq = BKP_ReadBackupRegister(BKP_DR2) ;
+						c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
+						c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//time high
+						seq = BKP_ReadBackupRegister(BKP_DR3) ;
+						c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
+						c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
+
+						break;
+
+					case 0x1://GPRS disconnect err
+						//GPRS reason
+						seq = (BKP_ReadBackupRegister(BKP_DR1))&0xF0;
+						//err_code, 2 byte
+						c2s_data.tx[c2s_data.tx_len+9] = (seq>>8)&0xFF;
+						c2s_data.tx[c2s_data.tx_len+10]= (seq)&0xFF;
+
+						//gprs disconnect time, 4 bytes
+						seq = BKP_ReadBackupRegister(BKP_DR4) ;
+						c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
+						c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//time high
+						seq = BKP_ReadBackupRegister(BKP_DR5) ;
+						c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
+						c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
+
+						break;
+
+					case 0x2: //upgrade fw msg
+						//FW msg
+						seq = (BKP_ReadBackupRegister(BKP_DR1))&0xF00;
+						//err_code, 2 byte
+						c2s_data.tx[c2s_data.tx_len+9] = (seq>>8)&0xFF;
+						c2s_data.tx[c2s_data.tx_len+10]= (seq)&0xFF;
+
+						seq = BKP_ReadBackupRegister(BKP_DR6) ;
+						c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//rev high
+						c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//rev high
+						seq = BKP_ReadBackupRegister(BKP_DR7) ;
+						c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//size high
+						c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//size low
+
+						break;
+
+					case 0x3: //highest priority, send first
+						//MCU reset reason
+						seq = (BKP_ReadBackupRegister(BKP_DR1))&0xF000;
+						//err_code, 2 byte
+						c2s_data.tx[c2s_data.tx_len+9] = (seq>>8)&0xFF;
+						c2s_data.tx[c2s_data.tx_len+10]= (seq)&0xFF;
+
 						//MCU reset time, 4 bytes
 						seq = BKP_ReadBackupRegister(BKP_DR8) ;
 						c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
@@ -1222,45 +1409,13 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 						seq = BKP_ReadBackupRegister(BKP_DR9) ;
 						c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
 						c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
-					}
-					else {
-						if ( i & 0x0F00 ) { //higher priority
-							//upgrade fw success
-							seq = BKP_ReadBackupRegister(BKP_DR6) ;
-							c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//rev high
-							c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//rev high
-							seq = BKP_ReadBackupRegister(BKP_DR7) ;
-							c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//size high
-							c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//size low
-						}
-						else {	
-							if ( i & 0x00F0 ) { //GPRS disconnect err
-								//gprs disconnect time, 4 bytes
-								seq = BKP_ReadBackupRegister(BKP_DR4) ;
-								c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
-								c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//time high
-								seq = BKP_ReadBackupRegister(BKP_DR5) ;
-								c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
-								c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
-							}
-							else {		
-								if ( i & 0x000F ) { //GSM module poweroff err
-									//GSM power off time, 4 bytes
-									seq = BKP_ReadBackupRegister(BKP_DR2) ;
-									c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
-									c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//time high
-									seq = BKP_ReadBackupRegister(BKP_DR3) ;
-									c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
-									c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
-								}
-								else {//program logic error
-									prompt("firmware logic error, chk: %s: %d\r\n",\
-										__FILE__,__LINE__);			
-								}//end (i & 0x000F)
-							}//end (i & 0x00F0)
-						}//end (i & 0x0F00)
-					}//end (i & 0xF000)
 
+						break;
+
+					default://logic err, report to server
+						//TBD, save to warn_msg
+						break;
+					}
 	
 					//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 					chkbyte = GSM_HEAD ;
@@ -1355,30 +1510,34 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
 				}
 
-				if ( out_pcb == GSM_CMD_WARN ) {//Max. 10 Bytes
+				if ( out_pcb == GSM_CMD_WARN ) {//Max. 11 Bytes
 					//HEAD SEQ PCB Length(2 bytes) DATA(4 Bytes) check
-					//DATA: file(1 byte)+warn_code(1 byte)+line(2 B)
+					//DATA: file(1 byte)+warn_code(1 byte)+line(2 B) + idx
 					//warn_msg in: *record_seq
 
+					i = (record_seq - &my_icar.warn[0].msg)>>1 ;//calc position
+					//prompt("Warn MSG idx: %d, %08X - %08X = %d\r\n",i,\
+						record_seq,&my_icar.warn[0].msg,record_seq-&my_icar.warn[0].msg);
+
+					my_icar.warn[i].queue_idx = index ;//save index
+					//prompt("Send msg %08X in Q: %d\r\n",*record_seq,index);
 					c2s_data.tx[c2s_data.tx_len+3] = 0 ;//length high
-					c2s_data.tx[c2s_data.tx_len+4] = 4 ;//length low
+					c2s_data.tx[c2s_data.tx_len+4] = 5 ;//length low
 
-					i = *record_seq;
+					c2s_data.tx[c2s_data.tx_len+5] = (*record_seq >> 24)&0xFF; //file name
+					c2s_data.tx[c2s_data.tx_len+6] = (*record_seq >> 16)&0xFF; //warn code
+					c2s_data.tx[c2s_data.tx_len+7] = (*record_seq >> 8)&0xFF;  //line, high
+					c2s_data.tx[c2s_data.tx_len+8] = *record_seq & 0xFF;       //line, low
+					c2s_data.tx[c2s_data.tx_len+9] = i;//idx
 
-					c2s_data.tx[c2s_data.tx_len+5] = (i >> 24)&0xFF; //file name
-					c2s_data.tx[c2s_data.tx_len+6] = (i >> 16)&0xFF; //warn code
-					c2s_data.tx[c2s_data.tx_len+7] = (i >> 8)&0xFF;  //line, high
-					c2s_data.tx[c2s_data.tx_len+8] = i & 0xFF;       //line, low
-
-
-					prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
+					//prompt("GSM CMD: %02X ",c2s_data.tx[c2s_data.tx_len]);
 					chkbyte = GSM_HEAD ;
 					for ( i = 1 ; i < c2s_data.tx[c2s_data.tx_len+4]+5 ; i++ ) {//calc chkbyte
 						chkbyte ^= c2s_data.tx[c2s_data.tx_len+i];
-						printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+						//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
 					}
 					c2s_data.tx[c2s_data.tx_len+i] = chkbyte ;
-					printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
+					//printf("%02X ",c2s_data.tx[c2s_data.tx_len+i]);
 					//update buf length
 					c2s_data.tx_len = c2s_data.tx_len + i + 1 ;
 				}
@@ -1401,6 +1560,9 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 				return 2;
 			}
 		}//end of c2s_data.queue_sent[index].send_pcb == 0
+		else { //show what's the PCB
+			prompt("Q: %d is %c\r\n",index,c2s_data.queue_sent[index].send_pcb);
+		}
 	}
 
 	prompt("No free queue: %d check %s:%d\r\n",index,__FILE__, __LINE__);
@@ -1410,12 +1572,12 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 //return 0: ok
 //return 1: no send queue
 //return 2: no free buffer or buffer busy
-static unsigned char gsm_send_sn( unsigned char *sequence)
+static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_cnt)
 {
 	static unsigned char i, chkbyte, index,ip_length;
 
 	//find a no use SENT_QUEUE to record the SEQ/CMD
-	for ( index = 0 ; index < MAX_CMD_QUEUE-2 ; index++) {
+	for ( index = 0 ; index < queue_cnt ; index++) {
 
 		if ( c2s_data.queue_sent[index].send_pcb == 0 ) { //no use
 
