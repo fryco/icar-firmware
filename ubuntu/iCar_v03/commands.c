@@ -1124,7 +1124,7 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 		fprintf(stderr, "cmd->pro_sn: %s\r\n",cmd->pro_sn);
 
 		//record this command
-		if ( record_command(mycar,rec_buf,"NO_ERR",7)) {
+		if ( record_command(mycar,rec_buf,"NO_ERR",21)) {
 			if ( debug_flag ) {
 				fprintf(stderr, "Record command err= %d: %s",\
 					mycar->err_code,mycar->err_msg);
@@ -1149,31 +1149,31 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 
 		memset(snd_buf, '\0', BUFSIZE);
 
-			snd_buf[0] = GSM_HEAD ;
-			snd_buf[1] = cmd->seq ;
-			snd_buf[2] = cmd->pcb | 0x80 ;
-			snd_buf[3] = 0;
-			snd_buf[4] = 15;//data len
+		snd_buf[0] = GSM_HEAD ;
+		snd_buf[1] = cmd->seq ;
+		snd_buf[2] = cmd->pcb | 0x80 ;
+		snd_buf[3] = 0;
+		snd_buf[4] = 15;//data len
 
-			snd_buf[5] = 0;//PARA rev offset, fix
-			snd_buf[6] = 0;//para rev, get from database
-			snd_buf[7] = 0;
-			snd_buf[8] = 0;
-			snd_buf[9] = 0; //para revision lowest
+		snd_buf[5] = 0;//PARA rev offset, fix
+		snd_buf[6] = 0;//para rev, get from database
+		snd_buf[7] = 0;
+		snd_buf[8] = 0;
+		snd_buf[9] = 0; //para revision lowest
 
-			var_u32 = 3*60;// 3 mins
-			snd_buf[10] = 1;//PARA_RELAY_ON
-			snd_buf[11] = (var_u32>>24)&0xFF;
-			snd_buf[12] = (var_u32>>16)&0xFF;
-			snd_buf[13] = (var_u32>>8)&0xFF;
-			snd_buf[14] = (var_u32)&0xFF;
+		var_u32 = 3*60;// 3 mins
+		snd_buf[10] = 1;//PARA_RELAY_ON
+		snd_buf[11] = (var_u32>>24)&0xFF;
+		snd_buf[12] = (var_u32>>16)&0xFF;
+		snd_buf[13] = (var_u32>>8)&0xFF;
+		snd_buf[14] = (var_u32)&0xFF;
 
-			var_u32 = 0x789ABCDE;// for test
-			snd_buf[15] = 11;//CAN_RCV_EXT_ID2
-			snd_buf[16] = (var_u32>>24)&0xFF;
-			snd_buf[17] = (var_u32>>16)&0xFF;
-			snd_buf[18] = (var_u32>>8)&0xFF;
-			snd_buf[19] = (var_u32)&0xFF;
+		var_u32 = 0x789ABCDE;// for test
+		snd_buf[15] = 11;//CAN_RCV_EXT_ID2
+		snd_buf[16] = (var_u32>>24)&0xFF;
+		snd_buf[17] = (var_u32>>16)&0xFF;
+		snd_buf[18] = (var_u32>>8)&0xFF;
+		snd_buf[19] = (var_u32)&0xFF;
 
 		//Calc chk
 		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
@@ -1270,4 +1270,185 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 	}
 
 	return 0 ;
+}
+
+//0: ok, others: error
+int cmd_warn_msg( struct icar_data *mycar, struct icar_command * cmd,\
+				unsigned char *rec_buf, unsigned char *snd_buf )
+{//case GSM_CMD_WARN://0x57, 'W', warn msg report
+
+	unsigned int i, chk_count , data_len, var_u32;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
+
+	//C9 05 57 00 04 02 01 00 A3 01
+	if ( debug_flag ) {
+		fprintf(stderr, "CMD is warn msg report...\n");
+	}
+
+	if ( strlen(mycar->sn) == 10 ) {
+
+		//record this command
+		if ( record_command(mycar,rec_buf,"NO_ERR",8)) {
+			if ( debug_flag ) {
+				fprintf(stderr, "Record command err= %d: %s",\
+					mycar->err_code,mycar->err_msg);
+			}
+		}
+
+		memset(snd_buf, '\0', BUFSIZE);
+
+		//send respond 
+		snd_buf[0] = GSM_HEAD ;
+		snd_buf[1] = cmd->seq ;
+		snd_buf[2] = cmd->pcb | 0x80 ;
+		snd_buf[3] =  00;//len high
+		snd_buf[4] =  02;//len low
+		snd_buf[5] =  00;//ok
+		snd_buf[6] =  rec_buf[9];//idx
+
+		//Calc chk
+		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
+		cmd->chk = GSM_HEAD ;
+		for ( chk_count = 1 ; chk_count < data_len+5 ; chk_count++) {
+			cmd->chk ^= snd_buf[chk_count] ;
+		}
+
+		snd_buf[chk_count] =  cmd->chk ;
+
+		if ( debug_flag ) {
+			fprintf(stderr, "CMD %c ok, will return: ",cmd->pcb);
+			for ( chk_count = 0 ; chk_count < data_len+6 ; chk_count++ ) {
+				fprintf(stderr, "%02X ",snd_buf[chk_count]);
+			}
+			fprintf(stderr, "to %s\n",cmd->pro_sn);
+		} 
+
+		write(mycar->client_socket,snd_buf,data_len+6);
+
+		memset(snd_buf, '\0', BUFSIZE);
+		for ( i = 0 ; i < cmd->len + 5 ; i++ ) {//move cmd to snd_buf
+			sprintf(&snd_buf[i*3],"%02X ",rec_buf[i]);
+			//fprintf(stderr, "Len:%d %s\r\n",strlen(snd_buf),snd_buf);
+		}
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=%s => Warn MSG @ %02d&message=CMD: %s\r\n\r\nip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					mycar->sn,rec_buf[9],snd_buf,\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
+		return 0;
+	}
+	else { //need upload sn first
+		fprintf(stderr, "Please upload SN first!\n");
+
+		memset(snd_buf, '\0', BUFSIZE);
+
+		//send respond 
+		snd_buf[0] = GSM_HEAD ;
+		snd_buf[1] = cmd->seq ;
+		snd_buf[2] = cmd->pcb | 0x80 ;
+		snd_buf[3] =  00;//len high
+		snd_buf[4] =  01;//len low
+		snd_buf[5] =  01;//err return, need SN
+
+		//Calc chk
+		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
+		cmd->chk = GSM_HEAD ;
+		for ( chk_count = 1 ; chk_count < data_len+5 ; chk_count++) {
+			cmd->chk ^= snd_buf[chk_count] ;
+		}
+
+		snd_buf[chk_count] =  cmd->chk ;
+
+		if ( debug_flag ) {
+			fprintf(stderr, "CMD %c ok, will return: ",cmd->pcb);
+			for ( chk_count = 0 ; chk_count < data_len+6 ; chk_count++ ) {
+				fprintf(stderr, "%02X ",snd_buf[chk_count]);
+			}
+			fprintf(stderr, "to %s\n",cmd->pro_sn);
+		} 
+
+		write(mycar->client_socket,snd_buf,data_len+6);
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
+		return 1;
+	}
+}
+
+int cmd_unknow_cmd( struct icar_data *mycar, struct icar_command * cmd,\
+				unsigned char *rec_buf, unsigned char *snd_buf )
+{//for default case 
+
+	unsigned char i ;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
+
+	if ( debug_flag ) {
+		fprintf(stderr, "Unknow command: %c\r\n",cmd->pcb);
+	}
+
+	if ( strlen(mycar->sn) == 10 ) {//have SN
+
+		memset(snd_buf, '\0', BUFSIZE);
+		for ( i = 0 ; i < cmd->len + 5 ; i++ ) {//move cmd to snd_buf
+			sprintf(&snd_buf[i*3],"%02X ",rec_buf[i]);
+			//fprintf(stderr, "Len:%d %s\r\n",strlen(snd_buf),snd_buf);
+		}
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+			//fprintf(stderr, "In child:%d for cloud post\n",getpid());
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=%s => unknow cmd: %c&message=CMD: %s\r\n\r\nip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					mycar->sn,cmd->pcb,snd_buf,\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+	
+			//cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
+		else {//In parent process
+			//fprintf(stderr, "In parent:%d and return\n",getpid());
+			return 0 ;
+		}
+	}//end of strlen(cmd->pro_sn) == 10
+	else { //no SN
+		fprintf(stderr, "Please upload SN first!\n");
+
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+					(char *)inet_ntoa(mycar->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
+	}
+	return 1 ;
 }

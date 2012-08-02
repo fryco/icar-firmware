@@ -206,9 +206,17 @@ void process_conn_server(struct icar_data *mycar)
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
+					case GSM_CMD_WARN://0x57, 'W', warn msg report
+						cmd_warn_msg( mycar,&cmd,\
+							&recv_buf[buf_index], send_buf );
+						buf_index = buf_index + cmd.len ;//update index
+						break;
+
 					default:
-						fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
-			
+						//fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
+						cmd_unknow_cmd( mycar,&cmd,\
+							&recv_buf[buf_index], send_buf );
+
 						cmd_err_cnt++;
 						break;
 					}//end of handle the input cmd
