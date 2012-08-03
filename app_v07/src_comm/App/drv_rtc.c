@@ -230,7 +230,9 @@ void RTC_show_time( unsigned int seconds)
 {
 	struct DATE_TIME datetime;
 	seconds_to_datetime(seconds , &datetime);
-	printf("UTC: %04d/%02d/%02d %02d:%02d:%02d\r\n", \
+	printf("UTC: %04d/%02d/%02d %02d:%02d:%02d", \
 		datetime.year, datetime.month, datetime.day,\
 		datetime.hour, datetime.minute, datetime.second);
+printf("\trelay_on: %d\r\n",my_icar.para.relay_on);
+
 }
