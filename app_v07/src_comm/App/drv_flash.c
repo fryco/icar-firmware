@@ -748,13 +748,9 @@ void get_parameters( )
 		*((unsigned int *)&my_icar.para+var_u16) = *(vu32*)(my_icar.upgrade.base - 0x800 + var_u16*4);
 	}
 
-
 	if ( my_icar.para.relay_on*OS_TICKS_PER_SEC > 24*60*60 ) { // > 1 day
 		my_icar.para.relay_on = (24*60*60)/OS_TICKS_PER_SEC ; //Max. is 1 day
 	}
-
-	prompt("Para rev: %d, items: %d\r\n",\
-				my_icar.para.rev,(sizeof(my_icar.para)/4)-1);
 
 }
 

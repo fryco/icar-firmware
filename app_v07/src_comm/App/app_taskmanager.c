@@ -8,6 +8,7 @@ static	OS_STK		app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
 static	OS_STK		app_task_obd_stk[APP_TASK_OBD_STK_SIZE];
 
 static void calc_sn( void );
+static void show_sys_info( void );
 static void conv_rev( unsigned char * );
 static void flash_led( unsigned int );
 static unsigned int calc_free_buffer(unsigned char *,unsigned char *,unsigned int);
@@ -15,6 +16,7 @@ static unsigned char mcu_id_eor( unsigned int );
 static unsigned char gsm_send_sn( unsigned char *, unsigned char );
 static unsigned char gsm_send_pcb( unsigned char *, unsigned char, unsigned int *, unsigned char);//protocol control byte
 static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *);
+static void console_cmd( unsigned char, unsigned char * );
 
 struct CAR2SERVER_COMMUNICATION c2s_data ;// tx 缓冲处理待改进
 
@@ -61,14 +63,13 @@ void  app_task_manager (void *p_arg)
 {
 
 	CPU_INT08U	os_err;
-	unsigned char var_uchar , ist_cnt, gsm_sequence=0, flash_idx=0;
+	unsigned char var_uchar , ist_cnt, gsm_sequence=0, rst_flag=0;
 	unsigned int record_sequence = 0;
 	struct GSM_RX_RESPOND mg323_rx_cmd;
 
 	u16 adc;
 
 	(void)p_arg;
-
 
 	/* Initialize the queue.	*/
 	for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
@@ -88,6 +89,61 @@ void  app_task_manager (void *p_arg)
 	c2s_data.check_timer = 0 ;
 	c2s_data.next_ist = 0 ;
 
+	my_icar.debug = 0 ;
+	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
+
+	my_icar.need_sn = 3 ;
+	my_icar.mg323.ask_power = true ;
+	//my_icar.mg323.ask_power = false ;//for develop CAN only
+	my_icar.upgrade.err_no = 0 ;
+	my_icar.upgrade.prog_fail_addr = 0 ;
+
+	my_icar.upgrade.new_fw_ready = false ;
+
+	/* Initialize the err msg	*/
+	for ( var_uchar = 0 ; var_uchar < MAX_ERR_MSG ; var_uchar++) {
+		my_icar.err_q_idx[var_uchar] = MAX_CMD_QUEUE + 1 ;
+		//prompt("ERR @ %08X\r\n",&my_icar.err_q_idx[var_uchar]);
+	}
+
+	/* Initialize the warn msg	*/
+	for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+
+		//my_icar.warn[var_uchar].msg = (F_APP_TASKMANAGER) << 24 ;
+		//my_icar.warn[var_uchar].msg |= var_uchar << 16 ;
+		//my_icar.warn[var_uchar].msg |= __LINE__ ;
+		my_icar.warn[var_uchar].queue_idx = MAX_CMD_QUEUE + 1 ;
+		//prompt("MSG %08X @ %08X\r\n",my_icar.warn[var_uchar].msg,&my_icar.warn[var_uchar].msg);
+	}
+
+	mg323_rx_cmd.timer = OSTime ;
+	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
+	mg323_rx_cmd.status = S_HEAD;
+
+	//闪存容量寄存器基地址：0x1FFF F7E0
+	//以K字节为单位指示产品中闪存存储器容量。
+	//例：0x0080 = 128 K字节
+	if ( *(vu16*)(0x1FFFF7E0) >= 256 ) {
+		my_icar.upgrade.page_size = 0x800; //2KB
+		my_icar.upgrade.base = 0x08000000 + \
+			((*(vu16*)(0x1FFFF7E0))>>2)*my_icar.upgrade.page_size;
+	}
+	else { 
+		my_icar.upgrade.page_size = 0x400; //1KB
+		my_icar.upgrade.base = 0x08010C00 ;	//Page67
+	}
+
+	conv_rev((unsigned char *)BUILD_REV);
+	my_icar.hw_rev = 0;//will be set by resistor
+	calc_sn( );//prepare serial number
+
+	//enable temperature adc DMA
+	//DMA_Cmd(DMA1_Channel1, ENABLE);
+	DMA1_Channel1->CCR |= DMA_CCR1_EN;
+
+	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+	//USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
+
 	/* Initialize the SysTick.								*/
 	OS_CPU_SysTickInit();
 	//Note: the minimum time unit is 10ms,
@@ -100,13 +156,6 @@ void  app_task_manager (void *p_arg)
 	}//2012/1/21 verified
 	*/
 
-	printf("\r\n"),	prompt("%s\r\n",BUILD_DATE);
-	conv_rev((unsigned char *)BUILD_REV);
-	my_icar.hw_rev = 0;//will be set by resistor
-	prompt("Revision: %d  OS Tick: %d\r\n",my_icar.fw_rev,OS_TICKS_PER_SEC);
-
-	show_rst_flag( ), show_err_log( );
- 	
 	/* Create the GSM task.	*/
 	os_err = OSTaskCreateExt((void (*)(void *)) app_task_gsm,
 						   (void		  *	) 0,
@@ -137,72 +186,6 @@ void  app_task_manager (void *p_arg)
 	OSTaskNameSet(APP_TASK_GSM_PRIO, (CPU_INT08U *)"obd	task", &os_err);
 #endif
 
-	//enable temperature adc DMA
-	//DMA_Cmd(DMA1_Channel1, ENABLE);
-	DMA1_Channel1->CCR |= DMA_CCR1_EN;
-
-	my_icar.debug = 0 ;
-	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
-	//my_icar.err_log_send_timer = 0 ;
-
-	my_icar.need_sn = 3 ;
-	my_icar.mg323.ask_power = true ;
-	//my_icar.mg323.ask_power = false ;//for develop CAN only
-	my_icar.upgrade.err_no = 0 ;
-	my_icar.upgrade.prog_fail_addr = 0 ;
-
-	my_icar.upgrade.new_fw_ready = false ;
-
-	/* Initialize the err msg	*/
-	for ( var_uchar = 0 ; var_uchar < MAX_ERR_MSG ; var_uchar++) {
-		my_icar.err_q_idx[var_uchar] = MAX_CMD_QUEUE + 1 ;
-		//prompt("ERR @ %08X\r\n",&my_icar.err_q_idx[var_uchar]);
-	}
-
-	/* Initialize the warn msg	*/
-	for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
-
-		//my_icar.warn[var_uchar].msg = (F_APP_TASKMANAGER) << 24 ;
-		//my_icar.warn[var_uchar].msg |= var_uchar << 16 ;
-		//my_icar.warn[var_uchar].msg |= __LINE__ ;
-		my_icar.warn[var_uchar].queue_idx = MAX_CMD_QUEUE + 1 ;
-		//prompt("MSG %08X @ %08X\r\n",my_icar.warn[var_uchar].msg,&my_icar.warn[var_uchar].msg);
-	}
-
-	mg323_rx_cmd.timer = OSTime ;
-	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
-	mg323_rx_cmd.status = S_HEAD;
-
-	calc_sn( );//prepare serial number
-
-	//闪存容量寄存器基地址：0x1FFF F7E0
-	//以K字节为单位指示产品中闪存存储器容量。
-	//例：0x0080 = 128 K字节
-	if ( *(vu16*)(0x1FFFF7E0) >= 256 ) {
-		my_icar.upgrade.page_size = 0x800; //2KB
-		my_icar.upgrade.base = 0x08000000 + \
-			((*(vu16*)(0x1FFFF7E0))>>2)*my_icar.upgrade.page_size;
-	}
-	else { 
-		my_icar.upgrade.page_size = 0x400; //1KB
-		my_icar.upgrade.base = 0x08010C00 ;	//Page67
-	}
-	prompt("Flash: %dKB, Page: %dKB, Parameter: %08X, FW star: %08X\r\n",\
-			*(vu16*)(0x1FFFF7E0),(my_icar.upgrade.page_size)>>10,\
-			my_icar.upgrade.base - 0x800,\
-			my_icar.upgrade.base);
-
-	get_parameters( );//use (my_icar.upgrade.base - 2K) for para base address
-
-	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
-	//USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
-
-	//flash LED, wait power stable and others task init
-	flash_led( 80 );//100ms
-
-	//independent watchdog init
-	//iwdg_init( );
-
 	//Suspend GSM task for develop CAN
 	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
 
@@ -210,10 +193,19 @@ void  app_task_manager (void *p_arg)
 	OSStatInit();
 #endif
 
+	get_parameters( );//use (my_icar.upgrade.base - 2K) for para base address
+	show_sys_info( ), show_rst_flag( ), show_err_log( );
+
+	//flash LED, wait power stable and others task init
+	flash_led( 80 );//100ms
+
+	//independent watchdog init
+	iwdg_init( );
+
 	while	(1)
 	{
 		/* Reload IWDG counter */
-		//IWDG_ReloadCounter();  
+		IWDG_ReloadCounter();  
 
 		if ( my_icar.upgrade.new_fw_ready ) {
 			// new fw ready
@@ -335,99 +327,7 @@ void  app_task_manager (void *p_arg)
 
 		while ( !my_icar.stm32_u1_rx.empty ) {//receive some data from console...
 			var_uchar = getbyte( COM1 ) ;
-			putbyte( COM1, var_uchar );
-
-			if ( var_uchar == 'b' || var_uchar == 'B' ) {//show Backup register
-				prompt("Print Backup register info ... \r\n");
-				show_err_log( );
-			}
-
-			if ( var_uchar == 'o' || var_uchar == 'O' ) {//online
-				prompt("Ask GSM online...\r\n");
-				my_icar.mg323.ask_online = true ;
-			}
-
-			if ( var_uchar == 'c' || var_uchar == 'C' ) {//close
-				prompt("Ask GSM off line...\r\n");
-				my_icar.mg323.ask_online = false ;
-			}
-
-			if ( var_uchar == 'v' || var_uchar == 'V' ) {//show revision
-				prompt("The MCU ID is %X %X %X  SN:%s\r\n",\
-					*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
-				prompt("Revision: %d  OS Tick: %d\r\n",my_icar.fw_rev,OS_TICKS_PER_SEC);
-				prompt("$URL$\r\n");
-				prompt("$Id$\r\n");
-			}
-
-
-			if ( var_uchar == 'd' ) {//set debug flag
-				my_icar.debug++ ;
-				prompt("Increase debug lever, my_icar.debug:%d\r\n",my_icar.debug);
-			}
-
-			if ( var_uchar == 'D' ) {//reset debug flag
-				my_icar.debug = 0 ;
-				prompt("Reset debug flag... my_icar.debug:%d\r\n",my_icar.debug);
-			}
-
-			if ( var_uchar == 'f' ) {//show flash page67
-				//show flash content
-				prompt("Page:%d, %08X: %08X ",\
-					(my_icar.upgrade.base+flash_idx*16-0x08000000)/my_icar.upgrade.page_size,\
-					my_icar.upgrade.base+flash_idx*16,\
-					*(vu32*)(my_icar.upgrade.base+flash_idx*16));
-				printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+4));
-				printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+8));
-				printf("%08X \r\n",*(vu32*)(my_icar.upgrade.base+flash_idx*16+12));
-				flash_idx=flash_idx++;
-			}
-
-			if ( var_uchar == 'F' ) {//set debug flag
-				//show flash content
-				flash_idx=flash_idx--;
-				prompt("Page:%d, %08X: %08X ",\
-					(my_icar.upgrade.base+flash_idx*16-0x08000000)/my_icar.upgrade.page_size,\
-					my_icar.upgrade.base+flash_idx*16,\
-					*(vu32*)(my_icar.upgrade.base+flash_idx*16));
-				printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+4));
-				printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+8));
-				printf("%08X \r\n",*(vu32*)(my_icar.upgrade.base+flash_idx*16+12));
-			}
-
-			if ( var_uchar == 'p' ) {//show data page, can be remove
-				//show flash content
-				prompt("Page:%d, %08X : ",\
-					(my_icar.upgrade.base+my_icar.upgrade.page_size*flash_idx-0x08000000)/my_icar.upgrade.page_size,\
-					my_icar.upgrade.base+my_icar.upgrade.page_size*flash_idx);
-				for ( var_uchar = 0 ; var_uchar < 128 ; var_uchar++ ) {
-					printf("%04X ",*(vu16*)(my_icar.upgrade.base+my_icar.upgrade.page_size*flash_idx+var_uchar*2));
-				}
-				flash_idx=flash_idx++;
-			}
-
-			if ( var_uchar == 'g' ) {//Suspend GSM task for debug
-				os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
-				if ( os_err == OS_NO_ERR ) {
-					prompt("Suspend GSM task ok.\r\n");
-				}
-				else {
-					prompt("Suspend GSM task err: %d\r\n",os_err);
-				}
-			}
-			if ( var_uchar == 'G' ) {//Resume GSM task for debug
-				//reset timer here, prevent reset GSM module
-				my_icar.mg323.at_timer = OSTime ;
-
-				os_err = OSTaskResume(APP_TASK_GSM_PRIO);
-				if ( os_err == OS_NO_ERR ) {
-					prompt("Resume GSM task ok.\r\n");
-				}
-				else {
-					prompt("Resume GSM task err: %d\r\n",os_err);
-				}
-			}
-
+			console_cmd( var_uchar, &rst_flag );
 		}
 
 		if( my_icar.stm32_adc.completed ) {//temperature convert complete
@@ -525,9 +425,23 @@ static void calc_sn( )
 	snprintf((char *)&pro_sn[8],3,"%02X",chkbyte);
 
 	my_icar.sn = pro_sn ;
+}
 
+static void show_sys_info( void )
+{
+	printf("\r\n"),	prompt("%s\r\n",BUILD_DATE);
+	prompt("Revision: %d  OS Tick: %d\r\n",my_icar.fw_rev,OS_TICKS_PER_SEC);
 	prompt("The MCU ID is %X %X %X  SN:%s\r\n",\
 		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
+
+	prompt("Flash: %dKB, Page: %dKB, Parameter: %08X, FW star: %08X\r\n",\
+			*(vu16*)(0x1FFFF7E0),(my_icar.upgrade.page_size)>>10,\
+			my_icar.upgrade.base - 0x800,\
+			my_icar.upgrade.base);
+
+	prompt("Para rev: %d, items: %d\r\n",\
+				my_icar.para.rev,(sizeof(my_icar.para)/4)-1);
+
 }
 
 static unsigned char mcu_id_eor( unsigned int id)
@@ -723,10 +637,10 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 				for ( queue_index = 0 ; queue_index < MAX_CMD_QUEUE ; queue_index++) {
 					if ( c2s_data.queue_sent[queue_index].send_seq == buf->seq \
 						&& buf->pcb==(c2s_data.queue_sent[queue_index].send_pcb | 0x80)) { 
-						//if ( my_icar.debug > 1 ) {
+						if ( my_icar.debug > 1 ) {
 							printf("queue: %d seq: %d match, free CMD %c\r\n",queue_index,\
 								buf->seq, c2s_data.queue_sent[queue_index].send_pcb);
-						//}
+						}
 						//found, free this record
 						c2s_data.queue_sent[queue_index].send_pcb = 0 ;
 						if ( c2s_data.queue_count > 0 ) {
@@ -1640,4 +1554,92 @@ static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_c
 
 	prompt("No free queue: %d check %s:%d\r\n",index,__FILE__, __LINE__);
 	return 1;
+}
+
+void console_cmd( unsigned char cmd, unsigned char *flag )
+{
+	CPU_INT08U	os_err;
+
+	prompt("%c\r\n",cmd);
+
+	switch ( cmd ) {
+
+	case 'b' :
+		prompt("Print Backup register info ... \r\n");
+		show_err_log( );
+		break;
+
+	case 'd' ://set debug flag
+		my_icar.debug++ ;
+		prompt("Increase debug lever, my_icar.debug:%d\r\n",my_icar.debug);
+		break;
+
+	case 'D' ://reset debug flag
+		my_icar.debug = 0 ;
+		prompt("Reset debug flag... my_icar.debug:%d\r\n",my_icar.debug);
+		break;
+
+	/*
+	if ( var_uchar == 'f' ) {//show flash page67
+		//show flash content
+		prompt("Page:%d, %08X: %08X ",\
+			(my_icar.upgrade.base+flash_idx*16-0x08000000)/my_icar.upgrade.page_size,\
+			my_icar.upgrade.base+flash_idx*16,\
+			*(vu32*)(my_icar.upgrade.base+flash_idx*16));
+		printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+4));
+		printf("%08X ",*(vu32*)(my_icar.upgrade.base+flash_idx*16+8));
+		printf("%08X \r\n",*(vu32*)(my_icar.upgrade.base+flash_idx*16+12));
+		flash_idx=flash_idx++;
+	}*/
+
+	case 'g' ://Suspend GSM task for debug
+		os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+		if ( os_err == OS_NO_ERR ) {
+			prompt("Suspend GSM task ok.\r\n");
+		}
+		else {
+			prompt("Suspend GSM task err: %d\r\n",os_err);
+		}
+		break;
+
+	case 'G' ://Resume GSM task for debug
+		//reset timer here, prevent reset GSM module
+		my_icar.mg323.at_timer = OSTime ;
+
+		os_err = OSTaskResume(APP_TASK_GSM_PRIO);
+		if ( os_err == OS_NO_ERR ) {
+			prompt("Resume GSM task ok.\r\n");
+		}
+		else {
+			prompt("Resume GSM task err: %d\r\n",os_err);
+		}
+		break;
+
+	case 'R' ://reset mcu
+		*flag = 1;
+		prompt("Are you sure reset MCU? Y/N \r\n");
+		break;
+
+	case 'v' ://show revision
+		show_sys_info( );
+		prompt("$URL$\r\n");
+		prompt("$Id$\r\n");
+		break;
+
+	case 'W' ://send a warn msg for verify this function
+
+		break;
+
+	case 'Y' ://sure to reset mcu
+		if ( *flag ) {
+			prompt("*** System will reset! ***");
+			my_icar.upgrade.new_fw_ready = true ;//will be rst by this flag
+		}
+		break;
+
+	default:
+		prompt("Unknow CMD %c, current support: b,d,D,g,G,R,v\r\n",cmd);
+		*flag = 0 ;
+		break;
+	}
 }

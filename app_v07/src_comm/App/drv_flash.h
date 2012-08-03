@@ -33,7 +33,7 @@ struct PARA_UPDATE {
 struct PARA_METERS { //need same as below offset define
 	//for each parameter
 	unsigned int rev;		//#define PARA_REV			0	//parameters revision
-	unsigned int relay_on;	//#define RELAY_ON_PERIOD	1*3*60*OS_TICKS_PER_SEC //3  mins
+	unsigned int relay_on;	//#define RELAY_ON_PERIOD	4	1*3*60*OS_TICKS_PER_SEC //3  mins
 	unsigned int rsv;		//#define PARA_RSV			8	//Reserve
 	unsigned int obd_type;	//#define PARA_OBD_TYPE		12	//OBD type, 4: KWP, FF: Auto
 															//0:CAN_STD_250, 1: CAN_EXT_250
@@ -54,18 +54,18 @@ struct PARA_METERS { //need same as below offset define
 };
 
 /* 说明 :
- * firmware限制�0KB以内，升级时先保存在 page68~127 �
- × page67 记录对应的CRC� 偏移量从BLK_CRC_DAT 开�
- * 0~3   Bytes: 对应page68的CRC值， 4~7  Bytes: CRC值取�
- * 8~11  Bytes: 对应page69的CRC值，12~15 Bytes: CRC值取�
- * 16~19 Bytes: 对应page70的CRC值，20~23 Bytes: CRC值取�
- * 24~27 Bytes: 对应page71的CRC值，28~31 Bytes: CRC值取�
+ * firmware限制嚰KB以内，升级时先保存在 page68~127 配
+ × page67 记录对应的CRC侠偏移量从BLK_CRC_DAT 开奍
+ * 0~3   Bytes: 对应page68的CRC值， 4~7  Bytes: CRC值取卍
+ * 8~11  Bytes: 对应page69的CRC值，12~15 Bytes: CRC值取卍
+ * 16~19 Bytes: 对应page70的CRC值，20~23 Bytes: CRC值取卍
+ * 24~27 Bytes: 对应page71的CRC值，28~31 Bytes: CRC值取卍
  * ...
  */
 
 //my_icar.upgrade.base define in app_taskmanager.c
-//参数储存格式�1 xx xx xx xx 表示offset 01的参数，数值是xxxxxxxx
-//参数数量：从 00 开始，�PARA_COUNT �
+//参数储存格式ﺱ xx xx xx xx 表示offset 01的参数，数值是xxxxxxxx
+//参数数量：从 00 开始，凐ARA_COUNT 䶍
 //参数更新：先更新RAM中参数，然后删除原内容，重新写入
 
 
