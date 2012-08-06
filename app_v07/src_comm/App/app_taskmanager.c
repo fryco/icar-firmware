@@ -156,6 +156,12 @@ void  app_task_manager (void *p_arg)
 	}//2012/1/21 verified
 	*/
 
+	get_parameters( );//use (my_icar.upgrade.base - 2K) for para base address
+	show_sys_info( ), show_rst_flag( ), show_err_log( );
+prompt("pro_sn @ %08X\r\n",pro_sn);
+	//flash LED, wait power stable and others task init
+	flash_led( 80 );//100ms
+
 	/* Create the GSM task.	*/
 	os_err = OSTaskCreateExt((void (*)(void *)) app_task_gsm,
 						   (void		  *	) 0,
@@ -192,12 +198,6 @@ void  app_task_manager (void *p_arg)
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();
 #endif
-
-	get_parameters( );//use (my_icar.upgrade.base - 2K) for para base address
-	show_sys_info( ), show_rst_flag( ), show_err_log( );
-
-	//flash LED, wait power stable and others task init
-	flash_led( 80 );//100ms
 
 	//independent watchdog init
 	iwdg_init( );
@@ -413,16 +413,16 @@ static void conv_rev( unsigned char *p )
 
 static void calc_sn( )
 {
-	static unsigned char chkbyte ;
+	unsigned char sn_eor ;
 
-	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7E8));
-	snprintf((char *)&pro_sn[4],3,"%02X",chkbyte);
+	sn_eor = mcu_id_eor(*(vu32*)(0x1FFFF7E8));
+	snprintf((char *)&pro_sn[4],3,"%02X",sn_eor);
 
-	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7EC));
-	snprintf((char *)&pro_sn[6],3,"%02X",chkbyte);
+	sn_eor = mcu_id_eor(*(vu32*)(0x1FFFF7EC));
+	snprintf((char *)&pro_sn[6],3,"%02X",sn_eor);
 
-	chkbyte = mcu_id_eor(*(vu32*)(0x1FFFF7F0));
-	snprintf((char *)&pro_sn[8],3,"%02X",chkbyte);
+	sn_eor = mcu_id_eor(*(vu32*)(0x1FFFF7F0));
+	snprintf((char *)&pro_sn[8],3,"%02X",sn_eor);
 
 	my_icar.sn = pro_sn ;
 }
@@ -446,15 +446,15 @@ static void show_sys_info( void )
 
 static unsigned char mcu_id_eor( unsigned int id)
 {
-	static unsigned char chkbyte ;
+	unsigned char id_eor ;
 
 	//Calc. MCU ID eor result as product SN
-	chkbyte =  (id >> 24)&0xFF ;
-	chkbyte ^= (id >> 16)&0xFF ;
-	chkbyte ^= (id >> 8)&0xFF ;
-	chkbyte ^= id&0xFF ;
+	id_eor =  (id >> 24)&0xFF ;
+	id_eor ^= (id >> 16)&0xFF ;
+	id_eor ^= (id >> 8)&0xFF ;
+	id_eor ^= id&0xFF ;
 
-	return chkbyte ;
+	return id_eor ;
 }
 
 static void flash_led( unsigned int i )
@@ -1143,9 +1143,9 @@ static unsigned int calc_free_buffer(unsigned char *in,unsigned char *out,unsign
 static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pcb,\
 								 unsigned int *record_seq, unsigned char queue_cnt)
 {
-	static unsigned char chkbyte, index;
-	static u16 i ;
-	static unsigned int seq ;
+	unsigned char chkbyte, index;
+	u16 i ;
+	unsigned int seq ;
 
 #if OS_CRITICAL_METHOD == 3  /* Allocate storage for CPU status register           */
     OS_CPU_SR  cpu_sr = 0;
@@ -1488,7 +1488,7 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 //return 2: no free buffer or buffer busy
 static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_cnt)
 {
-	static unsigned char i, chkbyte, index,ip_length;
+	unsigned char i, chkbyte, index,ip_length;
 
 	//find a no use SENT_QUEUE to record the SEQ/CMD
 	for ( index = 0 ; index < queue_cnt ; index++) {

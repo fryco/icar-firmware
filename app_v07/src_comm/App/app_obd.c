@@ -4,9 +4,10 @@ CanTxMsg TxMessage;
 CanRxMsg RxMessage;
 unsigned int rx_msg_cnt0 = 0 ;
 unsigned int rx_msg_cnt1 = 0 ;
+
 void  app_task_obd (void *p_arg)
 {
-
+u8 i ;
 	(void)p_arg;
 
 	uart3_init( ); //to OBD, K-BUS
@@ -19,5 +20,6 @@ void  app_task_obd (void *p_arg)
 		//1, release CPU
 		//2, 
 		OSTimeDlyHMSM(0, 0, 0, 800);
+prompt("respond_str @ %08X\r\n",&i);
 	}
 }
