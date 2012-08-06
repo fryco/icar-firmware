@@ -8,7 +8,7 @@
 
 extern struct ICAR_DEVICE my_icar;
 
-const unsigned char dest_server[] = "cqt.8866.org:23";
+const unsigned char dest_server[] = "cqt.8866.org:24";
 const unsigned char at_set_channel0_para[] = "AT^SICS=0,";
 //  Init sequence:
 //  AT
@@ -68,7 +68,7 @@ const unsigned char *apn_list[][4]= {\
 /*if match return 1 , else return 0*/
 unsigned char cmpmem(unsigned char *buffer, unsigned char *cmpbuf,unsigned char count)
 {
-	static unsigned char equal;    
+	unsigned char equal;    
 
 	while((count--) && (equal =(*buffer++ == *cmpbuf++)));  
 
@@ -754,6 +754,7 @@ bool close_tcp_conn( )
 	u8 retry;
 	u8 respond_str[AT_CMD_LENGTH];
 
+	prompt("Max. stack @ %08X\r\n",&respond_str[AT_CMD_LENGTH-1]);
 	for ( retry = 0 ;retry < 3 ; retry++) {
 		putstring(COM2,"AT^SISC=0\r\n");
 		memset(respond_str, 0x0, AT_CMD_LENGTH);
