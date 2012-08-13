@@ -8,7 +8,7 @@
 
 extern struct ICAR_DEVICE my_icar;
 
-const unsigned char dest_server[] = "cqt.8866.org:24";
+const unsigned char dest_server[] = "cqt.8866.org:25";
 const unsigned char at_set_channel0_para[] = "AT^SICS=0,";
 //  Init sequence:
 //  AT
@@ -69,6 +69,8 @@ const unsigned char *apn_list[][4]= {\
 unsigned char cmpmem(unsigned char *buffer, unsigned char *cmpbuf,unsigned char count)
 {
 	unsigned char equal;    
+
+	equal = 0 ;
 
 	while((count--) && (equal =(*buffer++ == *cmpbuf++)));  
 

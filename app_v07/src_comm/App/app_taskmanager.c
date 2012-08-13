@@ -2,10 +2,12 @@
 
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
-unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
+const unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
 
 static	OS_STK		app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
 static	OS_STK		app_task_obd_stk[APP_TASK_OBD_STK_SIZE];
+
+OS_EVENT 	*obd_can_tx	;//for develop CAN
 
 static void calc_sn( void );
 static void show_sys_info( void );
@@ -158,7 +160,7 @@ void  app_task_manager (void *p_arg)
 
 	get_parameters( );//use (my_icar.upgrade.base - 2K) for para base address
 	show_sys_info( ), show_rst_flag( ), show_err_log( );
-prompt("pro_sn @ %08X\r\n",pro_sn);
+
 	//flash LED, wait power stable and others task init
 	flash_led( 80 );//100ms
 
@@ -192,8 +194,11 @@ prompt("pro_sn @ %08X\r\n",pro_sn);
 	OSTaskNameSet(APP_TASK_GSM_PRIO, (CPU_INT08U *)"obd	task", &os_err);
 #endif
 
+	//Init SEMAPHORES
+	obd_can_tx = OSSemCreate(0);
+
 	//Suspend GSM task for develop CAN
-	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+	os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
 
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();
@@ -431,6 +436,11 @@ static void show_sys_info( void )
 {
 	printf("\r\n"),	prompt("%s\r\n",BUILD_DATE);
 	prompt("Revision: %d  OS Tick: %d\r\n",my_icar.fw_rev,OS_TICKS_PER_SEC);
+
+    //prompt("CPU Speed: %ld MHz  \r\n",BSP_CPU_ClkFreq() / 1000000L);
+    prompt("Ticks: %ld  \r\n",OSTime);
+    prompt("CtxSw: %ld\r\n\r\n",OSCtxSwCtr);
+
 	prompt("The MCU ID is %X %X %X  SN:%s\r\n",\
 		*(vu32*)(0x1FFFF7E8),*(vu32*)(0x1FFFF7EC),*(vu32*)(0x1FFFF7F0),my_icar.sn);
 
@@ -1569,6 +1579,11 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 		show_err_log( );
 		break;
 
+	case 'c' ://OBD CAN TX test
+		prompt("CAN TX...\r\n");
+		OSSemPost( obd_can_tx );
+		break;
+
 	case 'd' ://set debug flag
 		my_icar.debug++ ;
 		prompt("Increase debug lever, my_icar.debug:%d\r\n",my_icar.debug);
@@ -1638,7 +1653,7 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 		break;
 
 	default:
-		prompt("Unknow CMD %c, current support: b,d,D,g,G,R,v\r\n",cmd);
+		prompt("Unknow CMD %c, current support: b,c,d,D,g,G,R,v\r\n",cmd);
 		*flag = 0 ;
 		break;
 	}
