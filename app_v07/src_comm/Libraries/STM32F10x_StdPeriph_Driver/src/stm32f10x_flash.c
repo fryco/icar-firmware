@@ -1594,7 +1594,7 @@ FLASH_Status FLASH_GetBank2Status(void)
 FLASH_Status FLASH_WaitForLastOperation(uint32_t Timeout)
 { 
   FLASH_Status status = FLASH_COMPLETE;
-   
+
   /* Check for the Flash Status */
   status = FLASH_GetBank1Status();
   /* Wait for a Flash operation to complete or a TIMEOUT to occur */

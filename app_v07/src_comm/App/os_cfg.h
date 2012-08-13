@@ -31,7 +31,7 @@
 #define OS_ARG_CHK_EN             0    /* Enable (1) or Disable (0) argument checking                  */
 #define OS_CPU_HOOKS_EN           1    /* uC/OS-II hooks are found in the processor port files         */
 
-#define OS_DEBUG_EN               1    /* Enable(1) debug variables                                    */
+#define OS_DEBUG_EN               0    /* Enable(1) debug variables                                    */
 
 #define OS_EVENT_MULTI_EN         1    /* Include code for OSEventPendMulti()                          */
 #define OS_EVENT_NAME_SIZE       16    /* Determine the size of the name of a Sem, Mutex, Mbox or Q    */
@@ -40,10 +40,13 @@
                                        /* ... MUST NEVER be higher than 254!                           */
 
 #define OS_MAX_EVENTS            10    /* Max. number of event control blocks in your application      */
+//邮箱、队列、信号量的总和
+
 #define OS_MAX_FLAGS              5    /* Max. number of Event Flag Groups    in your application      */
-#define OS_MAX_MEM_PART           5    /* Max. number of memory partitions                             */
+#define OS_MAX_MEM_PART           0    /* Max. number of memory partitions                             */
 #define OS_MAX_QS                 4    /* Max. number of queue control blocks in your application      */
-#define OS_MAX_TASKS             20    /* Max. number of tasks in your application, MUST be >= 2       */
+#define OS_MAX_TASKS             10    /* Max. number of tasks in your application, MUST be >= 2       */
+//根据实际需要，尽量少，因为需要OSTCBTbl，RAM开销大
 
 #define OS_SCHED_LOCK_EN          1    /* Include code for OSSchedLock() and OSSchedUnlock()           */
 

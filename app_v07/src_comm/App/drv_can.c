@@ -1,8 +1,6 @@
 #include "main.h"
 #include "stm32f10x_can.h"
 
-CAN_InitTypeDef        CAN_InitStructure;
-CAN_FilterInitTypeDef  CAN_FilterInitStructure;
 extern CanTxMsg TxMessage;
 extern CanRxMsg RxMessage;
 extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
@@ -10,6 +8,8 @@ extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
 void can_init( )
 {
 	GPIO_InitTypeDef  GPIO_InitStructure;
+	CAN_InitTypeDef        CAN_InitStructure;
+	CAN_FilterInitTypeDef  CAN_FilterInitStructure;
 
 	// GPIO clock enable, had been init in uart1_init
     //RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOA , ENABLE);
@@ -42,7 +42,7 @@ void can_init( )
 	//CAN_InitStructure.CAN_RFLM = DISABLE; //Receive FIFO Locked mode
 	CAN_InitStructure.CAN_RFLM = ENABLE; //EN: 溢出时丢弃新报文, DIS: 保留新报文
 	//CAN_InitStructure.CAN_TXFP = DISABLE; //transmit FIFO priority
-	CAN_InitStructure.CAN_TXFP = ENABLE; //EN: 优先级由发生顺序决定, DIS：优先级由报文ID决定
+	CAN_InitStructure.CAN_TXFP = ENABLE; //EN: 优先级由发送顺序决定, DIS：优先级由报文ID决定
 	// CAN_Mode_Normal             ((uint8_t)0x00)  /*!< normal mode */
 	// CAN_Mode_LoopBack           ((uint8_t)0x01)  /*!< loopback mode */
 	// CAN_Mode_Silent             ((uint8_t)0x02)  /*!< silent mode */
@@ -60,6 +60,12 @@ void can_init( )
 	CAN_Init(CAN1, &CAN_InitStructure);
 
 	/* CAN filter init */
+	//1, 共有14组过滤器(0~13),每组有2个32位寄存器：CAN_FxR0,CAN_FxR1
+	//2, CAN_FMR的FBMx位，设置过滤器工作在屏蔽模式(0)或列表模式(1)
+	//3, CAN_FilterFIFOAssignment 决定报文存去FIFO0 或 FIFO1
+	//4, 目前策略：已知的ID，通过屏蔽模式列出，保存到FIFO0
+	//   未知的ID，全部保存到 FIFO1，将来上传到服务器上供分析
+
 	//Filter number 0
 	CAN_FilterInitStructure.CAN_FilterNumber = 0;
 	
@@ -93,7 +99,7 @@ void can_init( )
 	CAN_FilterInit(&CAN_FilterInitStructure);
 
 	/* Transmit */
-	TxMessage.StdId = 0x7FD;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
+	TxMessage.StdId = 0x7FC;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
 	TxMessage.ExtId = 0x01; //扩展帧
 	TxMessage.RTR = CAN_RTR_DATA;//远程发送请求位。如果这个帧是数据帧，则该位为0，
 								 //如果是远程帧，则为1。
@@ -126,6 +132,7 @@ void USB_HP_CAN1_TX_IRQHandler(void)
 void USB_LP_CAN1_RX0_IRQHandler(void)
 {	
 	rx_msg_cnt0++;
+	//OSIntEnter();...OSIntExit();
 	CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 	CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
 }
