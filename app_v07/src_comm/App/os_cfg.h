@@ -28,6 +28,7 @@
 
                                        /* ---------------------- MISCELLANEOUS ----------------------- */
 #define OS_APP_HOOKS_EN           0    /* Application-defined hooks are called from the uC/OS-II hooks */
+//已在 os_core.c 里把 OSTaskIdleHook 注释，如需增加，请修改
 #define OS_ARG_CHK_EN             0    /* Enable (1) or Disable (0) argument checking                  */
 #define OS_CPU_HOOKS_EN           1    /* uC/OS-II hooks are found in the processor port files         */
 
@@ -57,8 +58,8 @@
                                        /* --------------------- TASK STACK SIZE ---------------------- */
 #define OS_TASK_TMR_STK_SIZE    128    /* Timer      task stack size (# of OS_STK wide entries)        */
 #define OS_TASK_STAT_STK_SIZE   128    /* Statistics task stack size (# of OS_STK wide entries)        */
-#define OS_TASK_IDLE_STK_SIZE   128    /* Idle       task stack size (# of OS_STK wide entries)        */
-
+#define OS_TASK_IDLE_STK_SIZE   32    /* Idle       task stack size (# of OS_STK wide entries)        */
+//如果加入 OSTaskIdleHook ,则需考虑增加
 
                                        /* --------------------- TASK MANAGEMENT ---------------------- */
 #define OS_TASK_CHANGE_PRIO_EN    1    /*     Include code for OSTaskChangePrio()                      */

@@ -5,6 +5,11 @@ extern CanTxMsg TxMessage;
 extern CanRxMsg RxMessage;
 extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
 
+//warn code define, internal use only
+#define	FIFO0_OF			01	//FIFO0 over flow
+#define	FIFO1_OF			02	//FIFO0 over flow
+last code here
+
 void can_init( )
 {
 	GPIO_InitTypeDef  GPIO_InitStructure;
@@ -99,18 +104,18 @@ void can_init( )
 	CAN_FilterInit(&CAN_FilterInitStructure);
 
 	/* Transmit */
-	TxMessage.StdId = 0x7FC;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
+	TxMessage.StdId = 0x7FD;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
 	TxMessage.ExtId = 0x01; //扩展帧
 	TxMessage.RTR = CAN_RTR_DATA;//远程发送请求位。如果这个帧是数据帧，则该位为0，
 								 //如果是远程帧，则为1。
 	TxMessage.IDE = CAN_ID_STD;  //0 表示这个标准帧；IDE=1 表示是扩展帧
 	TxMessage.DLC = 1;//数据帧的字节数，0~8，数据域（Data Field）的长度
 
-	/* Enable Interrupt for receive FIFO 0 message pending */
-	CAN_ITConfig(CAN1,CAN_IT_FMP0, ENABLE);
+	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
+	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
 
-	/* Enable Interrupt for receive FIFO 1 message pending */
-	CAN_ITConfig(CAN1,CAN_IT_FMP1, ENABLE);	
+	/* Enable Interrupt for receive FIFO 1 and FIFO overflow */
+	CAN_ITConfig(CAN1,CAN_IT_FMP1 | CAN_IT_FOV1, ENABLE);	
 
 }
 
@@ -131,10 +136,24 @@ void USB_HP_CAN1_TX_IRQHandler(void)
 ********************************************************************************/
 void USB_LP_CAN1_RX0_IRQHandler(void)
 {	
-	rx_msg_cnt0++;
-	//OSIntEnter();...OSIntExit();
-	CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
-	CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
+	if( CAN_GetITStatus(CAN1, CAN_IT_FOV0 ) != RESET) { //FIFO0 overflow
+		//Release FIFO0, will lose data
+		CAN1->RF0R |= CAN_RF0R_RFOM0;
+		//report this error
+...
+	}
+	else { //receive a data from FIFO0
+		//不应在此次接收FIFO，因为有3个buffer可用，
+		//改在任务里接收，可充分利用buffer
+		rx_msg_cnt0++;
+		CAN_ITConfig(CAN1,CAN_IT_FMP0, DISABLE);//disable FIFO FMP int
+
+		//Todo: 在任务中接收FIFO
+...
+		//OSIntEnter(); OSIntExit();
+		//CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
+		//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
+	}
 }
 
 
@@ -147,5 +166,5 @@ void CAN1_RX1_IRQHandler(void)
 {
 	rx_msg_cnt1++;
 	CAN_Receive(CAN1,CAN_FIFO1, &RxMessage);
-	CAN_ClearITPendingBit(CAN1, CAN_IT_FMP1);
+	//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP1);
 }

@@ -32,3 +32,15 @@ GSM模块：华为MG323
 1，修改GSM重连算法，保证更稳定连接，更快重连
 2，上传系统复位、GSM异常等日志到服务器
 3, 自动导入 svn 版本信息，用于升级时，检查版本用
+
+2:15 PM 8/13/2012
+1, 开始写 OBD 部分代码，此任务采用事件驱动方式，提高任务效率
+
+5:05 PM 8/16/2012
+1, 由于 OS_TaskIdle 只做
+        OS_ENTER_CRITICAL();
+        OSIdleCtr++;
+        OS_EXIT_CRITICAL();
+        OSTaskIdleHook();    
+而 OSTaskIdleHook 暂未用上，所以在 os_cfg.h 把
+#define OS_TASK_IDLE_STK_SIZE   128 改为 32
