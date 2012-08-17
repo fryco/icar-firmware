@@ -2,6 +2,8 @@
 
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
+//#define WATCHDOG	//enable independent watchdog
+
 const unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
 
 static	OS_STK		app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
@@ -205,12 +207,16 @@ void  app_task_manager (void *p_arg)
 #endif
 
 	//independent watchdog init
-	iwdg_init( );
+	#ifdef WATCHDOG
+		iwdg_init( );
+	#endif
 
 	while	(1)
 	{
 		/* Reload IWDG counter */
-		IWDG_ReloadCounter();  
+		#ifdef WATCHDOG
+			IWDG_ReloadCounter();  
+		#endif
 
 		if ( my_icar.upgrade.new_fw_ready ) {
 			// new fw ready
@@ -1630,6 +1636,11 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 		}
 		break;
 
+	case 'P' ://turn on/off GSM power
+		prompt("Turn ON/OFF GSM Power\r\n");
+		led_toggle( GSM_PM );
+		break;
+
 	case 'R' ://reset mcu
 		*flag = 1;
 		prompt("Are you sure reset MCU? Y/N \r\n");
@@ -1653,7 +1664,7 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 		break;
 
 	default:
-		prompt("Unknow CMD %c, current support: b,c,d,D,g,G,R,v\r\n",cmd);
+		prompt("Unknow CMD %c, current support: b,c,d,D,g,G,P,R,v\r\n",cmd);
 		*flag = 0 ;
 		break;
 	}

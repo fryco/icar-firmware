@@ -121,6 +121,8 @@ struct ICAR_DEVICE {
 #define F_MAIN				01	//main.c
 #define F_APP_TASKMANAGER	02	//app_taskmanager.c
 #define F_APP_GSM			03	//app_gsm.c
+#define F_APP_OBD			04	//app_obd.c
+#define F_DRV_can			05	//drv_can.c
 
 
 #endif /* __MAIN_H */

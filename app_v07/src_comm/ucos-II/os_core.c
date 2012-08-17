@@ -1773,7 +1773,7 @@ void  OS_TaskIdle (void *p_arg)
         OS_ENTER_CRITICAL();
         OSIdleCtr++;
         OS_EXIT_CRITICAL();
-        OSTaskIdleHook();                        /* Call user definable HOOK                           */
+        //OSTaskIdleHook();                        /* Call user definable HOOK                           */
     }
 }
 /*$PAGE*/

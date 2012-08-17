@@ -2,11 +2,13 @@
 
 CanTxMsg TxMessage;
 CanRxMsg RxMessage;
-unsigned int rx_msg_cnt0 = 0 ;
-unsigned int rx_msg_cnt1 = 0 ;
+unsigned char rx_msg_cnt0 = 0 ;
+unsigned char rx_msg_cnt1 = 0 ;
 
 extern OS_EVENT 	*obd_can_tx	;
 
+//为了提高任务效率，改用事件驱动方式
+//
 void  app_task_obd (void *p_arg)
 {
 	CPU_INT08U	os_err;
@@ -19,7 +21,7 @@ void  app_task_obd (void *p_arg)
 
 	while ( 1 ) {
 
-		OSSemPend(obd_can_tx, 1, &os_err);
+		OSSemPend(obd_can_tx, 0, &os_err);
 		if ( !os_err ) {
 			CAN_Transmit(CAN1, &TxMessage);
 		}
@@ -28,7 +30,7 @@ void  app_task_obd (void *p_arg)
 		//	
 		//1, release CPU
 		//2, 
-		OSTimeDlyHMSM(0, 0, 0, 800);
+		//OSTimeDlyHMSM(0, 0, 0, 800);
 
 	}
 }
