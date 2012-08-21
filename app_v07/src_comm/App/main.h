@@ -118,6 +118,8 @@ struct ICAR_DEVICE {
 };
 
 //File name define, for warn msg report
+//warn report format: unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+
 #define F_MAIN				01	//main.c
 #define F_APP_TASKMANAGER	02	//app_taskmanager.c
 #define F_APP_GSM			03	//app_gsm.c
