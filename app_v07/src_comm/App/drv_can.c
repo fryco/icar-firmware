@@ -1,6 +1,7 @@
 #include "main.h"
 #include "stm32f10x_can.h"
 
+extern struct ICAR_DEVICE my_icar;
 extern CanTxMsg TxMessage;
 extern CanRxMsg RxMessage;
 extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
@@ -8,7 +9,7 @@ extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
 //warn code define, internal use only
 #define	FIFO0_OF			01	//FIFO0 over flow
 #define	FIFO1_OF			02	//FIFO0 over flow
-last code here
+
 
 void can_init( )
 {
@@ -136,11 +137,22 @@ void USB_HP_CAN1_TX_IRQHandler(void)
 ********************************************************************************/
 void USB_LP_CAN1_RX0_IRQHandler(void)
 {	
+	unsigned char var_uchar;
+
 	if( CAN_GetITStatus(CAN1, CAN_IT_FOV0 ) != RESET) { //FIFO0 overflow
 		//Release FIFO0, will lose data
 		CAN1->RF0R |= CAN_RF0R_RFOM0;
-		//report this error
-...
+
+		//report this error:  1,//find a empty record
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_DRV_can) << 24 ;
+				my_icar.warn[var_uchar].msg |= FIFO0_OF << 16 ;//FIFO0 overflow
+				my_icar.warn[var_uchar].msg |= __LINE__ ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}//8/20/2012 7:11:32 PM 验证成功
 	}
 	else { //receive a data from FIFO0
 		//不应在此次接收FIFO，因为有3个buffer可用，
@@ -149,7 +161,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 		CAN_ITConfig(CAN1,CAN_IT_FMP0, DISABLE);//disable FIFO FMP int
 
 		//Todo: 在任务中接收FIFO
-...
+//...
 		//OSIntEnter(); OSIntExit();
 		//CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 		//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
@@ -163,8 +175,34 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 * return: void
 ********************************************************************************/
 void CAN1_RX1_IRQHandler(void)
-{
-	rx_msg_cnt1++;
-	CAN_Receive(CAN1,CAN_FIFO1, &RxMessage);
-	//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP1);
+{	
+	unsigned char var_uchar;
+
+	if( CAN_GetITStatus(CAN1, CAN_IT_FOV1 ) != RESET) { //FIFO1 overflow
+		//Release FIFO1, will lose data
+		CAN1->RF1R |= CAN_RF1R_RFOM1;
+
+		//report this error:  1,//find a empty record
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_DRV_can) << 24 ;
+				my_icar.warn[var_uchar].msg |= FIFO1_OF << 16 ;//FIFO1 overflow
+				my_icar.warn[var_uchar].msg |= __LINE__ ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}//8/21/2012 10:30:03 AM 验证成功
+	}
+	else { //receive a data from FIFO1
+		//不应在此次接收FIFO，因为有3个buffer可用，
+		//改在任务里接收，可充分利用buffer
+		rx_msg_cnt1++;
+		CAN_ITConfig(CAN1,CAN_IT_FMP1, DISABLE);//disable FIFO FMP int
+
+		//Todo: 在任务中接收FIFO
+//...
+		//OSIntEnter(); OSIntExit();
+		//CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
+		//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
+	}
 }

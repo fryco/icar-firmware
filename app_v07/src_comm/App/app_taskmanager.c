@@ -2,7 +2,7 @@
 
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
-//#define WATCHDOG	//enable independent watchdog
+#define WATCHDOG	//enable independent watchdog
 
 const unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
 
@@ -116,6 +116,7 @@ void  app_task_manager (void *p_arg)
 		//my_icar.warn[var_uchar].msg = (F_APP_TASKMANAGER) << 24 ;
 		//my_icar.warn[var_uchar].msg |= var_uchar << 16 ;
 		//my_icar.warn[var_uchar].msg |= __LINE__ ;
+		my_icar.warn[var_uchar].msg = 0 ;
 		my_icar.warn[var_uchar].queue_idx = MAX_CMD_QUEUE + 1 ;
 		//prompt("MSG %08X @ %08X\r\n",my_icar.warn[var_uchar].msg,&my_icar.warn[var_uchar].msg);
 	}
@@ -200,7 +201,7 @@ void  app_task_manager (void *p_arg)
 	obd_can_tx = OSSemCreate(0);
 
 	//Suspend GSM task for develop CAN
-	os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
 
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();
