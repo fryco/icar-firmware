@@ -11,6 +11,7 @@ extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
 #define	FIFO1_OF			02	//FIFO0 over flow
 
 
+
 void can_init( )
 {
 	GPIO_InitTypeDef  GPIO_InitStructure;
