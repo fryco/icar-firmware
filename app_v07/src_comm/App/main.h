@@ -115,6 +115,8 @@ struct ICAR_DEVICE {
 	struct FIRMWARE_UPGRADE upgrade;
 	struct PARA_UPDATE update;
 	struct PARA_METERS para;
+
+	struct OBD_DAT obd;
 };
 
 //File name define, for warn msg report
