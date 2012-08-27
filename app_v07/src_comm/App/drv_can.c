@@ -2,6 +2,8 @@
 #include "stm32f10x_can.h"
 
 extern struct ICAR_DEVICE my_icar;
+extern OS_EVENT 	*sem_obd	;
+
 extern CanTxMsg TxMessage;
 extern CanRxMsg RxMessage;
 extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
@@ -9,7 +11,6 @@ extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
 //warn code define, internal use only
 #define	FIFO0_OF			01	//FIFO0 over flow
 #define	FIFO1_OF			02	//FIFO0 over flow
-
 
 
 void can_init( )
@@ -128,7 +129,7 @@ void can_init( )
 ********************************************************************************/
 void USB_HP_CAN1_TX_IRQHandler(void)
 {
-	prompt("TX\r\n");
+	;//HW bug, 不会产生中断，但可正常发送
 }
 
 /********************************************************************************
@@ -159,11 +160,10 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 		//不应在此次接收FIFO，因为有3个buffer可用，
 		//改在任务里接收，可充分利用buffer
 		rx_msg_cnt0++;
-		CAN_ITConfig(CAN1,CAN_IT_FMP0, DISABLE);//disable FIFO FMP int
+		CAN_ITConfig(CAN1,CAN_IT_FMP0, DISABLE);//disable FIFO0 FMP int
 
-		//Todo: 在任务中接收FIFO
-//...
-		//OSIntEnter(); OSIntExit();
+		//Send semaphore: 在任务中接收FIFO
+		OSIntEnter(); OSSemPost( sem_obd ); OSIntExit();
 		//CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 		//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
 	}
@@ -198,11 +198,11 @@ void CAN1_RX1_IRQHandler(void)
 		//不应在此次接收FIFO，因为有3个buffer可用，
 		//改在任务里接收，可充分利用buffer
 		rx_msg_cnt1++;
-		CAN_ITConfig(CAN1,CAN_IT_FMP1, DISABLE);//disable FIFO FMP int
+		CAN_ITConfig(CAN1,CAN_IT_FMP1, DISABLE);//disable FIFO1 FMP int
 
-		//Todo: 在任务中接收FIFO
-//...
-		//OSIntEnter(); OSIntExit();
+		//Send semaphore: 在任务中接收FIFO
+		OSIntEnter(); OSSemPost( sem_obd ); OSIntExit();
+
 		//CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 		//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
 	}

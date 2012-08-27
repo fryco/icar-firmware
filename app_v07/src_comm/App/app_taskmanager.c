@@ -4,12 +4,12 @@
 
 #define WATCHDOG	//enable independent watchdog
 
-const unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";
+unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";//Don't modify this line
 
 static	OS_STK		app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
 static	OS_STK		app_task_obd_stk[APP_TASK_OBD_STK_SIZE];
 
-OS_EVENT 	*obd_can_tx	;//for develop CAN
+OS_EVENT 	*sem_obd	;//for develop CAN
 
 static void calc_sn( void );
 static void show_sys_info( void );
@@ -75,6 +75,10 @@ void  app_task_manager (void *p_arg)
 
 	(void)p_arg;
 
+	mg323_rx_cmd.timer = OSTime ;
+	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
+	mg323_rx_cmd.status = S_HEAD;
+
 	/* Initialize the queue.	*/
 	for ( var_uchar = 0 ; var_uchar < MAX_CMD_QUEUE ; var_uchar++) {
 		c2s_data.queue_sent[var_uchar].send_timer= 0 ;//free queue if > 60 secs.
@@ -93,6 +97,7 @@ void  app_task_manager (void *p_arg)
 	c2s_data.check_timer = 0 ;
 	c2s_data.next_ist = 0 ;
 
+	/* Initialize my_icar */
 	my_icar.debug = 0 ;
 	my_icar.login_timer = 0 ;//will be update in RTC_update_calibrate
 
@@ -103,6 +108,8 @@ void  app_task_manager (void *p_arg)
 	my_icar.upgrade.prog_fail_addr = 0 ;
 
 	my_icar.upgrade.new_fw_ready = false ;
+
+	my_icar.obd.can_tx_cnt = 0 ;
 
 	/* Initialize the err msg	*/
 	for ( var_uchar = 0 ; var_uchar < MAX_ERR_MSG ; var_uchar++) {
@@ -120,10 +127,6 @@ void  app_task_manager (void *p_arg)
 		my_icar.warn[var_uchar].queue_idx = MAX_CMD_QUEUE + 1 ;
 		//prompt("MSG %08X @ %08X\r\n",my_icar.warn[var_uchar].msg,&my_icar.warn[var_uchar].msg);
 	}
-
-	mg323_rx_cmd.timer = OSTime ;
-	mg323_rx_cmd.start = c2s_data.rx;//prevent access unknow address
-	mg323_rx_cmd.status = S_HEAD;
 
 	//闪存容量寄存器基地址：0x1FFF F7E0
 	//以K字节为单位指示产品中闪存存储器容量。
@@ -198,7 +201,7 @@ void  app_task_manager (void *p_arg)
 #endif
 
 	//Init SEMAPHORES
-	obd_can_tx = OSSemCreate(0);
+	sem_obd = OSSemCreate(0);
 
 	//Suspend GSM task for develop CAN
 	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
@@ -1588,7 +1591,8 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 
 	case 'c' ://OBD CAN TX test
 		prompt("CAN TX...\r\n");
-		OSSemPost( obd_can_tx );
+		my_icar.obd.can_tx_cnt++;
+		OSSemPost( sem_obd );
 		break;
 
 	case 'd' ://set debug flag
