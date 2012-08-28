@@ -24,7 +24,7 @@ typedef enum
   OBD_CAN10 = 3, //Green LED
   GSM_PM = 4, //GSM power control
   GPS_PM = 5, //GPS module power control
-  SD_PM  = 6  //SD card power control
+  CAN_PM  = 6  //SD card power control
 } led_typedef;
 
 /* Exported constants --------------------------------------------------------*/
@@ -62,10 +62,10 @@ typedef enum
 #define GPS_PM_GPIO_CLK                  RCC_APB2Periph_GPIOA
 #define GPS_PM_GPIO_MODE                 GPIO_Mode_Out_OD
 
-#define SD_PM_PIN                        GPIO_Pin_7
-#define SD_PM_GPIO_PORT                  GPIOC
-#define SD_PM_GPIO_CLK                   RCC_APB2Periph_GPIOC  
-#define SD_PM_GPIO_MODE                  GPIO_Mode_Out_OD
+#define CAN_PM_PIN                        GPIO_Pin_7
+#define CAN_PM_GPIO_PORT                  GPIOC
+#define CAN_PM_GPIO_CLK                   RCC_APB2Periph_GPIOC  
+#define CAN_PM_GPIO_MODE                  GPIO_Mode_Out_OD
 
 /* Exported macro ------------------------------------------------------------*/
 #define GSM_PM_OFF                       led_on(GSM_PM)
@@ -74,8 +74,8 @@ typedef enum
 #define GPS_PM_OFF                       led_off(GPS_PM)
 #define GPS_PM_ON                        led_on(GPS_PM)
 
-#define SD_PM_OFF                        led_off(SD_PM)
-#define SD_PM_ON                         led_on(SD_PM)
+#define CAN_PM_OFF                        led_off(CAN_PM)
+#define CAN_PM_ON                         led_on(CAN_PM)
 
 #define POWER_LED                        OBD_UNKNOW
 #define ALARM_LED              	         OBD_KWP

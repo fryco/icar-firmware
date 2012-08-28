@@ -35,8 +35,16 @@ void  app_task_obd (void *p_arg)
 			//FIFO0 has data, max.: 3 datas
 			if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) {
 
-				prompt("CAN FIFO_0: %d\r\n", CAN_MessagePending(CAN1,CAN_FIFO0));
+				CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 
+				if (RxMessage.IDE == CAN_ID_STD) {
+					prompt("CAN FIFO_0: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO0),RxMessage.StdId);
+				}
+				else {
+					prompt("CAN FIFO_0: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO0),RxMessage.ExtId);
+				}
+				
+  				
 				if ( CAN_MessagePending(CAN1,CAN_FIFO0)==0 ) { //no data
 					CAN_ITConfig(CAN1,CAN_IT_FMP0, ENABLE);//enable FIFO0 FMP int
 				}
@@ -48,7 +56,16 @@ void  app_task_obd (void *p_arg)
 			//FIFO1 has data, max.: 3 datas
 			if ( CAN_MessagePending(CAN1,CAN_FIFO1) ) {
 
-				prompt("CAN FIFO_1: %d\r\n", CAN_MessagePending(CAN1,CAN_FIFO1));
+				CAN_Receive(CAN1,CAN_FIFO1, &RxMessage);
+				
+				if (RxMessage.IDE == CAN_ID_STD) {
+					//RxMessage.StdId = (uint32_t)0x000007FF & (CAN1.sFIFOMailBox[FIFONumber].RIR >> 21);
+					prompt("CAN FIFO_1: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO1),RxMessage.StdId);
+				}
+				else {
+					//RxMessage.ExtId = (uint32_t)0x1FFFFFFF & (CAN1.sFIFOMailBox[FIFONumber].RIR >> 3);
+					prompt("CAN FIFO_1: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO1),RxMessage.ExtId);
+				}
 
 				if ( CAN_MessagePending(CAN1,CAN_FIFO1)==0 ) { //no data
 					CAN_ITConfig(CAN1,CAN_IT_FMP1, ENABLE);//enable FIFO1 FMP int

@@ -38,7 +38,7 @@ GSM_CMD_UPDATE,\
 GSM_CMD_WARN\
 };
 
-static unsigned char pro_sn[]="DEMOxxxxxx";
+static unsigned char pro_sn[]="CAN_xxxxxx";
 //Last 6 bytes replace by MCU ID xor result
 /* SN, char(10): 0  2  P  1 1  A  H  0 0 0
  *               ¢Ù ¢Ú ¢Û ¢Ü¢Ý ¢Þ ¢ß ¢à¢á¢â
@@ -204,7 +204,7 @@ void  app_task_manager (void *p_arg)
 	sem_obd = OSSemCreate(0);
 
 	//Suspend GSM task for develop CAN
-	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+	os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
 
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();

@@ -154,7 +154,7 @@ int	main(void)
 	//while ( 1 ) ;//for upgrade GSM fw
 	GSM_PM_OFF;
 	GPS_PM_OFF;
-	SD_PM_OFF;
+	CAN_PM_OFF;
 
 	/*	Initialize "uC/OS-II, The Real-Time	Kernel".		 */
 	OSInit(); //include: OSTime = 0L;
