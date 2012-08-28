@@ -5,13 +5,14 @@ extern struct ICAR_DEVICE my_icar;
 extern OS_EVENT 	*sem_obd	;
 
 extern CanTxMsg TxMessage;
-extern CanRxMsg RxMessage;
-extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
+//extern CanRxMsg RxMessage;
+//extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
 
 //warn code define, internal use only
 #define	FIFO0_OF			01	//FIFO0 over flow
-#define	FIFO1_OF			02	//FIFO0 over flow
-
+#define	UNK_CAN_STDID		02	//unknow CAN STD ID
+#define	UNK_CAN_EXTID_H		03	//Unknow ext-stand CAN ID High
+#define	UNK_CAN_EXTID_L		04	//Unknow ext-stand CAN ID low
 
 void can_init( )
 {
@@ -55,7 +56,8 @@ void can_init( )
 	// CAN_Mode_LoopBack           ((uint8_t)0x01)  /*!< loopback mode */
 	// CAN_Mode_Silent             ((uint8_t)0x02)  /*!< silent mode */
 	// CAN_Mode_Silent_LoopBack    ((uint8_t)0x03)  /*!< loopback combined with silent mode */
-	CAN_InitStructure.CAN_Mode = CAN_Mode_Silent_LoopBack; //CAN_Mode_Normal;
+	//CAN_InitStructure.CAN_Mode = CAN_Mode_Silent_LoopBack; //CAN work mode
+	CAN_InitStructure.CAN_Mode = CAN_Mode_Normal; //CAN work mode
 
 	
 	//Baud = 24M(APB1) / (Prescaler) / 8(TqCount)	 								
@@ -107,11 +109,13 @@ void can_init( )
 	CAN_FilterInit(&CAN_FilterInitStructure);
 
 	/* Transmit */
-	TxMessage.StdId = 0x7FD;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
-	TxMessage.ExtId = 0x01; //扩展帧
+	TxMessage.StdId = 0x7FE;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
+	TxMessage.ExtId = 0x19ABCDEF; //扩展帧
 	TxMessage.RTR = CAN_RTR_DATA;//远程发送请求位。如果这个帧是数据帧，则该位为0，
 								 //如果是远程帧，则为1。
 	TxMessage.IDE = CAN_ID_STD;  //0 表示这个标准帧；IDE=1 表示是扩展帧
+	//TxMessage.IDE = CAN_ID_EXT;  //0 表示这个标准帧；IDE=1 表示是扩展帧
+	
 	TxMessage.DLC = 1;//数据帧的字节数，0~8，数据域（Data Field）的长度
 
 	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
@@ -120,6 +124,8 @@ void can_init( )
 	/* Enable Interrupt for receive FIFO 1 and FIFO overflow */
 	CAN_ITConfig(CAN1,CAN_IT_FMP1 | CAN_IT_FOV1, ENABLE);	
 
+	//Enable CAN transceiver power
+	CAN_PM_ON;
 }
 
 /********************************************************************************
@@ -137,7 +143,7 @@ void USB_HP_CAN1_TX_IRQHandler(void)
 * params: void 
 * return: void
 ********************************************************************************/
-void USB_LP_CAN1_RX0_IRQHandler(void)
+void USB_LP_CAN1_RX0_IRQHandler(void) //for know CAN ID
 {	
 	unsigned char var_uchar;
 
@@ -159,7 +165,7 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 	else { //receive a data from FIFO0
 		//不应在此次接收FIFO，因为有3个buffer可用，
 		//改在任务里接收，可充分利用buffer
-		rx_msg_cnt0++;
+		//rx_msg_cnt0++;
 		CAN_ITConfig(CAN1,CAN_IT_FMP0, DISABLE);//disable FIFO0 FMP int
 
 		//Send semaphore: 在任务中接收FIFO
@@ -175,35 +181,46 @@ void USB_LP_CAN1_RX0_IRQHandler(void)
 * params: void 
 * return: void
 ********************************************************************************/
-void CAN1_RX1_IRQHandler(void)
+void CAN1_RX1_IRQHandler(void) //for unknow CAN ID
 {	
 	unsigned char var_uchar;
+	CanRxMsg rx_msg;
 
-	if( CAN_GetITStatus(CAN1, CAN_IT_FOV1 ) != RESET) { //FIFO1 overflow
-		//Release FIFO1, will lose data
-		CAN1->RF1R |= CAN_RF1R_RFOM1;
+	CAN_Receive(CAN1,CAN_FIFO1, &rx_msg);
 
-		//report this error:  1,//find a empty record
+	if (rx_msg.IDE == CAN_ID_STD) { 		
+		//unknow CAN STD ID, report to server
 		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
 			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
 				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
 				my_icar.warn[var_uchar].msg = (F_DRV_can) << 24 ;
-				my_icar.warn[var_uchar].msg |= FIFO1_OF << 16 ;//FIFO1 overflow
-				my_icar.warn[var_uchar].msg |= __LINE__ ;
+				my_icar.warn[var_uchar].msg |= UNK_CAN_STDID << 16 ;//unknow CAN STD ID
+				my_icar.warn[var_uchar].msg |= rx_msg.StdId ;
 				var_uchar = MAX_WARN_MSG ;//end the loop
 			}
-		}//8/21/2012 10:30:03 AM 验证成功
+		}// 验证成功
 	}
-	else { //receive a data from FIFO1
-		//不应在此次接收FIFO，因为有3个buffer可用，
-		//改在任务里接收，可充分利用buffer
-		rx_msg_cnt1++;
-		CAN_ITConfig(CAN1,CAN_IT_FMP1, DISABLE);//disable FIFO1 FMP int
+	else {
+		//unknow CAN EXT ID, report to server
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_DRV_can) << 24 ;
+				my_icar.warn[var_uchar].msg |= UNK_CAN_EXTID_H << 16 ;//Unknow ext-stand CAN ID high
+				my_icar.warn[var_uchar].msg |= ( rx_msg.ExtId >> 16) &0xFFFF ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}// 验证成功 2012/8/28 10:58:10
 
-		//Send semaphore: 在任务中接收FIFO
-		OSIntEnter(); OSSemPost( sem_obd ); OSIntExit();
-
-		//CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
-		//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_DRV_can) << 24 ;
+				my_icar.warn[var_uchar].msg |= UNK_CAN_EXTID_L << 16 ;//Unknow ext-stand CAN ID low
+				my_icar.warn[var_uchar].msg |= ( rx_msg.ExtId ) &0xFFFF ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}// 验证成功 2012/8/28 10:58:08
 	}
 }
+

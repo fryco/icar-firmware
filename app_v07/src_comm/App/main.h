@@ -45,7 +45,7 @@
 #define AT_CMD_LENGTH			64 //for GSM command, must < RX_BUF_SIZE in drv_uart.h
 #define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online_cnt_cnt > MAX_ONLINE_TRY )
 #define MAX_ERR_MSG				4  //ERR message, BackupRegister1 最多存储4种错误类型
-#define MAX_WARN_MSG			3  //Warn message, uint32
+#define MAX_WARN_MSG			4  //Warn message, uint32
 
 #define MIN_GSM_SIGNAL			8  //Min. GSM Signal require
 
