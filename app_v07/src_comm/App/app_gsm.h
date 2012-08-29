@@ -21,38 +21,29 @@
 /* Exported types ------------------------------------------------------------*/
 typedef enum
 {//same as define in drv_mg323.c
-	DISCONNECT_NO_ERR = 0,	//normal, no error
+	GPRS_NO_ERR = 0,	//normal, no error
 
-	CONNECTION_DOWN	=	1,	//^SICI: 0,2,0
-	PEER_CLOSED 	= 	2,	//^SIS: 0, 0, 48, Remote Peer has closed the connection
-	PROFILE_NO_UP 	=	3,	//AT^SISI return is not 4: up
-	RX_TIMEOUT	 	=	4,	//RX data timeout after tx
-
-	NO_GPRS_IN_INIT	=	6,	//no gprs network
-	GPRS_ATT_ERR	=	7,	//gprs attach failure
-	CONN_TYPE_ERR	=	8,	//set connect type error
-	GET_APN_ERR		=	9,	//get APN error
-	SET_APN_ERR		=	10,	//set APN error
-	SET_CONN_ERR	=	11,	//set conID error
-	SVR_TYPE_ERR	=	12,	//set svr type error
-	DEST_IP_ERR		=	13	//set dest IP and port error
-} DISCONNECT_REASON;//enum must < 15
-
-typedef enum
-{//same as define in drv_mg323.c
-	SHUTDOWN_NO_ERR	=	0,	//normal, no error
+	//Below is GSM power off reason
 	NO_RESPOND		=	1, 	//if ( OSTime - mg323_status.at_timer > 10*AT_TIMEOUT )
 							//or send AT no return
-	SIM_CARD_ERR	=	2,	//Pin? no SIM?
-	NO_GSM_NET		=	3,	//no GSM net or can't register
-	NO_CARRIER_INFO	=	4,	//Get GSM carrier info failure
-	SIGNAL_WEAK		=	5,	//gsm signal < MIN_GSM_SIGNAL
-	NO_GPRS			=	6,	//mg323_status.gprs_count > 60
+	GSM_HW			= 	2,	//GSM HW err, gsm_power_on() report err.
+	NO_GPRS_NET		=	3,	//mg323_status.gprs_count > 60, Find GPRS network timeout
+	MODULE_REBOOT	=	4,	//if receive: SYSSTART
+	RSV1			= 	5,	//Reserve
+	
+	//Below is GPRS disconnect reason
+	PEER_CLOSED 	= 	6,	//^SIS: 0, 0, 48, Remote Peer has closed the connection
+	PROFILE_NO_UP 	=	7,	//AT^SISI return is not 4: up
+	RX_TIMEOUT	 	=	8,	//RX data timeout after tx
+	GPRS_SETTING	=	9,  //GPRS setting error
+	CONNECTION_DOWN	=	10,	//^SICI: 0,2,0, Down 状态，Internet 连接已经定义但还没连接
+	RSV2			= 	11,	//Reserve
+	RSV3			= 	12,	//Reserve
+	RSV4			= 	13,	//Reserve
+	RSV5			= 	14,	//Reserve
+	RSV6			= 	15	//Reserve
+} GPRS_REASON;//enum must < 15
 
-	TRY_ONLINE		=	13,	//if ( my_icar.mg323.try_online_cnt_cnt > MAX_ONLINE_TRY )
-	RSV				= 	14,	//Reserve
-	MODULE_REBOOT	=	15	//if receive: SYSSTART
-} POWEROFF_REASON; //enum must < 15
 
 struct GSM_STATUS {
 	bool ask_power ;

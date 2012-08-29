@@ -1164,11 +1164,10 @@ unsigned char gsm_check_gprs( )
 	return 0 ;
 }
 
-bool gprs_disconnect( DISCONNECT_REASON reason)
+bool gprs_disconnect(  )
 {
-	u16 result_temp;
 
-	prompt("Close connection, reason: %d... ",reason);
+	prompt("!!! Close GPRS connection !!!\t");
 	//close connect... AT^SISC=0
 	if( close_tcp_conn( ) )  {
 		prompt("ok.\r\n");
@@ -1180,24 +1179,10 @@ bool gprs_disconnect( DISCONNECT_REASON reason)
 	my_icar.mg323.tcp_online = false ;
 	my_icar.mg323.try_online_cnt = 1 ;
 
-	//save to BK reg
-	//BKP_DR4, GPRS disconnect time(UTC Time) high
-	//BKP_DR5, GPRS disconnect time(UTC Time) low
-    BKP_WriteBackupRegister(BKP_DR4, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
-    BKP_WriteBackupRegister(BKP_DR5, (RTC_GetCounter( ))&0xFFFF);//low
-
-	//BKP_DR1, ERR index: 	15~12:MCU reset 
-	//						11~8:reverse
-	//						7~4:GPRS disconnect reason
-	//						3~0:GSM module poweroff reason
-	result_temp = (BKP_ReadBackupRegister(BKP_DR1))&0xFF0F;
-	result_temp = result_temp | ((reason<<4)&0xF0) ;
-    BKP_WriteBackupRegister(BKP_DR1, result_temp);
-
 	return true ;
 }
 
-bool gsm_pwr_off( POWEROFF_REASON reason)
+bool gsm_pwr_off( )
 {
 	u16 result_temp;
 
@@ -1236,20 +1221,35 @@ bool gsm_pwr_off( POWEROFF_REASON reason)
 	my_icar.mg323.power_on = false;
 	memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
 
-	//save to BK reg
-	//BKP_DR2, GSM Module power off time(UTC Time) high
-	//BKP_DR3, GSM Module power off time(UTC Time) low
-    BKP_WriteBackupRegister(BKP_DR2, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
-    BKP_WriteBackupRegister(BKP_DR3, (RTC_GetCounter( ))&0xFFFF);//low
-
-	//BKP_DR1, ERR index: 	15~12:MCU reset 
-	//						11~8:reverse
-	//						7~4:GPRS disconnect reason
-	//						3~0:GSM module poweroff reason
-	result_temp = (BKP_ReadBackupRegister(BKP_DR1))&0xFFF0;
-	result_temp = result_temp | reason ;
-    BKP_WriteBackupRegister(BKP_DR1, result_temp);
-
 	prompt("Turn off GSM power.\r\n");
 	return true ;
+}
+
+void save_2g_err( unsigned char force, GPRS_REASON reason)
+{
+	u16 result_temp ;
+	//force=1: save to BK reg even BKP_DR1 have data, force=0: don't save if have data
+
+	//BKP_DR1, ERR index: 	15~12:MCU reset 
+	//						11~8:upgrade fw failure code
+	//						7~4:GPRS failure reason
+	//						3~0:GSM module poweroff reason
+
+	//BKP_DR4, GPRS failure time (UTC Time) high
+	//BKP_DR5, GPRS failure time (UTC Time) low
+
+						
+	if ( (BKP_ReadBackupRegister(BKP_DR1))&0x00F0 ) {//have data
+		if ( !force ) {//don't cover if have data
+			return ;
+		}
+	}
+	
+	result_temp = (BKP_ReadBackupRegister(BKP_DR1))&0xFF0F;
+	result_temp = result_temp | ((reason<<4)&0xF0) ;
+    BKP_WriteBackupRegister(BKP_DR1, result_temp);
+
+    BKP_WriteBackupRegister(BKP_DR4, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
+    BKP_WriteBackupRegister(BKP_DR5, (RTC_GetCounter( ))&0xFFFF);//low
+
 }
