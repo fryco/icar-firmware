@@ -69,24 +69,14 @@ void  app_task_gsm (void *p_arg)
 							my_icar.mg323.tcp_online = false ;
 
 							//save to BK reg
-							//BKP_DR4, GPRS disconnect time(UTC Time) high
-							//BKP_DR5, GPRS disconnect time(UTC Time) low
-						    BKP_WriteBackupRegister(BKP_DR4, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
-						    BKP_WriteBackupRegister(BKP_DR5, (RTC_GetCounter( ))&0xFFFF);//low
-						
-							//BKP_DR1, ERR index: 	15~12:MCU reset 
-							//						11~8:reverse
-							//						7~4:GPRS disconnect reason
-							//						3~0:GSM module poweroff reason
-							var_int_data = (BKP_ReadBackupRegister(BKP_DR1))&0xFF0F;
-							var_int_data = var_int_data | ((err_code<<4)&0xF0) ;
-						    BKP_WriteBackupRegister(BKP_DR1, var_int_data);
+							save_2g_err(0, GPRS_SETTING);
 						}
 					}
 				}
 				else { //error, maybe no GSM network
 					prompt("GSM power on failure:%d will try later.\r\n",err_code);
-					gsm_pwr_off( (POWEROFF_REASON)err_code );
+					save_2g_err(0, GSM_HW);
+					gsm_pwr_off( );
 				}
 			}
 		}
@@ -103,7 +93,7 @@ void  app_task_gsm (void *p_arg)
 				prompt("\r\nGSM Module no respond, will be reset...%s\tline: %d\r\n",\
 						__FILE__, __LINE__);
 
-				gsm_pwr_off( NO_RESPOND );
+				save_2g_err(1, NO_RESPOND); gsm_pwr_off( );
 			}
 
 			//Check need online or not?
@@ -145,7 +135,7 @@ void  app_task_gsm (void *p_arg)
 							//will be auto power on because ask_power is true
 
 							//need to double check this logic
-							gsm_pwr_off( TRY_ONLINE );
+							gsm_pwr_off( );
 							OSTimeDlyHMSM(0, 0, 0, 500);
 						}
 					}
@@ -156,7 +146,7 @@ void  app_task_gsm (void *p_arg)
 					//wait... timeout => restart
 					if ( my_icar.mg323.gprs_count > 60 ) {//about 60s
 
-							gsm_pwr_off( NO_GPRS );
+							save_2g_err(0,NO_GPRS_NET); gsm_pwr_off(  );
 							prompt("Find GPRS network timeout! check %s: %d\r\n",\
 								__FILE__, __LINE__);
 							//will be auto power on because ask_power is true
@@ -275,7 +265,7 @@ void  app_task_gsm (void *p_arg)
 					(OSTime - c2s_data.rx_timer > TCP_SEND_PERIOD*2) ) {
 					prompt("Rec TCP timeout, reset GSM module! Line: %d\r\n",__LINE__);
 					prompt("OSTime:%d - rx_timer:%d = %d\r\n",OSTime,c2s_data.rx_timer,OSTime-c2s_data.rx_timer);
-					gprs_disconnect( RX_TIMEOUT );
+					save_2g_err(0,RX_TIMEOUT); gprs_disconnect(  );
 				}
 			}
 		}
@@ -509,18 +499,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		my_icar.mg323.power_on = false;
 	
 		//save to BK reg
-		//BKP_DR2, GSM Module power off time(UTC Time) high
-		//BKP_DR3, GSM Module power off time(UTC Time) low
-	    BKP_WriteBackupRegister(BKP_DR2, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
-	    BKP_WriteBackupRegister(BKP_DR3, (RTC_GetCounter( ))&0xFFFF);//low
-	
-		//BKP_DR1, ERR index: 	15~12:MCU reset 
-		//						11~8:reverse
-		//						7~4:GPRS disconnect reason
-		//						3~0:GSM module poweroff reason
-		i = (BKP_ReadBackupRegister(BKP_DR1))&0xFFF0;
-		i = i | MODULE_REBOOT ;
-	    BKP_WriteBackupRegister(BKP_DR1, i);
+		save_2g_err(0, MODULE_REBOOT);
 
 		return 0;
 	}
@@ -537,7 +516,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		if ( my_icar.mg323.tcp_online  ) {
 			//previous status is online, now is offline, close connect.
 			prompt("Rec:%s\r\n",buf);
-			gprs_disconnect(PEER_CLOSED);
+			save_2g_err(0, PEER_CLOSED); gprs_disconnect( );
 		}
 		else {
 			putstring(COM2,"AT^SICI?\r\n");//enquire for further info
@@ -623,7 +602,8 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 							buf,__FILE__, __LINE__);
 			if ( my_icar.mg323.tcp_online  ) {
 				//previous status is online, now is offline, close connect.
-				gprs_disconnect(PROFILE_NO_UP);
+				save_2g_err(0, PROFILE_NO_UP);
+				gprs_disconnect( );
 			}
 		}
 		return 0;
@@ -640,7 +620,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 				prompt("!!!Connection is down!!! %d\r\n",__LINE__);
 				if ( my_icar.mg323.tcp_online  ) {
 					//previous status is online, now is offline, close connect.
-					gprs_disconnect(CONNECTION_DOWN);
+					save_2g_err(0,CONNECTION_DOWN); gprs_disconnect();
 				}
 				break;
 
@@ -745,19 +725,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 		my_icar.mg323.tcp_online = false ;
 		my_icar.mg323.power_on = false;
 	
-		//save to BK reg
-		//BKP_DR2, GSM Module power off time(UTC Time) high
-		//BKP_DR3, GSM Module power off time(UTC Time) low
-	    BKP_WriteBackupRegister(BKP_DR2, ((RTC_GetCounter( ))>>16)&0xFFFF);//high
-	    BKP_WriteBackupRegister(BKP_DR3, (RTC_GetCounter( ))&0xFFFF);//low
-	
-		//BKP_DR1, ERR index: 	15~12:MCU reset 
-		//						11~8:reverse
-		//						7~4:GPRS disconnect reason
-		//						3~0:GSM module poweroff reason
-		i = (BKP_ReadBackupRegister(BKP_DR1))&0xFFF0;
-		i = i | MODULE_REBOOT ;
-	    BKP_WriteBackupRegister(BKP_DR1, i);
+		save_2g_err(0, MODULE_REBOOT);
 
 		prompt("Check %s: %d\r\n",	__FILE__,__LINE__);
 		return 2;

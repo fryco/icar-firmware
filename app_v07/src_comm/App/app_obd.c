@@ -4,8 +4,6 @@ extern struct ICAR_DEVICE my_icar;
 
 CanTxMsg TxMessage;
 CanRxMsg RxMessage;
-unsigned char rx_msg_cnt0 = 0 ;
-unsigned char rx_msg_cnt1 = 0 ;
 
 extern OS_EVENT 	*sem_obd	;
 
@@ -53,28 +51,8 @@ void  app_task_obd (void *p_arg)
 				}
 			}
 
-			//FIFO1 has data, max.: 3 datas
-			if ( CAN_MessagePending(CAN1,CAN_FIFO1) ) {
-
-				CAN_Receive(CAN1,CAN_FIFO1, &RxMessage);
-				
-				if (RxMessage.IDE == CAN_ID_STD) {
-					//RxMessage.StdId = (uint32_t)0x000007FF & (CAN1.sFIFOMailBox[FIFONumber].RIR >> 21);
-					prompt("CAN FIFO_1: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO1),RxMessage.StdId);
-				}
-				else {
-					//RxMessage.ExtId = (uint32_t)0x1FFFFFFF & (CAN1.sFIFOMailBox[FIFONumber].RIR >> 3);
-					prompt("CAN FIFO_1: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO1),RxMessage.ExtId);
-				}
-
-				if ( CAN_MessagePending(CAN1,CAN_FIFO1)==0 ) { //no data
-					CAN_ITConfig(CAN1,CAN_IT_FMP1, ENABLE);//enable FIFO1 FMP int
-				}
-				else { //still has data
-					OSSemPost( sem_obd );//no verify
-				}
-			}
-
+			//FIFO1 receive unknow CAN ID, then report to server
+			//check CAN1_RX1_IRQHandler(void) in drv_can.c
 		}
 	}
 }
