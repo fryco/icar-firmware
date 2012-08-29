@@ -766,19 +766,10 @@ static unsigned char gsm_rx_decode( struct GSM_RX_RESPOND *buf )
 					//BKP_DR1, ERR index: 	15~12:MCU reset 
 					//						11~8:upgrade fw failure code
 					//						7~4:GPRS disconnect reason
-					//						3~0:GSM module poweroff reason
+					//						3~0:RSV
 					case 0x10://record err log part 1: GSM module poweroff success
 						prompt("Upload GSM module poweroff err log success, CMD_seq: %02X\r\n",*((buf->start)+1));
-						//Clear the error flag
-						//BKP_DR2, GSM Module power off time(UTC Time) high
-						//BKP_DR3, GSM Module power off time(UTC Time) low
-					    BKP_WriteBackupRegister(BKP_DR2, 0);//high
-					    BKP_WriteBackupRegister(BKP_DR3, 0);//low
-						BKP_WriteBackupRegister(BKP_DR1, \
-							((BKP_ReadBackupRegister(BKP_DR1))&0xFFF0));
-
-						//reset err_q_idx
-						my_icar.err_q_idx[0] = MAX_CMD_QUEUE + 1 ;
+						prompt("!!! Update server program, the GSM power off had cancle!!! %d\r\n",__LINE__);
 						break;
 
 					case 0x20://record err log part 2: GPRS disconnect success
@@ -1261,9 +1252,8 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					//BKP_DR1, ERR index: 	15~12:MCU reset 
 					//						11~8:upgrade fw failure code
 					//						7~4:GPRS disconnect reason
-					//						3~0:GSM module poweroff reason
-					//BKP_DR2, GSM Module power off time(UTC Time) high
-					//BKP_DR3, GSM Module power off time(UTC Time) low
+					//						3~0:RSV
+					//BKP_DR2,DR3 RSV
 					//BKP_DR4, GPRS disconnect time(UTC Time) high
 					//BKP_DR5, GPRS disconnect time(UTC Time) low
 					//BKP_DR6, upgrade fw time(UTC Time) high
@@ -1281,6 +1271,9 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 					switch ( i ) {
 					case 0x0://GSM module poweroff err
 						//GSM reason
+						prompt("!!! Update firmware, the GSM power off had cancle!!! %d\r\n",__LINE__);
+
+						//will be removed...
 						seq = (BKP_ReadBackupRegister(BKP_DR1))&0x0F;
 						//err_code, 2 byte
 						c2s_data.tx[c2s_data.tx_len+9] = (seq>>8)&0xFF;
@@ -1290,7 +1283,7 @@ static unsigned char gsm_send_pcb( unsigned char *sequence, unsigned char out_pc
 						seq = BKP_ReadBackupRegister(BKP_DR2) ;
 						c2s_data.tx[c2s_data.tx_len+5] = (seq>>8)&0xFF  ;//time high
 						c2s_data.tx[c2s_data.tx_len+6] = (seq)&0xFF  ;//time high
-						seq = BKP_ReadBackupRegister(BKP_DR3) ;
+						seq = BKP_ReadBackupRegister(BKP_DR2) ;//Change to DR3
 						c2s_data.tx[c2s_data.tx_len+7] = (seq>>8)&0xFF  ;//time high
 						c2s_data.tx[c2s_data.tx_len+8] =  seq&0xFF  ;//time low
 

@@ -6,9 +6,9 @@ extern struct ICAR_DEVICE my_icar;
 //BKP_DR1, ERR index: 	15~12:MCU reset 
 //						11~8:upgrade fw failure code
 //						7~4:GPRS disconnect reason
-//						3~0:GSM module poweroff reason
-//BKP_DR2, GSM Module power off time(UTC Time) high
-//BKP_DR3, GSM Module power off time(UTC Time) low
+//						3~0:RSV
+//BKP_DR2, RSV
+//BKP_DR3, RSV
 //BKP_DR4, GPRS disconnect time(UTC Time) high
 //BKP_DR5, GPRS disconnect time(UTC Time) low
 //BKP_DR6, upgrade fw time(UTC Time) high
