@@ -1161,7 +1161,7 @@ int cmd_update_para( struct icar_data *mycar, struct icar_command * cmd,\
 		snd_buf[8] = 0;
 		snd_buf[9] = 0; //para revision lowest
 
-		var_u32 = 3*60;// 3 mins
+		var_u32 = 10*60;// 10 mins
 		snd_buf[10] = 1;//PARA_RELAY_ON
 		snd_buf[11] = (var_u32>>24)&0xFF;
 		snd_buf[12] = (var_u32>>16)&0xFF;
