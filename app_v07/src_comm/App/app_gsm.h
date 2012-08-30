@@ -29,7 +29,7 @@ typedef enum
 	GSM_HW			= 	2,	//GSM HW err, gsm_power_on() report err.
 	NO_GPRS_NET		=	3,	//mg323_status.gprs_count > 60, Find GPRS network timeout
 	MODULE_REBOOT	=	4,	//if receive: SYSSTART
-	RSV1			= 	5,	//Reserve
+	RSV5			= 	5,	//Reserve
 	
 	//Below is GPRS disconnect reason
 	PEER_CLOSED 	= 	6,	//^SIS: 0, 0, 48, Remote Peer has closed the connection
@@ -37,11 +37,11 @@ typedef enum
 	RX_TIMEOUT	 	=	8,	//RX data timeout after tx
 	GPRS_SETTING	=	9,  //GPRS setting error
 	CONNECTION_DOWN	=	10,	//^SICI: 0,2,0, Down 状态，Internet 连接已经定义但还没连接
-	RSV2			= 	11,	//Reserve
-	RSV3			= 	12,	//Reserve
-	RSV4			= 	13,	//Reserve
-	RSV5			= 	14,	//Reserve
-	RSV6			= 	15	//Reserve
+	RSV11			= 	11,	//Reserve
+	RSV12			= 	12,	//Reserve
+	RSV13			= 	13,	//Reserve
+	RSV14			= 	14,	//Reserve
+	RSV15			= 	15	//Reserve
 } GPRS_REASON;//enum must < 15
 
 

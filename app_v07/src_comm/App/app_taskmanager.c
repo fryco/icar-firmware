@@ -204,7 +204,7 @@ void  app_task_manager (void *p_arg)
 	sem_obd = OSSemCreate(0);
 
 	//Suspend GSM task for develop CAN
-	os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
 
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();
