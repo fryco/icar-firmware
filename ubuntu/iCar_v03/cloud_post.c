@@ -202,7 +202,7 @@ int cloud_post( char *remote_host, char *request, int port )
 
 	cloud_tcpclient_create(&client,remote_host,port);
 
-	if(http_post(&client,remote_host,"/bbs/mach_post.php",request,&response)){
+	if(http_post(&client,remote_host,"/cn0086_bbs/mach_post.php",request,&response)){
 		fprintf(stderr,"Error! check %s:%d\n",__FILE__, __LINE__);
 		return 1;
 	}

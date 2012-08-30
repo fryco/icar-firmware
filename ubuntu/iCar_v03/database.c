@@ -11,40 +11,61 @@
 
 extern int debug_flag ;
 
-const unsigned char *ERR_GSM[][1]= {\
-//	SHUTDOWN_NO_ERR	=	0,	//normal, no error
-	"SHUTDOWN NO ERR",\
-//	NO RESPOND		=	1, 	//if ( OSTime - mg323 status.at timer > 10*AT_TIMEOUT )
+//Backup register, 16 bit = 2 bytes * 10 for STM32R8
+//BKP_DR1, ERR index: 	15~12:MCU reset 
+//						11~8:upgrade fw failure code
+//						7~4:GPRS disconnect reason
+//						3~0:RSV
+//BKP_DR2, RSV
+//BKP_DR3, RSV
+//BKP_DR4, GPRS disconnect time(UTC Time) high
+//BKP_DR5, GPRS disconnect time(UTC Time) low
+//BKP_DR6, upgrade fw time(UTC Time) high
+//BKP_DR7, upgrade fw time(UTC Time) low
+//BKP_DR8, MCU reset time(UTC Time) high
+//BKP_DR9, MCU reset time(UTC Time) low
+//BKP_DR10, stm32_rtc.prescaler
+
+//Need same as define in app_gsm.h
+const unsigned char *ERR_GPRS[][1]= {\
+	//	GPRS_NO_ERR = 0,	//normal, no error
+	"GPRS NO ERR",\
+
+	//Below is GSM power off reason
+	//	NO RESPOND		=	1, 	//if ( OSTime - mg323 status.at timer > 10*AT_TIMEOUT )
+							//or send AT no return
 	"GSM Module no respond",\
-//	SIM_CARD_ERR	=	2,	//Pin? no SIM?
-	"SIM CARD ERR",\
-//	NO_GSM_NET		=	3,	//no GSM net or can't register
-	"NO GSM NET",\
-//	NO_CARRIER_INFO	=	4,	//Get GSM carrier info failure
-	"Get GSM carrier info failure",\
-//	SIGNAL_WEAK		=	5,	//gsm signal < MIN_GSM_SIGNAL
-	"Signal weak",\
-//	NO_GPRS			=	6,	//mg323_status.gprs_count > 60
-	"NO GPRS",\
-//	RSV				=	7,	//Reserve
-	"RSV",\
-//	RSV				=	8,	//Reserve
-	"RSV",\
-//	RSV				=	9,	//Reserve
-	"RSV",\
-//	RSV				=	10,	//Reserve
-	"RSV",\
-//	RSV				=	11,	//Reserve
-	"RSV",\
-//	RSV				=	12,	//Reserve
-	"RSV",\
-//	TRY_ONLINE		=	13,	//if ( my_icar.mg323.try_online > MAX_ONLINE_TRY )
-	"Try online > MAX_ONLINE_TRY",\
-//	RSV				=	14,	//Reserve
-	"RSV",\
-//	MODULE_REBOOT	=	15	//if receive: SYSSTART
-	"GSM module reboot"\
-};
+	//	GSM_HW			= 	2,	//GSM HW err, gsm_power_on() report err.
+	"gsm_power_on() report err",\
+	//	NO_GPRS_NET		=	3,	//mg323_status.gprs_count > 60, Find GPRS network timeout
+	"No GPRS network",\
+	//	MODULE_REBOOT	=	4,	//if receive: SYSSTART
+	"GSM module reboot",\
+	//	RSV1			= 	5,	//Reserve
+	"Reserve5",\
+
+	//Below is GPRS disconnect reason
+	//	PEER_CLOSED 	= 	6,	//^SIS: 0, 0, 48, Remote Peer has closed the connection
+	"Remote Peer closed connection",\
+
+	//	PROFILE_NO_UP 	=	7,	//AT^SISI return is not 4: up
+	"Profile NO UP",\
+
+	//	RX_TIMEOUT		=	8,	//should rx result after tx data
+	"RX timeout after TX",\
+
+	//	GPRS_SETTING	=	9,  //GPRS setting error
+	"GPRS setting err",\
+	
+	//	CONNECTION_DOWN	=	10,	//^SICI: 0,2,0, Down 状态，Internet 连接已经定义但还没连接
+	"Connection down",\
+	"Reserve11",\
+	"Reserve12",\
+	"Reserve13",\
+	"Reserve14",\
+	"Reserve15"\
+} ;//enum must < 15
+
 
 const unsigned char *ERR_UPGRADE[][1]= {\
 	"UPGRADE_NO_ERR",\
@@ -65,73 +86,38 @@ const unsigned char *ERR_UPGRADE[][1]= {\
 	"Parameters update successful"\
 };
 
-const unsigned char *ERR_GPRS[][1]= {\
-//	DISCONNECT_NO_ERR = 0,	//normal, no error
-	"Disconnect NO ERR",\
-//	CONNECTION_DOWN	=	1,	//^SICI: 0,2,0
-	"Connection Down",\
-//	PEER_CLOSED 	= 	2,	//^SIS: 0, 0, 48, Remote Peer has closed the connection
-	"Remote Peer closed the connection",\
-//	PROFILE_NO_UP 	=	3,	//AT^SISI return is not 4: up
-	"Profile NO UP",\
-//	RX_TIMEOUT		=	4,	//should rx result after tx data
-	"RX timeout after TX",\
-//	RSV				=	5,	//Reserve
-	"RSV",\
-//	NO_GPRS_IN_INIT	=	6,	//no gprs network
-	"NO GPRS IN INIT",\
-//	GPRS_ATT_ERR	=	7,	//gprs attach failure
-	"GPRS attach failure",\
-//	CONN_TYPE_ERR	=	8,	//set connect type error
-	"Set connection type error",\
-//	GET_APN_ERR		=	9,	//get APN error
-	"GET APN ERR",\
-//	SET_APN_ERR		=	10,	//set APN error
-	"SET APN ERR",\
-//	SET_CONN_ERR	=	11,	//set conID error
-	"Set conID error",\
-//	SVR_TYPE_ERR	=	12,	//set svr type error
-	"Set svr type error",\
-//	DEST_IP_ERR		=	13	//set dest IP and port error
-	"Set dest IP and port error",\
-//	RSV				=	14,	//Reserve
-	"RSV",\
-//	RSV				=	15,	//Reserve
-	"RSV"\
-};
-
 const unsigned char *ERR_MCU_RST[][1]= {\
-//	MCU_RST_NO_ERR	=	0,	//normal, no error
+	//	MCU_RST_NO_ERR	=	0,	//normal, no error
 	"MCU RST NO ERR",\
-//	External Reset	=	1
+	//	External Reset	=	1
 	"External Reset",\
-//	Power On Reset	=	2
+	//	Power On Reset	=	2
 	"Power On Reset",\
-//	Software reset	=	3
+	//	Software reset	=	3
 	"Software reset",\
-//	Reset by IWDG	=	4
+	//	Reset by IWDG	=	4
 	"Independent watchdog reset",\
-//	Reset by WWDG	=	5
+	//	Reset by WWDG	=	5
 	"Window watchdog reset",\
-//	Low-power reset	=	6
+	//	Low-power reset	=	6
 	"Low-power reset",\
-//	RSV				=	7,	//Reserve
+	//	RSV				=	7,	//Reserve
 	"RSV",\
-//	RSV				=	8,	//Reserve
+	//	RSV				=	8,	//Reserve
 	"RSV",\
-//	RSV				=	9,	//Reserve
+	//	RSV				=	9,	//Reserve
 	"RSV",\
-//	RSV				=	10,	//Reserve
+	//	RSV				=	10,	//Reserve
 	"RSV",\
-//	RSV				=	11,	//Reserve
+	//	RSV				=	11,	//Reserve
 	"RSV",\
-//	RSV				=	12,	//Reserve
+	//	RSV				=	12,	//Reserve
 	"RSV",\
-//	RSV				=	13,	//Reserve
+	//	RSV				=	13,	//Reserve
 	"RSV",\
-//	RSV				=	14,	//Reserve
+	//	RSV				=	14,	//Reserve
 	"RSV",\
-//	RSV				=	15,	//Reserve
+	//	RSV				=	15,	//Reserve
 	"RSV"\
 };
 
@@ -837,14 +823,14 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 				err_code = (err_code & 0x00F0) >> 4 ;
 				*part = 2 ;
 				snprintf(err_str, MAX_LOG_LENGTH-1, \
-					"GPRS disconnect: %s",*ERR_GPRS[err_code]);
+					"GSM/GPRS failure: %s",*ERR_GPRS[err_code]);
 		 	}
 			else {		
 				if ( err_code & 0x000F ) { //GSM module poweroff err
 					err_code = (err_code & 0x000F) ;
 					*part = 1 ;
 					snprintf(err_str, MAX_LOG_LENGTH-1, \
-						"GSM module power off: %s",*ERR_GSM[err_code]);
+						"GSM err had been cancle, update your firmware!");
 				}
 				else {//program logic error
 					fprintf(stderr, "firmware logic error, chk: %s: %d\r\n",\
