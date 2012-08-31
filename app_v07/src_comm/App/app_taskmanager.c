@@ -1511,7 +1511,7 @@ static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_c
 	
 			my_icar.stm32_rtc.update_timer = RTC_GetCounter( ) ;
 
-			//HEAD SEQ CMD Length(2 bytes) OSTime SN(char 10) IP check
+			//HEAD SEQ CMD Length(2 bytes) OSTime SN(char 10) HW/FW_REV(4B) IP check
 
 			if ( strlen((char *)my_icar.mg323.ip_local) > 7 ) {//1.2.3.4
 	
@@ -1532,7 +1532,7 @@ static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_c
 				*sequence = c2s_data.tx_sn[1]+1;//increase seq
 				c2s_data.tx_sn[2] = GSM_CMD_SN ;//PCB
 				c2s_data.tx_sn[3] = 0  ;//length high
-				c2s_data.tx_sn[4] = ip_length+14;//len(SN)+len(OSTime)
+				c2s_data.tx_sn[4] = ip_length+18;//len(SN)+len(OSTime)+len(HW/FW_REV(4B))
 
 				//record OSTime, 4 bytes
 				c2s_data.tx_sn[5] = (OSTime>>24)&0xFF  ;//OSTime high
@@ -1540,15 +1540,22 @@ static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_c
 				c2s_data.tx_sn[7] = (OSTime>>8)&0xFF  ;//OSTime low
 				c2s_data.tx_sn[8] =  OSTime&0xFF  ;//OSTime low
 
+				//Product serial number
 				strncpy((char *)&c2s_data.tx_sn[9], (char *)my_icar.sn, 10);
 
+				//Product HW rev, FW rev
+				c2s_data.tx_sn[19] =  my_icar.hw_rev  ;//hw revision, 1 byte
+				c2s_data.tx_sn[20] =  0  ;//reverse
+				c2s_data.tx_sn[21] =  (my_icar.fw_rev >> 8)&0xFF ;//FW rev. high
+				c2s_data.tx_sn[22] =  (my_icar.fw_rev )&0xFF ;//FW rev. low
+				
 				//Local IP
-				strncpy((char *)&c2s_data.tx_sn[19], \
+				strncpy((char *)&c2s_data.tx_sn[23], \
 						(char *)my_icar.mg323.ip_local, IP_LEN-1);
 
 				//prompt("SN CMD: %02X ",c2s_data.tx_sn[0]);
 				chkbyte = GSM_HEAD ;
-				for ( i = 1 ; i < 19+ip_length ; i++ ) {//calc chkbyte
+				for ( i = 1 ; i < 23+ip_length ; i++ ) {//calc chkbyte
 					chkbyte ^= c2s_data.tx_sn[i];
 					//printf("%02X ",c2s_data.tx_sn[i]);
 				}
