@@ -8,7 +8,7 @@
 
 extern struct ICAR_DEVICE my_icar;
 
-const unsigned char dest_server[] = "cqt.8866.org:23";
+const unsigned char dest_server[] = "cqt.8866.org:25";
 const unsigned char at_set_channel0_para[] = "AT^SICS=0,";
 //  Init sequence:
 //  AT
@@ -909,7 +909,7 @@ bool gsm_send_tcp( unsigned char *send_buf, unsigned int dat_len )
 	}
 
 	#ifdef DEBUG_GSM
-		;//printf("\r\n");
+		printf("\r\n");
 	#endif
 
 	//wait GSM return: ERROR or OK

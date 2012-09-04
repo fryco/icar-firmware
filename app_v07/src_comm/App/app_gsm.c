@@ -227,8 +227,9 @@ void  app_task_gsm (void *p_arg)
 
 				//Send data
 				//Check c2s_data.tx_len, if > 0, then send it
-				if ( c2s_data.tx_sn_len > 0 && my_icar.need_sn ) {
+				if ( c2s_data.tx_sn_len && my_icar.need_sn ) {
 					//prompt("Sending SN...\t");
+					
 					if ( !send_tcp_data(c2s_data.tx_sn,&c2s_data.tx_sn_len )){
 						//success
 						if ( my_icar.need_sn ) {

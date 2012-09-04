@@ -57,7 +57,7 @@ struct CAR2SERVER_COMMUNICATION {
 	unsigned int tx_len;//tx_len=0¼´Îª empty;tx_len=GSM_BUF_LENGTH¼´Îªfull
 	unsigned int tx_timer; // send if > TCP_SEND_PERIOD
 
-	unsigned char tx_sn[36];//tx buffer for SN
+	unsigned char tx_sn[48];//tx buffer for SN
 	unsigned int  tx_sn_len;//tx length for SN
 
 	//rx buffer for tcp data
