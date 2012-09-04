@@ -700,11 +700,12 @@ int record_ip(struct icar_data *mycar, unsigned char *buf, unsigned char *p_buf)
 	MYSQL_ROW sqlrow;
 	unsigned long sqlrow_cnt = 0 ;
 
-	//input: HEAD+SEQ+PCB+LEN+OSTime+SN+IP+CHK
-	//IP(123.123.123.123) 31 32 33 2E 31 32 33 2E 31 32 33 2E 31 32 33
-	//i.e: C9 01 53 00 1B 00 00 0D 99 
-	//     30 32 50 31 43 30 44 32 41 37 
-	//     31 30 2E 32 30 31 2E 31 33 37 2E 32 37 28 
+	//HEAD SEQ CMD Length(2 bytes) OSTime HW/FW rev SN(char 10) IP check
+	//C9 00 53 00 1E 00 00 0E DD //CMD + OSTime
+	//43 41 4E 5F 43 33 44 32 41 32 //SN
+	//00 00 01 0A //HW/FW revision
+	//31 30 2E 37 36 2E 31 32 36 2E 34 38 2D //IP+CHK
+
 	buf_len = buf[3] << 8 | buf[4];
 
 	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
@@ -714,21 +715,24 @@ int record_ip(struct icar_data *mycar, unsigned char *buf, unsigned char *p_buf)
 
 	ostime = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[9];
 	fprintf(stderr, "\r\nOSTime: %d ",ostime);
+
+	//HW FW revision
+	mycar->hw_rev = buf[19] ; mycar->fw_rev = buf[21] << 8 | buf[22] ;
 	
-	for ( buf_index = 0 ; buf_index < buf_len - 14 ; buf_index++ ) {
-		gsm_ip[buf_index] = *(buf+19+buf_index) ;
-		;//fprintf(stderr, "buf_index=%d\t%X\r\n",buf_index,gsm_ip[buf_index]);
+	for ( buf_index = 0 ; buf_index < buf_len - 18 ; buf_index++ ) {
+		gsm_ip[buf_index] = *(buf+23+buf_index) ;
+		gsm_ip[buf_index+1] = 0x0;
+		//fprintf(stderr, "buf_index=%d\t%X\r\n",buf_index,gsm_ip[buf_index]);
 	}
-	gsm_ip[buf_index]  = 0x0; 
 	gsm_ip[15] = 0x0; //ip length < 15
 
 	if ( debug_flag ) {
 		fprintf(stderr, "GSM IP: %s\r\n",gsm_ip);
 	}
 
-	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=40&subject=%s => login&message=uptime(H:M:S): %d:%02d:%02d\r\n\
+	snprintf(p_buf,BUFSIZE-1,"ip=%s&fid=40&subject=%s, HW:%d FW:%d => login&message=uptime(H:M:S): %d:%02d:%02d\r\n\
 				\r\nLAN ip:%s\r\n\r\nip: %s",\
-				(char *)inet_ntoa(mycar->client_addr.sin_addr),mycar->sn,\
+				(char *)inet_ntoa(mycar->client_addr.sin_addr),mycar->sn,mycar->hw_rev,mycar->fw_rev,\
 				ostime/360000,((ostime/100)%3600)/60,((ostime/100)%3600)%60,\
 				gsm_ip,(char *)inet_ntoa(mycar->client_addr.sin_addr));
 

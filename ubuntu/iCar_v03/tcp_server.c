@@ -32,6 +32,9 @@ unsigned char icar_db_user[]="root";
 unsigned char icar_db_pwd[]="cn0086";
 unsigned char icar_db_name[]="icar_v03";
 
+unsigned char  *cloud_host="cn0086.info";
+unsigned char  *log_host="127.0.0.1";
+
 static int sock_server = -1;
 
 void sig_proccess_server(int signo)  
@@ -76,6 +79,8 @@ void process_conn_server(struct icar_data *mycar)
 	struct icar_command cmd ;
 
 	unsigned char var_u8 ;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
 
 	memset(cmd.pro_sn, 0x0, 10);
 	mycar->sn = cmd.pro_sn ;
@@ -131,17 +136,40 @@ void process_conn_server(struct icar_data *mycar)
 					cmd.chk ^= recv_buf[buf_index+chk_count] ;
 				}
 
+//				if ( (buf_index + cmd.len) > (size-6) ) {
 				if ( (buf_index + cmd.len) > (size-6) \
 					|| cmd.chk != recv_buf[buf_index+cmd.len+5] ) { //illegal package
-					fprintf(stderr, "\r\nIllegal package: ");
-					for ( chk_count = 0 ; chk_count < cmd.len+5 ; chk_count++) {
+						
+					fprintf(stderr, "\r\nErr package: ");
+					for ( chk_count = 0 ; chk_count < cmd.len+6 ; chk_count++) {
 						fprintf(stderr, "%02X ",recv_buf[buf_index+chk_count]);
 					}
-					fprintf(stderr, "\r\nLen= %d\tRec chk= 0x%02X\tCal chk= 0x%02X\r\n",\
-							cmd.len,recv_buf[buf_index+cmd.len+5],cmd.chk);
+					fprintf(stderr, "\r\nCMD: %c\tLen= %d\tRec chk= 0x%02X\tCal chk= 0x%02X\r\n",\
+							recv_buf[2],cmd.len,recv_buf[buf_index+cmd.len+5],cmd.chk);
 					fprintf(stderr, "Check %s, line: %d\r\n",__FILE__, __LINE__);
-				}
-				else {
+					
+					//report to cloud
+					cloud_pid = fork();
+					if (cloud_pid == 0) { //In child process	
+
+						memset(send_buf, '\0', BUFSIZE);
+						for ( var_u8 = 0 ; var_u8 < cmd.len + 5 ; var_u8++ ) {//move cmd to snd_buf
+							sprintf(&send_buf[var_u8*3],"%02X ",recv_buf[var_u8]);
+							if ( var_u8 > 0xFA ) break; //prevent cmd.len too long
+						}
+
+						sprintf(post_buf,"ip=%s&fid=41&subject=ERR package from %s, CMD: %c&message=Package: %s, %02X",\
+								(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+								(char *)inet_ntoa(mycar->client_addr.sin_addr),\
+								recv_buf[2],send_buf,cmd.chk);
+		
+						cloud_post( cloud_host, &post_buf, 80 );
+						cloud_post( log_host, &post_buf, 86 );
+						exit( 0 );
+					}
+
+				}//Err package
+				else {//correct package
 					cmd.seq = recv_buf[buf_index+1];
 					cmd.pcb = recv_buf[buf_index+2];
 					fprintf(stderr, "cmd seq=0x%X pcb=0x%X len=%d  ",\

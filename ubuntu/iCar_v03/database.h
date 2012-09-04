@@ -45,6 +45,8 @@ struct icar_data {
 	struct icar_db mydb;
 
 	unsigned char * sn;
+	unsigned char hw_rev;
+	unsigned int fw_rev;
 	int  err_code;
 	char err_msg[BUFSIZE];
 };
