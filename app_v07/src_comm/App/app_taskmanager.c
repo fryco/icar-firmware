@@ -38,7 +38,7 @@ GSM_CMD_UPDATE,\
 GSM_CMD_WARN\
 };
 
-static unsigned char pro_sn[]="CAN_xxxxxx";
+static unsigned char pro_sn[]="DEMOxxxxxx";
 //Last 6 bytes replace by MCU ID xor result
 /* SN, char(10): 0  2  P  1 1  A  H  0 0 0
  *               ¢Ù ¢Ú ¢Û ¢Ü¢Ý ¢Þ ¢ß ¢à¢á¢â
@@ -1508,15 +1508,11 @@ static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_c
 
 		if ( c2s_data.queue_sent[index].send_pcb == 0 ) { //no use
 
-	
 			my_icar.stm32_rtc.update_timer = RTC_GetCounter( ) ;
 
 			//HEAD SEQ CMD Length(2 bytes) OSTime SN(char 10) HW/FW_REV(4B) IP check
-
+			//Max.: 1+1+1+2+4+10+4+16+1=40, need < tx_sn[48] in app_taskmanager.h
 			if ( strlen((char *)my_icar.mg323.ip_local) > 7 ) {//1.2.3.4
-	
-				prompt("Send SN, tx_sn_len: %d, ",c2s_data.tx_len);
-				printf("queue: %02d\r\n",index);
 
 				//set protocol string value
 				c2s_data.queue_sent[index].send_timer= OSTime ;
@@ -1560,15 +1556,17 @@ static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_c
 					//printf("%02X ",c2s_data.tx_sn[i]);
 				}
 				c2s_data.tx_sn[i] = chkbyte ;
-				//printf("%02X\r\n",c2s_data.tx_sn[i]);
+				//printf("%02X , LEN=%d\r\n",c2s_data.tx_sn[i],i+1);
 				c2s_data.tx_sn_len = i+1 ;
+
+				prompt("Send SN, LEN: %d Bytes, ",c2s_data.tx_sn_len+5);
+				printf("queue: %02d\r\n",index);
 
 				return 0 ;
 			}//end of if ( strlen(my_icar.mg323.ip_local) > 7 )
-			else {//no buffer
-				//prompt("check %s:%d\r\n",__FILE__, __LINE__);
-				return 2;
-			}
+			else {
+				return 2 ;
+			}//No IP
 		}//end of c2s_data.queue_sent[index].send_pcb == 0
 	}
 

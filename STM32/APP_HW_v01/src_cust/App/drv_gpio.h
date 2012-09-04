@@ -68,6 +68,9 @@ typedef enum
 #define SD_PM_GPIO_MODE                  GPIO_Mode_Out_OD
 
 /* Exported macro ------------------------------------------------------------*/
+#define CAN_PM_OFF                       ; //for compatible
+#define CAN_PM_ON	                     ; //for compatible
+
 #define GSM_PM_OFF                       led_on(GSM_PM)
 #define GSM_PM_ON                        led_off(GSM_PM)
 
