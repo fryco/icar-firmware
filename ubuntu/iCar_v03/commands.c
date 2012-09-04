@@ -11,8 +11,12 @@
 #include "commands.h"
 #include "cloud_post.h"
 
-const char *cloud_host="cn0086.info";
-const char *log_host="127.0.0.1";
+//const char *cloud_host="cn0086.info";
+//const char *log_host="127.0.0.1";
+
+extern unsigned char *cloud_host;
+extern unsigned char *log_host;
+
 //Forum id:
 //'36' ==> Machine
 //'37' ==> Instruction 	
@@ -77,6 +81,8 @@ unsigned int crctablefast (unsigned char* p, unsigned long len) {
 	// only usable with polynom orders of 8, 16, 24 or 32.
 
 	unsigned long crc = 0xFFFFFFFF;
+
+	//printf("%s \r\n",icar_db_name);
 
 	while (len--) {
 		//printf("%02X = %X\t",p,*p);
@@ -580,9 +586,10 @@ int cmd_sn_upload( struct icar_data *mycar, struct icar_command * cmd,\
 	unsigned char post_buf[BUFSIZE];
 
 	//HEAD SEQ CMD Length(2 bytes) OSTime SN(char 10) IP check
-	//C9 01 53 00 1B 00 00 0D 99 //CMD + OSTime
-	//30 32 50 31 43 30 44 32 41 37 //SN
-	//31 30 2E 32 30 31 2E 31 33 37 2E 32 37 28 //IP+CHK
+	//C9 00 53 00 1E 00 00 0E DD //CMD + OSTime
+	//43 41 4E 5F 43 33 44 32 41 32 //SN
+	//00 00 01 0A //HW/FW revision
+	//31 30 2E 37 36 2E 31 32 36 2E 34 38 2D //IP+CHK
 
 	if ( strlen(mycar->sn) == 10 ) {
 		if ( strncmp(mycar->sn,&rec_buf[9], 10) ) {
@@ -807,7 +814,7 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 
 	int fd;
 	unsigned int i, chk_count , data_len, fpos, fw_size, fw_rev;
-	unsigned char *filename="./fw/stm32_v00/20120608.bin";
+	unsigned char *filename="./fw/stm32_v00/20120831.bin";
 	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
 	pid_t cloud_pid;
 	unsigned char post_buf[BUFSIZE];
