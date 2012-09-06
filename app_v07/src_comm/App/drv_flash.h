@@ -34,10 +34,8 @@ struct PARA_METERS { //need same as below offset define
 	//for each parameter
 	unsigned int rev;		//#define PARA_REV			0	//parameters revision
 	unsigned int relay_on;	//#define RELAY_ON_PERIOD	4	1*3*60*OS_TICKS_PER_SEC //3  mins
-	unsigned int rsv;		//#define PARA_RSV			8	//Reserve
-	unsigned int obd_type;	//#define PARA_OBD_TYPE		12	//OBD type, 4: KWP, FF: Auto
-															//0:CAN_STD_250, 1: CAN_EXT_250
-															//2:CAN_STD_500, 3: CAN_EXT_500
+	unsigned int rsv1;		//#define PARA_RSV			8	//Reserve
+	unsigned int rsv2;	//#define PARA_OBD_TYPE		12	//RSV
 	unsigned int obd_can_snd_std_id1;//#define PARA_OBD_CAN_SND_STD_ID1		16	//OBD, CAN send standard ID1
 	unsigned int obd_can_snd_std_id2;//#define PARA_OBD_CAN_SND_STD_ID2		20	//OBD, CAN send standard ID2 
 
@@ -83,11 +81,9 @@ struct PARA_METERS { //need same as below offset define
 //Parameters offset address, all read as *(vu32*) for convenient:
 #define PARA_REV						0	//parameters revision
 #define PARA_RELAY_ON					4	//Relay on period, seconds, *OS_TICKS_PER_SEC
-#define PARA_RSV						8	//Reserve
+#define PARA_RSV1						8	//Reserve
 
-#define PARA_OBD_TYPE					12	//OBD type, 4: KWP, FF: Auto
-											//0:CAN_STD_250, 1: CAN_EXT_250
-											//2:CAN_STD_500, 3: CAN_EXT_500
+#define PARA_RSV2						12	//Reserve
 
 #define PARA_OBD_CAN_SND_STD_ID1		16	//OBD, CAN send standard ID1 
 #define PARA_OBD_CAN_SND_STD_ID2		20	//OBD, CAN send standard ID2 
