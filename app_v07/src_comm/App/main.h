@@ -13,6 +13,9 @@
 #ifndef __MAIN_H
 #define __MAIN_H
 
+#define DEBUG_OBD
+//#define DEBUG_GSM
+
 /* Includes ------------------------------------------------------------------*/
 #include <stdio.h>
 #include <os_cfg.h>
@@ -39,8 +42,6 @@
 
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
-
-#define DEBUG_GSM
 
 #define AT_CMD_LENGTH			64 //for GSM command, must < RX_BUF_SIZE in drv_uart.h
 #define MAX_ONLINE_TRY			25 //if ( my_icar.mg323.try_online_cnt_cnt > MAX_ONLINE_TRY )

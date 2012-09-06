@@ -7,7 +7,11 @@ extern struct ICAR_DEVICE my_icar;
 //						11~8:upgrade fw failure code
 //						7~4:GPRS disconnect reason
 //						3~0:RSV
-//BKP_DR2, RSV
+//BKP_DR2, OBD Flag:	15~12:KWP_TYPEDEF
+//						11~8:CAN2_TYPEDEF
+//						7~4: CAN1_TYPEDEF
+//						3~0: OBD_TYPEDEF 
+
 //BKP_DR3, RSV
 //BKP_DR4, GPRS disconnect time(UTC Time) high
 //BKP_DR5, GPRS disconnect time(UTC Time) low

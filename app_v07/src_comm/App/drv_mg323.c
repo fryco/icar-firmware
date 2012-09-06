@@ -1,9 +1,9 @@
 #include "main.h"
 
 #ifdef DEBUG_GSM
-#define debug_gsm(x, args...)  prompt(x, ##args);
+	#define debug_gsm(x, args...)  prompt(x, ##args);
 #else
-#define debug_gsm(x, args...)  ;
+	#define debug_gsm(x, args...)  ;
 #endif
 
 extern struct ICAR_DEVICE my_icar;
