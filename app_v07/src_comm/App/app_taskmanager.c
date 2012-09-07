@@ -2,7 +2,7 @@
 
 #define	BUILD_DATE "iCar v04, built at "__DATE__" "__TIME__
 
-#define WATCHDOG	//enable independent watchdog
+//#define WATCHDOG	//enable independent watchdog
 
 unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";//Don't modify this line
 
@@ -215,6 +215,8 @@ void  app_task_manager (void *p_arg)
 		iwdg_init( );
 	#endif
 
+	OSSemPost( sem_obd );//Ask obd task to start
+	
 	while	(1)
 	{
 		/* Reload IWDG counter */
@@ -386,7 +388,6 @@ void  app_task_manager (void *p_arg)
 			}
 		}//end of check every 30 sec
 
-prompt("Manger task\r\n");
 		/* Insert delay, IWDG set to 2 second
 		App_taskmanger: longest time, but highest priority 
 		Othoers: shorter time, but lower priority */
