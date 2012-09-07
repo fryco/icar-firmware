@@ -12,6 +12,24 @@ extern CanTxMsg TxMessage;
 #define	FIFO0_OF			10	//FIFO0 over flow
 #define	FIFO1_OF			20	//FIFO0 over flow
 
+void can_rec_all_id( bool en )
+{
+	CAN_FilterInitTypeDef  CAN_FilterInitStructure;
+	
+	//Last Filter number ==> save all unknow ID to FIFO 1
+	CAN_FilterInitStructure.CAN_FilterNumber = 13;
+	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
+	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
+	CAN_FilterInitStructure.CAN_FilterIdHigh = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
+	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 1;
+	if ( en ) { CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;}
+	else {	CAN_FilterInitStructure.CAN_FilterActivation = DISABLE; }
+	CAN_FilterInit(&CAN_FilterInitStructure);
+}
+
 void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 {
 	GPIO_InitTypeDef  GPIO_InitStructure;
@@ -72,7 +90,7 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 
 	CAN_Init(CAN1, &CAN_InitStructure);
 
-	/* CAN filter init */
+	/* CAN filter init 
 	//1, 共有14组过滤器(0~13),每组有2个32位寄存器：CAN_FxR0,CAN_FxR1
 	//2, CAN_FMR的FBMx位，设置过滤器工作在屏蔽模式(0)或列表模式(1)
 	//3, CAN_FilterFIFOAssignment 决定报文存去FIFO0 或 FIFO1
@@ -119,19 +137,6 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
 	CAN_FilterInit(&CAN_FilterInitStructure);
 
-	//Last Filter number ==> save all unknow ID to FIFO 1
-	CAN_FilterInitStructure.CAN_FilterNumber = 13;
-	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
-	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
-	CAN_FilterInitStructure.CAN_FilterIdHigh = 0x0000;
-	CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
-	CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x0000;
-	CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
-	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 1;
-	//CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
-	CAN_FilterInitStructure.CAN_FilterActivation = DISABLE;
-	CAN_FilterInit(&CAN_FilterInitStructure);
-
 	/* Transmit */
 	TxMessage.StdId = 0x7FE;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
 	TxMessage.ExtId = 0x19ABCDEF; //扩展帧
@@ -141,12 +146,6 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 	//TxMessage.IDE = CAN_ID_EXT;  //0 表示这个标准帧；IDE=1 表示是扩展帧
 	
 	TxMessage.DLC = 1;//数据帧的字节数，0~8，数据域（Data Field）的长度
-
-	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
-	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
-
-	/* Enable Interrupt for receive FIFO 1 and FIFO overflow */
-	CAN_ITConfig(CAN1,CAN_IT_FMP1 | CAN_IT_FOV1, ENABLE);	
 
 	//Enable CAN transceiver power
 	CAN_PM_ON;

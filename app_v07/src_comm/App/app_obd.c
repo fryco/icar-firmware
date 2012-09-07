@@ -51,6 +51,12 @@ void  app_task_obd (void *p_arg)
 
 	//can_init( ); //to OBD, CAN BUS
 
+	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
+	//CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
+
+	/* Enable Interrupt for receive FIFO 1 and FIFO overflow */
+	//CAN_ITConfig(CAN1,CAN_IT_FMP1 | CAN_IT_FOV1, ENABLE);	
+
 	while ( 1 ) {
 		debug_obd("OBD task Pend...\r\n");
 		OSSemPend(sem_obd, 0, &os_err);
@@ -141,23 +147,36 @@ void  app_task_obd (void *p_arg)
 
 static void auto_detect_obd( void )
 {
-	u8 stream_support[]="\x02\x01\x00\x00\x00\x00\x00\x00";
+	//u8 stream_support[]="\x02\x01\x00\x00\x00\x00\x00\x00";
 
-	//流程：开所有ID接收==>设波特率==>查看CAN_MessagePending有无数据
+	//流程：设波特率==>开所有ID接收==>查看CAN_MessagePending有无数据
+	//方法不好，改发ID，然后收2012/9/7 17:23:33
 	//1, Try CAN1_TYPE_STD_250
-	//debug_obd("Try CAN1,STD_250\r\n");
-	//can_init( CAN_250K, CAN_STD );
+
+	debug_obd("Try CAN1,STD_250\r\n");
+	can_init( CAN_250K, CAN_STD );
+	can_rec_all_id( true );
 	//can_send( CAN_STD, DAT_FRAME, 0x07df, 8, stream_support );
-	//save to flag
 	
-	//return ;
+	if ( CAN_MessagePending(CAN1,CAN_FIFO1) ) { //have data, setting correct
+		debug_obd("FIFO1: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO1));
+		
+		//save to flag
+	
+		return ;
+	}
 	
 	//2, Try CAN1_TYPE_STD_500
 	debug_obd("Try CAN1,STD_500\r\n");
 	can_init( CAN_500K, CAN_STD );
-	can_send( CAN_STD, DAT_FRAME, 0x07E0, 8, stream_support );
-
-	//save to flag
-	return ;
-
+	can_rec_all_id( true );
+	//can_send( CAN_STD, DAT_FRAME, 0x07E0, 8, stream_support );
+	debug_obd("FIFO1: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO1));
+	if ( CAN_MessagePending(CAN1,CAN_FIFO1) ) { //have data, setting correct
+		debug_obd("FIFO1: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO1));
+		can_rec_all_id( false );
+		//save to flag
+	
+		return ;
+	}
 }
