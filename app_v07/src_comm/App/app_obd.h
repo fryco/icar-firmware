@@ -28,7 +28,8 @@
 //						7~4: CAN1_TYPEDEF
 //						3~0: OBD_TYPEDEF 
 
-#define obd_type						BKP_ReadBackupRegister(BKP_DR2)&0x0F
+#define obd_read_type						BKP_ReadBackupRegister(BKP_DR2)&0x0F
+
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -62,6 +63,13 @@
 
 typedef enum 
 {
+  CAN_1 = 0, //CAN1: OBD-II, Pins 6&14
+  CAN_2 = 1, //CAN2, Pin 3&11
+  CAN_1_2 = 3 //CAN1&2
+} can_pin_typedef;
+
+typedef enum 
+{
   CAN_250K = 0, //250 Kbps
   CAN_500K = 1  //500 Kbps
 } can_speed_typedef;
@@ -79,7 +87,8 @@ typedef enum
 } frame_typedef;
 
 struct OBD_DAT {
-	unsigned char can_tx_cnt;//can tx count
+	u8 can_tx_cnt;//can tx count
+	u32 can_id ;
 };
 
 

@@ -12,6 +12,74 @@ extern CanTxMsg TxMessage;
 #define	FIFO0_OF			10	//FIFO0 over flow
 #define	FIFO1_OF			20	//FIFO0 over flow
 
+//Add rule to empty filter, return filter_id + 1, err: return 0
+u8 can_add_filter( can_std_typedef can_typ, u32 can_id )
+{
+	u8 i;
+	CAN_FilterInitTypeDef  CAN_FilterInitStructure;
+	
+	// Try to find a new idle filter
+	for(i = 0; i < 13; i++){ //filter 13 is for unknow CAN ID
+		//debug_obd("Filter:%d\t%04X\r\n",i,CAN1->FA1R);
+		if((CAN1->FA1R & (0x00000001<<i)) == 0){	//found a idle filter
+
+			/* CAN filter init  */
+			//1, 共有14组过滤器(0~13),每组有2个32位寄存器：CAN_FxR0,CAN_FxR1
+			//2, CAN_FMR的FBMx位，设置过滤器工作在屏蔽模式(0)或列表模式(1)
+			//3, CAN_FilterFIFOAssignment 决定报文存去FIFO0 或 FIFO1
+			//4, 目前策略：已知的ID，通过屏蔽模式列出，保存到FIFO0
+			//   未知的ID，全部保存到 FIFO1，将来上传到服务器上供分析
+		
+			//Filter number
+			CAN_FilterInitStructure.CAN_FilterNumber = i;
+			
+			//CAN_FilterMode: CAN_FilterMode_IdMask or CAN_FilterMode_IdList
+			CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
+		
+			//CAN_FilterScale: CAN_FilterScale_16bit or CAN_FilterScale_32bit
+			CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
+		
+			//如果Filter=0xF0， Mask=0x00，那么可以收到0xF0-0xFF共16个ID的信息。
+			//还是Filter=0xF0， Mask=0xFF，那么只能收到0xF0这一个ID信息。
+			//还是Filter=0xF0， Mask=0xF8，那么可以收到0xF8-0xFF共8个ID的信息。
+			//还是Filter=0xF0， Mask=0xFC，那么可以收到0xFC-0xFF共4个ID的信息。
+			//即 Mask对应位=1时，接收到的信息ID对应位必须=Filter的对应位才能确认处理
+		    //   Mask对应位=0时，Filter对应位=1时，接收到的信息ID对应位必须=1才能确认处理
+		    //   Mask对应位=0时，Filter对应位=0时，接收到的信息ID对应位=0，=1都能确认处理
+			if ( can_typ == CAN_EXT ) { //待验证
+				CAN_FilterInitStructure.CAN_FilterIdHigh = ((can_id)>>16)&0x1FFF;//29 bits,左对齐
+				CAN_FilterInitStructure.CAN_FilterIdLow = can_id&0xFFFF;
+				CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x1FFF;
+				CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0xFFFF;
+			}
+			else {//2012/9/10 17:15:49 已验证
+				can_id = can_id & 0x0F00 ;//可通过CAN_ID:0x700~0x7FF
+				CAN_FilterInitStructure.CAN_FilterIdHigh = (can_id)<<5;//11 bits,左对齐
+				CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (can_id)<<5;
+
+				//可通过CAN_ID:0x700~0x7FF
+				//CAN_FilterInitStructure.CAN_FilterIdHigh = (0x700)<<5;//11 bits,左对齐
+				//CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x700)<<5;
+		
+				//可通过CAN_ID:0x7F0~0x7FF
+				//CAN_FilterInitStructure.CAN_FilterIdHigh = (0x7F0)<<5;//11 bits,左对齐
+				//CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x700)<<5;//可通过CAN_ID:0x7F0~0x7FF
+		
+				CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
+				CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
+			}
+			
+			//FIFOAssignment: 0 or 1
+			CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 0;
+			CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
+			CAN_FilterInit(&CAN_FilterInitStructure);
+			
+			return i+1;
+		}
+	}
+	return 0 ;//no idle filter
+}
+
 void can_rec_all_id( bool en )
 {
 	CAN_FilterInitTypeDef  CAN_FilterInitStructure;
@@ -34,7 +102,6 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 {
 	GPIO_InitTypeDef  GPIO_InitStructure;
 	CAN_InitTypeDef        CAN_InitStructure;
-	CAN_FilterInitTypeDef  CAN_FilterInitStructure;
 
 	// GPIO clock enable, had been init in uart1_init
     //RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOA , ENABLE);
@@ -90,52 +157,6 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 
 	CAN_Init(CAN1, &CAN_InitStructure);
 
-	/* CAN filter init 
-	//1, 共有14组过滤器(0~13),每组有2个32位寄存器：CAN_FxR0,CAN_FxR1
-	//2, CAN_FMR的FBMx位，设置过滤器工作在屏蔽模式(0)或列表模式(1)
-	//3, CAN_FilterFIFOAssignment 决定报文存去FIFO0 或 FIFO1
-	//4, 目前策略：已知的ID，通过屏蔽模式列出，保存到FIFO0
-	//   未知的ID，全部保存到 FIFO1，将来上传到服务器上供分析
-
-	//Filter number 0
-	CAN_FilterInitStructure.CAN_FilterNumber = 0;
-	
-	//CAN_FilterMode: CAN_FilterMode_IdMask or CAN_FilterMode_IdList
-	CAN_FilterInitStructure.CAN_FilterMode = CAN_FilterMode_IdMask;
-
-	//CAN_FilterScale: CAN_FilterScale_16bit or CAN_FilterScale_32bit
-	CAN_FilterInitStructure.CAN_FilterScale = CAN_FilterScale_32bit;
-
-	//如果Filter=0xF0， Mask=0x00，那么可以收到0xF0-0xFF共16个ID的信息。
-	//还是Filter=0xF0， Mask=0xFF，那么只能收到0xF0这一个ID信息。
-	//还是Filter=0xF0， Mask=0xF8，那么可以收到0xF8-0xFF共8个ID的信息。
-	//还是Filter=0xF0， Mask=0xFC，那么可以收到0xFC-0xFF共4个ID的信息。
-	//即 Mask对应位=1时，接收到的信息ID对应位必须=Filter的对应位才能确认处理
-    //   Mask对应位=0时，Filter对应位=1时，接收到的信息ID对应位必须=1才能确认处理
-    //   Mask对应位=0时，Filter对应位=0时，接收到的信息ID对应位=0，=1都能确认处理
-	if ( can_typ == CAN_EXT ) { //0x18DAF111
-		CAN_FilterInitStructure.CAN_FilterIdHigh = ((0x18DAF111)>>16)&0x1FFF;//29 bits,左对齐
-		CAN_FilterInitStructure.CAN_FilterIdLow = 0x18DAF111&0xFFFF;
-		CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x1FFF;
-		CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0xFFFF;
-	}
-	else {
-		//可通过CAN_ID:0x700~0x7FF
-		CAN_FilterInitStructure.CAN_FilterIdHigh = (0x700)<<5;//11 bits,左对齐
-		CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x700)<<5;
-
-		//可通过CAN_ID:0x7F0~0x7FF
-		//CAN_FilterInitStructure.CAN_FilterIdHigh = (0x7F0)<<5;//11 bits,左对齐
-		//CAN_FilterInitStructure.CAN_FilterMaskIdHigh = (0x700)<<5;//可通过CAN_ID:0x7F0~0x7FF
-
-		CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
-		CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
-	}
-	
-	//FIFOAssignment: 0 or 1
-	CAN_FilterInitStructure.CAN_FilterFIFOAssignment = 0;
-	CAN_FilterInitStructure.CAN_FilterActivation = ENABLE;
-	CAN_FilterInit(&CAN_FilterInitStructure);
 
 	/* Transmit */
 	TxMessage.StdId = 0x7FE;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
