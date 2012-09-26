@@ -29,16 +29,17 @@
 //						3~0: OBD_TYPEDEF 
 
 #define obd_read_type						BKP_ReadBackupRegister(BKP_DR2)&0x0F
-
+#define obd_can1_type						(BKP_ReadBackupRegister(BKP_DR2)&0xF0)>>4
 
 /* Exported types ------------------------------------------------------------*/
-
+//						3~0: OBD_TYPEDEF
 #define OBD_TYPE_NO_DFN						0	//OBD type no define
 #define OBD_TYPE_CAN1						1	//OBD type Only CAN1, Pin 6&14
 #define OBD_TYPE_CAN2						2	//OBD type Only CAN2, Pin 3&11
 #define OBD_TYPE_CAN1_2						3	//OBD type CAN1 + CAN2
 #define OBD_TYPE_KWP						4	//OBD type KWP
 
+//						7~4: CAN1_TYPEDEF
 //第1路CAN, CAN1: OBD-II, Pins 6&14
 #define CAN1_TYPE_NO_DEFINE					0	//
 #define CAN1_TYPE_STD_250					1	//CAN bus 250 Kbps, standard, ID:11 bits
@@ -46,6 +47,7 @@
 #define CAN1_TYPE_STD_500					3	//CAN bus 500 Kbps, standard, ID:11 bits
 #define CAN1_TYPE_EXT_500					4	//CAN bus 500 Kbps, extend, ID: 29 bits
 
+//						11~8:CAN2_TYPEDEF
 //第2路CAN, CAN2: OBD-II, Pins 3&11
 #define CAN2_TYPE_NO_DFN					0	//
 #define CAN2_TYPE_STD_250					1	//CAN bus 250 Kbps, standard, ID:11 bits
@@ -53,6 +55,7 @@
 #define CAN2_TYPE_STD_500					3	//CAN bus 500 Kbps, standard, ID:11 bits
 #define CAN2_TYPE_EXT_500					4	//CAN bus 500 Kbps, extend, ID: 29 bits
 
+//BKP_DR2, OBD Flag:	15~12:KWP_TYPEDEF
 //多路KWP: OBD-II, Pin7, 8, 9, 12, 13
 #define KWP_TYPE_NO_DFN						0	//
 #define KWP_TYPE_KWP_7						1	//

@@ -46,11 +46,15 @@ u8 can_add_filter( can_std_typedef can_typ, u32 can_id )
 			//即 Mask对应位=1时，接收到的信息ID对应位必须=Filter的对应位才能确认处理
 		    //   Mask对应位=0时，Filter对应位=1时，接收到的信息ID对应位必须=1才能确认处理
 		    //   Mask对应位=0时，Filter对应位=0时，接收到的信息ID对应位=0，=1都能确认处理
-			if ( can_typ == CAN_EXT ) { //待验证
-				CAN_FilterInitStructure.CAN_FilterIdHigh = ((can_id)>>16)&0x1FFF;//29 bits,左对齐
-				CAN_FilterInitStructure.CAN_FilterIdLow = can_id&0xFFFF;
-				CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0x1FFF;
-				CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0xFFFF;
+			if ( can_typ == CAN_EXT ) { //待验证, 0x18DAF111
+
+				//Pass ID: 0x18DAF000 ~ 0x18DAFFFF
+				can_id = can_id & 0x1FFFFFFF ;
+				CAN_FilterInitStructure.CAN_FilterIdHigh = ((can_id<<3)>>16)&0xFFFF;//29 bits,左对齐
+				CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0xFFFF;
+
+				CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
+				CAN_FilterInitStructure.CAN_FilterMaskIdLow = 0x0000;
 			}
 			else {//2012/9/10 17:15:49 已验证
 				can_id = can_id & 0x0F00 ;//可通过CAN_ID:0x700~0x7FF
@@ -129,8 +133,11 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 	//CAN_InitStructure.CAN_ABOM = DISABLE; //automatic bus-off management
 	CAN_InitStructure.CAN_ABOM = ENABLE; //EN:离线后，自动开启恢复过程
 	CAN_InitStructure.CAN_AWUM = DISABLE; //automatic wake-up mode
+
 	//CAN_InitStructure.CAN_NART = DISABLE; //no-automatic retransmission mode
+	//设成只发一次，当总线冲突时，会发送失败，需在接收程序中做处理
 	CAN_InitStructure.CAN_NART = ENABLE; //EN:只发一次，不管结果；DIS: 自动重传，直到成功
+
 	//CAN_InitStructure.CAN_RFLM = DISABLE; //Receive FIFO Locked mode
 	CAN_InitStructure.CAN_RFLM = ENABLE; //EN: 溢出时丢弃新报文, DIS: 保留新报文
 	//CAN_InitStructure.CAN_TXFP = DISABLE; //transmit FIFO priority
@@ -139,7 +146,7 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 	// CAN_Mode_LoopBack           ((uint8_t)0x01)  /*!< loopback mode */
 	// CAN_Mode_Silent             ((uint8_t)0x02)  /*!< silent mode */
 	// CAN_Mode_Silent_LoopBack    ((uint8_t)0x03)  /*!< loopback combined with silent mode */
-	//CAN_InitStructure.CAN_Mode = CAN_Mode_Silent_LoopBack; //CAN work mode
+	//CAN_InitStructure.CAN_Mode = CAN_Mode_Silent_LoopBack; //开发时用
 	CAN_InitStructure.CAN_Mode = CAN_Mode_Normal; //CAN work mode
 
 	
@@ -163,8 +170,12 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 	TxMessage.ExtId = 0x19ABCDEF; //扩展帧
 	TxMessage.RTR = CAN_RTR_DATA;//远程发送请求位。如果这个帧是数据帧，则该位为0，
 								 //如果是远程帧，则为1。
-	TxMessage.IDE = CAN_ID_STD;  //0 表示这个标准帧；IDE=1 表示是扩展帧
-	//TxMessage.IDE = CAN_ID_EXT;  //0 表示这个标准帧；IDE=1 表示是扩展帧
+	if ( can_typ == CAN_EXT ) {
+		TxMessage.IDE = CAN_ID_EXT;  //0 表示这个标准帧；IDE=1 表示是扩展帧
+	}
+	else {
+		TxMessage.IDE = CAN_ID_STD;  //0 表示这个标准帧；IDE=1 表示是扩展帧
+	}
 	
 	TxMessage.DLC = 1;//数据帧的字节数，0~8，数据域（Data Field）的长度
 
