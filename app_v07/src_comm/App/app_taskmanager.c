@@ -1595,6 +1595,11 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 		OSSemPost( sem_obd );
 		break;
 
+	case 'C' ://Clear OBD type
+		prompt("Clean OBD type ...\r\n");
+		BKP_WriteBackupRegister(BKP_DR2, 0);//clean all flag, for dev. only
+		break;
+
 	case 'd' ://set debug flag
 		my_icar.debug++ ;
 		prompt("Increase debug lever, my_icar.debug:%d\r\n",my_icar.debug);
@@ -1669,7 +1674,7 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 		break;
 
 	default:
-		prompt("Unknow CMD %c, current support: b,c,d,D,g,G,P,R,v\r\n",cmd);
+		prompt("Unknow CMD %c, current support: b,c,C,d,D,g,G,P,R,v\r\n",cmd);
 		*flag = 0 ;
 		break;
 	}
