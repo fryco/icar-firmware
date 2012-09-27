@@ -27,9 +27,11 @@
 //						11~8:CAN2_TYPEDEF
 //						7~4: CAN1_TYPEDEF
 //						3~0: OBD_TYPEDEF 
+//BKP_DR3, can_snd_id index, check app_obd.c
 
 #define obd_read_type						BKP_ReadBackupRegister(BKP_DR2)&0x0F
 #define obd_can1_type						(BKP_ReadBackupRegister(BKP_DR2)&0xF0)>>4
+#define obd_read_canid_idx					BKP_ReadBackupRegister(BKP_DR3)
 
 /* Exported types ------------------------------------------------------------*/
 //						3~0: OBD_TYPEDEF
@@ -66,32 +68,38 @@
 
 typedef enum 
 {
-  CAN_1 = 0, //CAN1: OBD-II, Pins 6&14
-  CAN_2 = 1, //CAN2, Pin 3&11
-  CAN_1_2 = 3 //CAN1&2
+	CAN_1 = 0, //CAN1: OBD-II, Pins 6&14
+	CAN_2 = 1, //CAN2, Pin 3&11
+	CAN_1_2 = 3 //CAN1&2
 } can_pin_typedef;
 
 typedef enum 
 {
-  CAN_250K = 0, //250 Kbps
-  CAN_500K = 1  //500 Kbps
+	CAN_250K = 0, //250 Kbps
+	CAN_500K = 1  //500 Kbps
 } can_speed_typedef;
 
 typedef enum 
 {
-  CAN_STD = 0, //standard, ID:11 bits
-  CAN_EXT = 1  //extend, ID: 29 bits
+	CAN_STD = 0, //standard, ID:11 bits
+	CAN_EXT = 1  //extend, ID: 29 bits
 } can_std_typedef;
 
 typedef enum 
 {
-  DAT_FRAME = 0, //Data frame
-  RMO_FRAME = 1  //Remote frame
+	DAT_FRAME = 0, //Data frame
+	RMO_FRAME = 1  //Remote frame
 } frame_typedef;
+
+typedef enum 
+{
+	NO_CMD		= 0 , //no command
+	SPEED		= 1   //engine speed
+} obd_cmd_typedef;
 
 struct OBD_DAT {
 	u8 can_tx_cnt;//can tx count
-	u32 can_id ;
+	obd_cmd_typedef cmd;
 };
 
 

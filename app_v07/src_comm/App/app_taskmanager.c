@@ -388,6 +388,13 @@ void  app_task_manager (void *p_arg)
 			}
 		}//end of check every 30 sec
 
+
+		//For OBD CMD
+		if ( (OSTime/100)%3 == 0 ) {
+
+			my_icar.obd.cmd = SPEED ;
+			OSSemPost( sem_obd );
+		}
 		/* Insert delay, IWDG set to 2 second
 		App_taskmanger: longest time, but highest priority 
 		Othoers: shorter time, but lower priority */
@@ -1598,6 +1605,7 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 	case 'C' ://Clear OBD type
 		prompt("Clean OBD type ...\r\n");
 		BKP_WriteBackupRegister(BKP_DR2, 0);//clean all flag, for dev. only
+		BKP_WriteBackupRegister(BKP_DR3, 0);//clean all flag, for dev. only
 		break;
 
 	case 'd' ://set debug flag
