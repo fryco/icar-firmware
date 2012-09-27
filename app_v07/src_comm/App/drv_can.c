@@ -4,7 +4,7 @@
 extern struct ICAR_DEVICE my_icar;
 extern OS_EVENT 	*sem_obd	;
 
-extern CanTxMsg TxMessage;
+//extern CanTxMsg TxMessage;
 //extern CanRxMsg RxMessage;
 //extern unsigned int rx_msg_cnt0, rx_msg_cnt1 ;
 
@@ -50,7 +50,7 @@ u8 can_add_filter( can_std_typedef can_typ, u32 can_id )
 
 				//Pass ID: 0x18DAF000 ~ 0x18DAFFFF
 				can_id = can_id & 0x1FFFFFFF ;
-				CAN_FilterInitStructure.CAN_FilterIdHigh = ((can_id<<3)>>16)&0xFFFF;//29 bits,左对齐
+				CAN_FilterInitStructure.CAN_FilterIdHigh = (can_id>>13)&0xFFFF;//29 bits,左对齐
 				CAN_FilterInitStructure.CAN_FilterMaskIdHigh = 0xFFFF;
 
 				CAN_FilterInitStructure.CAN_FilterIdLow = 0x0000;
@@ -164,62 +164,48 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 
 	CAN_Init(CAN1, &CAN_InitStructure);
 
-
-	/* Transmit */
-	TxMessage.StdId = 0x7FE;//11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
-	TxMessage.ExtId = 0x19ABCDEF; //扩展帧
-	TxMessage.RTR = CAN_RTR_DATA;//远程发送请求位。如果这个帧是数据帧，则该位为0，
-								 //如果是远程帧，则为1。
-	if ( can_typ == CAN_EXT ) {
-		TxMessage.IDE = CAN_ID_EXT;  //0 表示这个标准帧；IDE=1 表示是扩展帧
-	}
-	else {
-		TxMessage.IDE = CAN_ID_STD;  //0 表示这个标准帧；IDE=1 表示是扩展帧
-	}
-	
-	TxMessage.DLC = 1;//数据帧的字节数，0~8，数据域（Data Field）的长度
-
 	//Enable CAN transceiver power
 	CAN_PM_ON;
 }
 
-bool can_send( can_std_typedef can_typ, frame_typedef frame_typ, u32 can_id, u8 dat_len, u8 * dat )
+bool can_send( u32 can_id, frame_typedef frame_typ, u8 dat_len, u8 * dat )
 {
 	u8 i ;
-	
-	if ( can_typ == CAN_EXT ) {
-		TxMessage.ExtId = can_id; //扩展帧
-		TxMessage.IDE = CAN_ID_EXT;  //0 表示这个标准帧；IDE=1 表示是扩展帧
+	CanTxMsg can_tx_msg;
+
+	if ( can_id > 0x7FF ) {//CAN EXT
+
+		can_tx_msg.ExtId = can_id; //扩展帧
+		can_tx_msg.IDE = CAN_ID_EXT;  //0 表示这个标准帧；IDE=1 表示是扩展帧
 	}
 	else {
-		
-		TxMessage.StdId = can_id; //11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
-		TxMessage.IDE = CAN_ID_STD;  //0 表示这个标准帧；IDE=1 表示是扩展帧
+		can_tx_msg.StdId = can_id; //11bit 的仲裁域，即标识符，越低优先级越高, 0 to 0x7FF
+		can_tx_msg.IDE = CAN_ID_STD;  //0 表示这个标准帧；IDE=1 表示是扩展帧
 	}
-	
+
 	if ( frame_typ == DAT_FRAME ) {
-		TxMessage.RTR = CAN_RTR_DATA;//如果这个帧是数据帧，((uint32_t)0x00000000)  /*!< Data frame */
+		can_tx_msg.RTR = CAN_RTR_DATA;//如果这个帧是数据帧，((uint32_t)0x00000000)  /*!< Data frame */
 	}
 	else {
-		TxMessage.RTR = CAN_RTR_REMOTE;//((uint32_t)0x00000002)  /*!< Remote frame */
+		can_tx_msg.RTR = CAN_RTR_REMOTE;//((uint32_t)0x00000002)  /*!< Remote frame */
 	}
 	
-	TxMessage.DLC = dat_len;//数据帧的字节数，0~8，数据域（Data Field）的长度
+	can_tx_msg.DLC = dat_len;//数据帧的字节数，0~8，数据域（Data Field）的长度
 
 	/* fill data to ring buffer */
 	for(i = 0; i < dat_len; i++){
-		TxMessage.Data[i]  =dat[i];
+		can_tx_msg.Data[i]  =dat[i];
 	}
 
 	/* fill 0x00 for free bytes*/
 	for(i = dat_len; i < 8; i++){
-		TxMessage.Data[i]=0;
+		can_tx_msg.Data[i]=0;
 	}
 
 	i = 5 ; //retry 5
 	while ( i ) {
 		//return transmit_mailbox; if transmit_mailbox == CAN_NO_MB ==>ERR
-		if ( CAN_Transmit(CAN1, &TxMessage) == CAN_NO_MB ) { //no mail box
+		if ( CAN_Transmit(CAN1, &can_tx_msg) == CAN_NO_MB ) { //no mail box
 			OSTimeDlyHMSM(0, 0,	0, 100);//wait 100 ms
 			i--;
 		}

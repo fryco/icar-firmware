@@ -40,8 +40,11 @@
 *********************************************************************************************************
 */
 
-#define  APP_TASK_MANAGER_PRIO                              2
-#define  APP_TASK_OBD_PRIO                                  4
+//CAN FIFO 只有3个，怕有数据丢失，所以把优先级调到最高
+#define  APP_TASK_OBD_PRIO                                  2
+
+#define  APP_TASK_MANAGER_PRIO                              4
+
 #define  APP_TASK_GSM_PRIO                                  6
 
 #define  OS_PROBE_TASK_PRIO              (OS_LOWEST_PRIO - 3)

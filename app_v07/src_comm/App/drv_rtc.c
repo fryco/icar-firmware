@@ -12,7 +12,7 @@ extern struct ICAR_DEVICE my_icar;
 //						7~4: CAN1_TYPEDEF
 //						3~0: OBD_TYPEDEF 
 
-//BKP_DR3, RSV
+//BKP_DR3, can_snd_id index, check app_obd.c
 //BKP_DR4, GPRS disconnect time(UTC Time) high
 //BKP_DR5, GPRS disconnect time(UTC Time) low
 //BKP_DR6, upgrade fw time(UTC Time) high
