@@ -3,7 +3,7 @@
 
 extern struct ICAR_DEVICE my_icar;
 extern const unsigned int can_snd_id[];
-extern u8 determine_pid[];
+
 extern u8 obd_support_pid[OBD_SUPPORT_PID_CNT];
 
 extern OS_EVENT 	*sem_obd	;
@@ -305,16 +305,47 @@ bool can_send( u32 can_id, frame_typedef frame_typ, u8 dat_len, u8 * dat )
 	return false;
 }
 
+bool can_receive( u8 * buffer, u16 bufsize, u16 * rec_len, u32 * rec_id )
+{
+
+	u32 cur_time = OSTime ;
+	CanRxMsg can_rx_msg;
+	
+	if ( bufsize < 8 ) return false;
+		
+	while ( OSTime - my_icar.mg323.try_online_time < 3*OS_TICKS_PER_SEC ) {
+		if ( (CAN1->RF0R)&0x03 ) { //Rec ECU data 
+			debug_obd("CAN FIFO_0: %d\r\n", (CAN1->RF0R)&0x03);
+			
+			CAN_Receive(CAN1,CAN_FIFO0, &can_rx_msg);
+
+			*rec_len = can_rx_msg.Data[0]&0x0F ;
+			memcpy(buffer, &can_rx_msg.Data[1],*rec_len);
+			if (can_rx_msg.IDE == CAN_ID_STD) { //CAN STD ID
+				*rec_id = can_rx_msg.StdId;
+			}
+			else { //CAN EXT ID
+				*rec_id = can_rx_msg.ExtId;
+			}
+			
+			return true;
+		}
+		else {
+			OSTimeDlyHMSM(0, 0, 0, 50);
+		}
+	}
+	debug_obd("Timeout!%s,%d\r\n",__FILE__,__LINE__);
+	return false;
+}
 
 bool can_enquire_support_pid( void )
 {
-	
-	u8 var_uchar ;
-	
-	CanRxMsg can_rx_msg;
-	
-	CPU_INT08U	os_err;
+	//Request Supported PIDs from Vehicle, check sae j1979 2002.pdf page 26
+	u8 determine_pid[]="\x02\x01\x00\x00\x00\x00\x00\x00";
 
+	u8 var_uchar ;
+	u16 rec_len;
+	u32 can_id ;
 
 	debug_obd("Start %s \r\n",__FUNCTION__);
 
@@ -323,19 +354,130 @@ bool can_enquire_support_pid( void )
 	//Clean all FIFO_1
 	while ( (CAN1->RF1R)&0x03 ) CAN1->RF1R |= CAN_RF1R_RFOM1;
 
-	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
-	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
-
-	/* Enable Interrupt for receive FIFO 1 and FIFO overflow */
-	CAN_ITConfig(CAN1,CAN_IT_FMP1 | CAN_IT_FOV1, ENABLE);
 	
 	//Clean support table
 	memset(my_icar.obd.support_pid, 0x0, OBD_SUPPORT_PID_CNT);
 
 	//Trying round 1
 	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, determine_pid );
-	OSSemPend(sem_obd, 1*OS_TICKS_PER_SEC, &os_err);//wait 1 second
 
+	if ( can_receive( my_icar.obd.rx_buf, OBD_BUF_SIZE, &rec_len, &can_id) ) {//Rec Data
+		
+		debug_obd("Rec %d:",rec_len);
+		for ( var_uchar = 0 ; var_uchar < rec_len ; var_uchar++ ) {
+			printf(" %02X",my_icar.obd.rx_buf[var_uchar]);
+		}
+		printf(", %08X\r\n", can_id);
+	}
+	else { 
+		
+		return false;
+	}
+	
+	memcpy(my_icar.obd.support_pid, &my_icar.obd.rx_buf[2],4);
+
+	debug_obd("OBD sup table:");
+	for ( var_uchar = 0 ; var_uchar < 4 ; var_uchar++ ) {
+		printf(" %02X",my_icar.obd.support_pid[var_uchar]);
+	}
+	printf("\r\n");
+
+	if ( !my_icar.obd.rx_buf[5]&0x01 ){//Data byte D,it does not support PID $20
+		return true;	//Detect End
+	}
+	
+	//Trying round 2
+	determine_pid[2]=0x20;
+	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, determine_pid );
+
+	if ( can_receive( my_icar.obd.rx_buf, OBD_BUF_SIZE, &rec_len, &can_id) ) {//Rec Data
+		
+		debug_obd("Rec %d:",rec_len);
+		for ( var_uchar = 0 ; var_uchar < rec_len ; var_uchar++ ) {
+			printf(" %02X",my_icar.obd.rx_buf[var_uchar]);
+		}
+		printf(", %08X\r\n", can_id);
+	}
+	else { 
+		
+		return false;
+	}
+
+	memcpy(&my_icar.obd.support_pid[4], &my_icar.obd.rx_buf[2],4);
+
+	debug_obd("OBD sup table:");
+	for ( var_uchar = 0 ; var_uchar < 8 ; var_uchar++ ) {
+		printf(" %02X",my_icar.obd.support_pid[var_uchar]);
+	}
+	printf("\r\n");
+
+	if ( !my_icar.obd.rx_buf[5]&0x01 ){//Data byte D,it does not support PID $20
+		return true;	//Detect End
+	}
+
+
+	//Trying round 3
+	determine_pid[2]=0x40;
+	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, determine_pid );
+
+	if ( can_receive( my_icar.obd.rx_buf, OBD_BUF_SIZE, &rec_len, &can_id) ) {//Rec Data
+		
+		debug_obd("Rec %d:",rec_len);
+		for ( var_uchar = 0 ; var_uchar < rec_len ; var_uchar++ ) {
+			printf(" %02X",my_icar.obd.rx_buf[var_uchar]);
+		}
+		printf(", %08X\r\n", can_id);
+	}
+	else { 
+		
+		return false;
+	}
+
+	memcpy(&my_icar.obd.support_pid[8], &my_icar.obd.rx_buf[2],4);
+
+	debug_obd("OBD sup table:");
+	for ( var_uchar = 0 ; var_uchar < 12 ; var_uchar++ ) {
+		printf(" %02X",my_icar.obd.support_pid[var_uchar]);
+	}
+	printf("\r\n");
+
+	if ( !my_icar.obd.rx_buf[5]&0x01 ){//Data byte D,it does not support PID $20
+		return true;	//Detect End
+	}
+
+	//Trying round 4
+	determine_pid[2]=0x60;
+	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, determine_pid );
+
+	if ( can_receive( my_icar.obd.rx_buf, OBD_BUF_SIZE, &rec_len, &can_id) ) {//Rec Data
+		
+		debug_obd("Rec %d:",rec_len);
+		for ( var_uchar = 0 ; var_uchar < rec_len ; var_uchar++ ) {
+			printf(" %02X",my_icar.obd.rx_buf[var_uchar]);
+		}
+		printf(", %08X\r\n", can_id);
+	}
+	else { 
+		
+		return false;
+	}
+
+	memcpy(&my_icar.obd.support_pid[12], &my_icar.obd.rx_buf[2],4);
+
+	debug_obd("OBD sup table:");
+	for ( var_uchar = 0 ; var_uchar < 16 ; var_uchar++ ) {
+		printf(" %02X",my_icar.obd.support_pid[var_uchar]);
+	}
+	printf("\r\n");
+
+	if ( !my_icar.obd.rx_buf[5]&0x01 ){//Data byte D,it does not support PID $20
+		return true;	//Detect End
+	}
+
+	return true;
+
+	//OSSemPend(sem_obd, 1*OS_TICKS_PER_SEC, &os_err);//wait 1 second
+	/*
 	if ( os_err ) { //failure, timeout or others err
 		debug_obd("OSSemPend err %d\r\n", os_err);
 		//report this error: 
@@ -374,6 +516,8 @@ bool can_enquire_support_pid( void )
 					
 					//return false;	
 				}
+				
+				return false;
 			}
 			else { //CAN EXT ID
 	
@@ -386,23 +530,31 @@ bool can_enquire_support_pid( void )
 				printf("\r\n");
 					
 				if ( can_rx_msg.ExtId == EXT_RCV_CAN_ID ) { //correct CAN ID
-					;
+
+					memcpy(my_icar.obd.support_pid,&can_rx_msg.Data[3],4);
+
+					debug_obd("OBD sup table:");
+					for ( var_uchar = 0 ; var_uchar < can_rx_msg.DLC ; var_uchar++ ) {
+						printf(" %02X",my_icar.obd.support_pid[var_uchar]);
+					}
+					printf("\r\n");
+
+
+					if ( can_rx_msg.Data[6]&0x01 == 0x00 ){//Data byte D,it does not support PID $20
+						return true;	//Detect End
+					}
+					
+					//Trying round 2
+					determine_pid[2]=0x20;
+					can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, determine_pid );
+					
+					return true;
 				}
 				else  {//err rcv can id
 					debug_obd("CAN EXT ID Err!\r\n");
 					return false;	
 				}
 			}
-	
-			memcpy(my_icar.obd.rx_buf,can_rx_msg.Data,8);
-	
-			debug_obd("obd.rx_buf :");
-			for ( var_uchar = 0 ; var_uchar < can_rx_msg.DLC+2 ; var_uchar++ ) {
-				printf(" %02X",my_icar.obd.rx_buf[var_uchar]);
-			}
-			printf("\r\n");
-			
-			return true;
 		}
 
 		else { //can not get ECU data
@@ -421,4 +573,5 @@ bool can_enquire_support_pid( void )
 			return false;
 		}
 	}
+	*/
 }
