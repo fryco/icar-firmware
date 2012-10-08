@@ -1219,7 +1219,7 @@ bool gsm_pwr_off( )
 	my_icar.mg323.gprs_ready = false;
 	my_icar.mg323.tcp_online = false ;
 	my_icar.mg323.power_on = false;
-	memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
+	memset(my_icar.mg323.ip_local, 0x0, IP_LEN);
 
 	prompt("Turn off GSM power.\r\n");
 	return true ;

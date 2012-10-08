@@ -2,17 +2,16 @@
 
 extern struct ICAR_DEVICE my_icar;
 
-//CanTxMsg TxMessage;
-CanRxMsg RxMessage;
-
 extern OS_EVENT 	*sem_obd	;
 
-//warn code define, internal use only
+//warn code define, internal use only, < 255
 #define	UNK_CAN_STDID			5	//unknow CAN STD ID
 #define	UNK_CAN_ID_250K			10	//unknow CAN ID @ 250K
 #define	UNK_CAN_ID_500K			15	//unknow CAN ID @ 500K
 #define	UNK_CAN_EXTID_H			20	//Unknow ext-stand CAN ID High
 #define	UNK_CAN_EXTID_L			30	//Unknow ext-stand CAN ID low
+#define	ERR_CAN_ID_IDX			40	//Error CAN ID index
+#define	ERR_CAN_SUP_PID 		50  //Error get CAN  support PID
 
 //RO-data, save in flash
 const unsigned int can_snd_id[] = {\
@@ -22,19 +21,28 @@ const unsigned int can_snd_id[] = {\
 0x18DB33F1,\
 0x18DA10F1\
 };
-static void auto_detect_obd( void );
+
+//Request Supported PIDs from Vehicle, check sae j1979 2002.pdf page 26
+const u8 determine_pid[]="\x02\x01\x00\x00\x00\x00\x00\x00";
+
+static void obd_report_unknow_canid( u32 );
+static void obd_auto_detect( void );
 
 //为了提高任务效率，改用事件驱动方式
 //
 void  app_task_obd (void *p_arg)
 {
 	u8 var_uchar;
-	u8 stream_test[]="\x02\x01";//Will be add zero in send function
+	//u8 stream_test[]="\x02\x01\x00\x00\x00\x00\x00\x00";//Will be add zero in send function
 	u16 can_id_idx = 0;
+	u32 can_id ;
+	CanRxMsg can_rx_msg;
 	
 	CPU_INT08U	os_err;
 
 	(void)p_arg;
+
+//can_enquire_determine_pid( );
 
 	OSSemPend(sem_obd, 0, &os_err);//Wait task manger ask to start
 
@@ -50,7 +58,7 @@ void  app_task_obd (void *p_arg)
 		debug_obd("OBD is CAN1 ");
 		can_id_idx = obd_read_canid_idx ;
 		if ( !can_id_idx ) {//no CAN send id index
-			auto_detect_obd( );
+			obd_auto_detect( );
 			can_id_idx = obd_read_canid_idx ;
 		}
 		
@@ -76,7 +84,7 @@ void  app_task_obd (void *p_arg)
 			debug_obd("but type ERR!\r\n");
 			BKP_WriteBackupRegister(BKP_DR2, 0);//clean all flag, prevent err
 			BKP_WriteBackupRegister(BKP_DR3, 0);//clean all flag, prevent err
-			auto_detect_obd( );
+			obd_auto_detect( );
 			can_id_idx = obd_read_canid_idx ;
 			break;
 		}
@@ -85,7 +93,7 @@ void  app_task_obd (void *p_arg)
 	case OBD_TYPE_CAN2 ://CAN2
 		debug_obd("OBD is CAN2 bus\r\n");
 		if ( !obd_read_canid_idx ) {//no CAN send id index
-			auto_detect_obd( );
+			obd_auto_detect( );
 			can_id_idx = obd_read_canid_idx ;
 		}
 
@@ -96,37 +104,59 @@ void  app_task_obd (void *p_arg)
 		debug_obd("No OBD type\r\n");
 		BKP_WriteBackupRegister(BKP_DR2, 0);//clean all flag, prevent err
 		BKP_WriteBackupRegister(BKP_DR3, 0);//clean all flag, prevent err
-		auto_detect_obd( );
+		obd_auto_detect( );
 		can_id_idx = obd_read_canid_idx ;
 		
 		break;
 	}
 
-	debug_obd("BK2: %04X BK3: %04X\r\n",BKP_ReadBackupRegister(BKP_DR2),BKP_ReadBackupRegister(BKP_DR3));
-	debug_obd("can_id_idx = %d\r\n", can_id_idx);
 
+	while ( !can_id_idx ) { //no CAN ID index, err
+
+		debug_obd("BK2: %04X BK3: %04X\r\n",BKP_ReadBackupRegister(BKP_DR2),BKP_ReadBackupRegister(BKP_DR3));
+		debug_obd("can_id_idx = %d\r\n", can_id_idx);
+		OSSemPend(sem_obd, 0, &os_err);
+
+		debug_obd("CAN ID index ERR\r\n");
+		//Report err to server
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
+				my_icar.warn[var_uchar].msg |= ERR_CAN_ID_IDX << 16 ;//Error CAN ID index
+				my_icar.warn[var_uchar].msg |= __LINE__ ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}
+
+		obd_auto_detect( );
+		can_id_idx = obd_read_canid_idx ;
+	}
+	
 	//uart3_init( ); //to OBD, K-BUS
 
+	while ( !can_enquire_support_pid( ) ) { //update support table ERR
 
-/*
-		can_init( CAN_500K, CAN_EXT );
+		debug_obd("Get CAN PID ERR\r\n");
+		//Report err to server
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
+				my_icar.warn[var_uchar].msg |= ERR_CAN_SUP_PID << 16 ;//Error get CAN  support PID
+				my_icar.warn[var_uchar].msg |= __LINE__ ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}
+		OSTimeDlyHMSM(0, 0,	30, 0);//wait 30s
+	}
 
-		var_uchar = can_add_filter( CAN_EXT , 0x18DAF111 );//save to fifo0
-		if ( var_uchar ) { 
-			debug_obd("Set filter %d OK\r\n", var_uchar-1);
-		}
-		else {
-			debug_obd("ERR: no free filter\r\n");
-		}
 	
-		can_rec_all_id( true ); //save to fifo1
-*/
-
 	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
 	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
 
 	/* Enable Interrupt for receive FIFO 1 and FIFO overflow */
-	CAN_ITConfig(CAN1,CAN_IT_FMP1 | CAN_IT_FOV1, ENABLE);	
+	CAN_ITConfig(CAN1,CAN_IT_FMP1 | CAN_IT_FOV1, ENABLE);
 
 	while ( 1 ) {
 		//debug_obd("OBD task Pend...\r\n");
@@ -137,7 +167,7 @@ void  app_task_obd (void *p_arg)
 			if ( my_icar.obd.can_tx_cnt ) { 
 
 				//send CAD ID: 0x18DB33F1
-				can_send( can_snd_id[can_id_idx], DAT_FRAME, 8, stream_test );
+				can_send( can_snd_id[can_id_idx], DAT_FRAME, 8, (u8 *)determine_pid );
 
 				//CAN_Transmit(CAN1, &TxMessage);
 				my_icar.obd.can_tx_cnt--;
@@ -145,12 +175,39 @@ void  app_task_obd (void *p_arg)
 
 			//execute CMD from app_taskmanager
 			switch ( my_icar.obd.cmd ) {
+
+			case SUPPORT_PID ://update support table
+
+				debug_obd("CMD is get ECU support pid\r\n");
+				my_icar.obd.cmd = NO_CMD ;
+				if ( !can_enquire_support_pid( ) ) { //update support table ERR
+			
+					debug_obd("Get CAN PID Err\r\n");
+					my_icar.obd.update_support_table = false ;
+					//Report err to server
+					for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+						if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+							//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+							my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
+							my_icar.warn[var_uchar].msg |= ERR_CAN_SUP_PID << 16 ;//Error get CAN  support PID
+							my_icar.warn[var_uchar].msg |= __LINE__ ;
+							var_uchar = MAX_WARN_MSG ;//end the loop
+						}
+					}
+				}
+				else {
+					my_icar.obd.update_support_table = true ;
+				}
+				break;
+
 			case SPEED ://engine speed
 
 				debug_obd("CMD is get engine speed\r\n");
 				my_icar.obd.cmd = NO_CMD ;
-				can_send( can_snd_id[can_id_idx], DAT_FRAME, 8, stream_test );
+				can_send( can_snd_id[can_id_idx], DAT_FRAME, 8, (u8 *)determine_pid );
 		
+				break;
+				
 			case NO_CMD ://no define
 			default://maybe error, treat as NO_CMD
 				;//debug_obd("No OBD CMD\r\n");
@@ -158,19 +215,34 @@ void  app_task_obd (void *p_arg)
 			}
 			
 			//FIFO0 has data, max.: 3 datas
-			if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) {
+			if ( (CAN1->RF0R)&0x03 ) {
 
-				CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
+				CAN_Receive(CAN1,CAN_FIFO0, &can_rx_msg);
 
-				if (RxMessage.IDE == CAN_ID_STD) {
-					prompt("CAN FIFO_0: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO0),RxMessage.StdId);
+				if (can_rx_msg.IDE == CAN_ID_STD) {
+					debug_obd("CAN FIFO_0 rec %d ID: %X\r\n", (CAN1->RF0R)&0x03,can_rx_msg.StdId);
+					debug_obd("DLC %d :", can_rx_msg.DLC);
+					//show the data
+					for ( var_uchar = 0 ; var_uchar < can_rx_msg.DLC ; var_uchar++ ) {
+						printf(" %02X",can_rx_msg.Data[var_uchar]);
+					}
+					printf("\r\n");
+
 				}
 				else {
-					prompt("CAN FIFO_0: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO0),RxMessage.ExtId);
+					debug_obd("CAN FIFO_0 rec %d ID: %X %s,%d\r\n", (CAN1->RF0R)&0x03,can_rx_msg.ExtId,\
+						__FILE__,__LINE__);
+					debug_obd("DLC %d :", can_rx_msg.DLC);
+					//show the data
+					for ( var_uchar = 0 ; var_uchar < can_rx_msg.DLC ; var_uchar++ ) {
+						printf(" %02X",can_rx_msg.Data[var_uchar]);
+					}
+					printf("\r\n");
+					
 				}
 				
   				
-				if ( CAN_MessagePending(CAN1,CAN_FIFO0)==0 ) { //no data
+				if ( (CAN1->RF0R)&0x03==0 ) { //no data
 					CAN_ITConfig(CAN1,CAN_IT_FMP0, ENABLE);//enable FIFO0 FMP int
 				}
 				else { //still has data
@@ -180,50 +252,20 @@ void  app_task_obd (void *p_arg)
 
 			//FIFO1 receive unknow CAN ID, then report to server
 			//FIFO0 has data, max.: 3 datas
-			if ( CAN_MessagePending(CAN1,CAN_FIFO1) ) {
+			if ( (CAN1->RF1R)&0x03 ) {
 
-				CAN_Receive(CAN1,CAN_FIFO1, &RxMessage);
+				CAN_Receive(CAN1,CAN_FIFO1, &can_rx_msg);
 				
-				if (RxMessage.IDE == CAN_ID_STD) { //unknow CAN STD ID, report to server
-					//prompt("CAN FIFO_1: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO1),RxMessage.StdId);
-					debug_obd("Unknow CAN STD: %X FIFO:%d\r\n",RxMessage.StdId,CAN_MessagePending(CAN1,CAN_FIFO1));
-					
-					for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
-						if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
-							//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
-							my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
-							my_icar.warn[var_uchar].msg |= UNK_CAN_STDID << 16 ;//unknow CAN STD ID
-							my_icar.warn[var_uchar].msg |= RxMessage.StdId ;
-							var_uchar = MAX_WARN_MSG ;//end the loop
-						}
-					}// 验证成功
+				if (can_rx_msg.IDE == CAN_ID_STD) { //unknow CAN STD ID, report to server
+					can_id = can_rx_msg.StdId ;
 				}
 				else { //unknow CAN EXT ID, report to server
-					//prompt("CAN FIFO_1: %d ID: %X\r\n", CAN_MessagePending(CAN1,CAN_FIFO1),RxMessage.ExtId);
-					debug_obd("Unknow CAN EXT: %X FIFO:%d\r\n",RxMessage.ExtId,CAN_MessagePending(CAN1,CAN_FIFO1));
-
-					for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
-						if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
-							//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
-							my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
-							my_icar.warn[var_uchar].msg |= UNK_CAN_EXTID_H << 16 ;//Unknow ext-stand CAN ID high
-							my_icar.warn[var_uchar].msg |= ( RxMessage.ExtId >> 16) &0xFFFF ;
-							var_uchar = MAX_WARN_MSG ;//end the loop
-						}
-					}// 验证成功 2012/8/28 10:58:10
-			
-					for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
-						if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
-							//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
-							my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
-							my_icar.warn[var_uchar].msg |= UNK_CAN_EXTID_L << 16 ;//Unknow ext-stand CAN ID low
-							my_icar.warn[var_uchar].msg |= ( RxMessage.ExtId ) &0xFFFF ;
-							var_uchar = MAX_WARN_MSG ;//end the loop
-						}
-					}// 验证成功 2012/8/28 10:58:08
+					can_id = can_rx_msg.ExtId ;
 				}
-  				
-				if ( CAN_MessagePending(CAN1,CAN_FIFO1)==0 ) { //no data
+				obd_report_unknow_canid( can_id );
+				debug_obd("Unknow CAN ID: %X FIFO:%d\r\n",can_id,(CAN1->RF1R)&0x03);
+					  				
+				if ( (CAN1->RF1R)&0x03==0 ) { //no data
 					CAN_ITConfig(CAN1,CAN_IT_FMP1, ENABLE);//enable FIFO1 FMP int
 				}
 				else { //still has data
@@ -267,15 +309,57 @@ void can_set_speed( can_pin_typedef can_pin, u8 speed )
 	}
 }
 
-static void auto_detect_obd( void )
+static void obd_report_unknow_canid( u32 id )
 {
-	//u8 stream_support[]="\x02\x01\x00\x00\x00\x00\x00\x00";
-	u8 stream_support[]="\x02\x01";//Will be add zero in send function
+	u8 var_uchar ;
 	
+	if ( id > 0x7FF ) {//CAN EXT
+
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
+				my_icar.warn[var_uchar].msg |= UNK_CAN_EXTID_H << 16 ;//Unknow ext-stand CAN ID high
+				my_icar.warn[var_uchar].msg |= ( id >> 16) &0xFFFF ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}// 验证成功 2012/8/28 10:58:10
+
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
+				my_icar.warn[var_uchar].msg |= UNK_CAN_EXTID_L << 16 ;//Unknow ext-stand CAN ID low
+				my_icar.warn[var_uchar].msg |= ( id ) &0xFFFF ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}// 验证成功 2012/8/28 10:58:08
+
+	}
+	else {
+
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
+				my_icar.warn[var_uchar].msg |= UNK_CAN_STDID << 16 ;//unknow CAN STD ID
+				my_icar.warn[var_uchar].msg |= id ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
+			}
+		}// 验证成功
+
+	}
+
+	return ;
+}
+static void obd_auto_detect( void )
+{
+	//Request Supported PIDs from Vehicle, check sae j1979 2002.pdf page 26
+	//u8 determine_pid[]="\x02\x01\x00\x00\x00\x00\x00\x00"; //Will be add zero in send function
 	u8 obd_typ = 0 , var_uchar;
+	u32 can_id ;
 	
-	//流程：设波特率==>开所有ID接收==>查看CAN_MessagePending有无数据
-	//方法不好，改发ID，然后收2012/9/7 17:23:33
+	CanRxMsg can_rx_msg;
 
 	//BKP_DR2, OBD Flag:	15~12:KWP_TYPEDEF
 	//						11~8:CAN2_TYPEDEF
@@ -283,12 +367,14 @@ static void auto_detect_obd( void )
 	//						3~0: OBD_TYPEDEF 
 	//BKP_DR3, can_snd_id index, check app_obd.c
 	
+	prompt("Auto detect OBD ...\r\n");
+	
 	//1, Try CAN1_TYPE_STD_250
 
 	debug_obd("Try CAN1,STD_250 ...\r\n");
 	can_init( CAN_250K, CAN_STD );
 	
-	var_uchar = can_add_filter( CAN_STD , 0x07E8 );//0x07E8,save to fifo0
+	var_uchar = can_add_filter( CAN_STD , STD_RCV_CAN_ID );//0x07E8,save to fifo0
 	if ( var_uchar ) { 
 		debug_obd("Set filter %d OK\r\n", var_uchar-1);
 	}
@@ -299,19 +385,19 @@ static void auto_detect_obd( void )
 	can_rec_all_id( true ); //save to fifo1
 
 	//send CAD ID: 0x07DF
-	can_send( can_snd_id[1], DAT_FRAME, 8, stream_support );
+	can_send( can_snd_id[1], DAT_FRAME, 8, (u8 *)determine_pid );
 	OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
-	if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) { //have data, setting correct
-		debug_obd("CAN1,STD_250 OK, FIFO0: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO0));
+	if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
+		debug_obd("CAN1,STD_250 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
 
 		obd_typ = OBD_TYPE_CAN1 ;
 		BKP_WriteBackupRegister(BKP_DR3, 1);//0x07DF,save CAN ID index
 	}
 	else { //try CAD ID: 0x07E0 again
-		can_send( can_snd_id[2], DAT_FRAME, 8, stream_support );
+		can_send( can_snd_id[2], DAT_FRAME, 8, (u8 *)determine_pid );
 		OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
-		if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) { //have data, setting correct
-			debug_obd("CAN1,STD_250 OK, FIFO0: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO0));
+		if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
+			debug_obd("CAN1,STD_250 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
 
 			obd_typ = OBD_TYPE_CAN1 ;
 			BKP_WriteBackupRegister(BKP_DR3, 2);//0x07E0, save CAN ID index
@@ -328,15 +414,15 @@ static void auto_detect_obd( void )
 		return ;
 	}
 
-	if ( CAN_MessagePending(CAN1,CAN_FIFO1) ) { //have data in fifo1, maybe SND ID err or EXT ID
+	if ( (CAN1->RF1R)&0x03 ) { //have data in fifo1, maybe SND ID err or EXT ID
 		debug_obd("\r\n");
-		debug_obd("FIFO1: %d. %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO1),__LINE__);
+		debug_obd("FIFO1: %d. %d\r\n",(CAN1->RF1R)&0x03,__LINE__);
 
 		//Try to CAN1_TYPE_EXT_250
 		debug_obd("CAN1,STD_250 failure, try CAN1,EXT_250 ...\r\n");
 		can_init( CAN_250K, CAN_EXT );
 
-		var_uchar = can_add_filter( CAN_EXT , 0x18DAF111 );//0x18DAF111, save to fifo0
+		var_uchar = can_add_filter( CAN_EXT , EXT_RCV_CAN_ID );//0x18DAF111, save to fifo0
 		if ( var_uchar ) { 
 			debug_obd("Set filter %d OK\r\n", var_uchar-1);
 		}
@@ -347,19 +433,19 @@ static void auto_detect_obd( void )
 		can_rec_all_id( true ); //save to fifo1
 
 		//send CAD ID: 0x18DB33F1
-		can_send( can_snd_id[3], DAT_FRAME, 8, stream_support );//0x18DB33F1
+		can_send( can_snd_id[3], DAT_FRAME, 8, (u8 *)determine_pid );//0x18DB33F1
 		OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
-		if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) { //have data, setting correct
-			debug_obd("CAN1,EXT_250 OK, FIFO0: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO0));
+		if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
+			debug_obd("CAN1,EXT_250 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
 	
 			obd_typ = OBD_TYPE_CAN1 ;
 			BKP_WriteBackupRegister(BKP_DR3, 3);//0x18DB33F1, save CAN ID index
 		}
 		else { //try CAD ID: 0x18DA10F1 again
-			can_send( can_snd_id[4], DAT_FRAME, 8, stream_support );//0x18DA10F1
+			can_send( can_snd_id[4], DAT_FRAME, 8, (u8 *)determine_pid );//0x18DA10F1
 			OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
-			if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) { //have data, setting correct
-				debug_obd("CAN1,EXT_250 OK, FIFO0: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO0));
+			if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
+				debug_obd("CAN1,EXT_250 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
 	
 				obd_typ = OBD_TYPE_CAN1 ;
 				BKP_WriteBackupRegister(BKP_DR3, 4);//0x18DA10F1, save CAN ID index
@@ -375,20 +461,31 @@ static void auto_detect_obd( void )
 	
 			return ;
 		}
-		else {//report this err to server
+		else {//report this err to server, RCV ID err
 			
+			CAN_Receive(CAN1,CAN_FIFO1, &can_rx_msg);
+			
+			if (can_rx_msg.IDE == CAN_ID_STD) { //unknow CAN STD ID, report to server
+				can_id = can_rx_msg.StdId ;
+			}
+			else { //unknow CAN EXT ID, report to server
+				can_id = can_rx_msg.ExtId ;
+			}
+			obd_report_unknow_canid( can_id );
+			debug_obd("Unknow CAN ID: %X FIFO:%d\r\n",can_id,(CAN1->RF1R)&0x03);
+
 			//report CAN speed and unknow CAN_ID to cloud server
 			for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
 				if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
 					//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
 					my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
-					my_icar.warn[var_uchar].msg |= UNK_CAN_ID_250K << 16 ;//unknow CAN_STDID_250K
+					my_icar.warn[var_uchar].msg |= UNK_CAN_ID_250K << 16 ;//unknow CAN_ID_250K
 					my_icar.warn[var_uchar].msg |= __LINE__ ;
 					var_uchar = MAX_WARN_MSG ;//end the loop
 				}
 			}// 验证成功
 	
-			debug_obd("Rep err:UNK_CAN_ID_250K. %d\r\n",__LINE__);
+			debug_obd("Rep err:UNK_CAN_ID_500K. %d\r\n",__LINE__);
 	
 			//Disable filter for all ID
 			can_rec_all_id( false );
@@ -402,7 +499,8 @@ static void auto_detect_obd( void )
 	debug_obd("CAN1,STD_250 failure, try CAN1,STD_500 ...\r\n");
 	can_init( CAN_500K, CAN_STD );
 
-	var_uchar = can_add_filter( CAN_STD , 0x07E8 );//0x07E8, save to fifo0
+
+	var_uchar = can_add_filter( CAN_STD , STD_RCV_CAN_ID );//0x07E8, save to fifo0
 	if ( var_uchar ) { 
 		debug_obd("Set filter %d OK\r\n", var_uchar-1);
 	}
@@ -413,19 +511,19 @@ static void auto_detect_obd( void )
 	can_rec_all_id( true ); //save to fifo1
 
 	//send CAD ID: 0x07DF
-	can_send( can_snd_id[1], DAT_FRAME, 8, stream_support );
+	can_send( can_snd_id[1], DAT_FRAME, 8, (u8 *)determine_pid );
 	OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
-	if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) { //have data, setting correct
-		debug_obd("CAN1,STD_500 OK, FIFO0: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO0));
+	if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
+		debug_obd("CAN1,STD_500 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
 
 		obd_typ = OBD_TYPE_CAN1 ;
 		BKP_WriteBackupRegister(BKP_DR3, 1);//0x07DF,save CAN ID index
 	}
 	else { //try CAD ID: 0x07E0 again
-		can_send( can_snd_id[2], DAT_FRAME, 8, stream_support );
+		can_send( can_snd_id[2], DAT_FRAME, 8, (u8 *)determine_pid );
 		OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
-		if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) { //have data, setting correct
-			debug_obd("CAN1,STD_500 OK, FIFO0: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO0));
+		if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
+			debug_obd("CAN1,STD_500 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
 
 			obd_typ = OBD_TYPE_CAN1 ;
 			BKP_WriteBackupRegister(BKP_DR3, 2);//0x07E0, save CAN ID index
@@ -442,15 +540,15 @@ static void auto_detect_obd( void )
 		return ;
 	}
 
-	if ( CAN_MessagePending(CAN1,CAN_FIFO1) ) { //have data in fifo1, maybe SND ID err or EXT ID
+	if ( (CAN1->RF1R)&0x03 ) { //have data in fifo1, maybe SND ID err or EXT ID
 		debug_obd("\r\n");
-		debug_obd("FIFO1: %d. %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO1),__LINE__);
+		debug_obd("FIFO1: %d. %d\r\n",(CAN1->RF1R)&0x03,__LINE__);
 
 		//Try to CAN1_TYPE_EXT_500
 		debug_obd("CAN1,STD_500 failure, try CAN1,EXT_500 ...\r\n");
 		can_init( CAN_500K, CAN_EXT );
 
-		var_uchar = can_add_filter( CAN_EXT , 0x18DAF111 );//0x18DAF111, save to fifo0
+		var_uchar = can_add_filter( CAN_EXT , EXT_RCV_CAN_ID );//0x18DAF111, save to fifo0
 		if ( var_uchar ) { 
 			debug_obd("Set filter %d OK\r\n", var_uchar-1);
 		}
@@ -461,19 +559,19 @@ static void auto_detect_obd( void )
 		can_rec_all_id( true ); //save to fifo1
 
 		//send CAD ID: 0x18DB33F1
-		can_send( can_snd_id[3], DAT_FRAME, 8, stream_support );//0x18DB33F1
+		can_send( can_snd_id[3], DAT_FRAME, 8, (u8 *)determine_pid );//0x18DB33F1
 		OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
-		if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) { //have data, setting correct
-			debug_obd("CAN1,EXT_500 OK, ID is: 0x18DB33F1, FIFO0: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO0));
+		if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
+			debug_obd("CAN1,EXT_500 OK, ID is: 0x18DB33F1, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
 	
 			obd_typ = OBD_TYPE_CAN1 ;
 			BKP_WriteBackupRegister(BKP_DR3, 3);//0x18DB33F1, save CAN ID index
 		}
 		else { //try CAD ID: 0x18DA10F1 again
-			can_send( can_snd_id[4], DAT_FRAME, 8, stream_support );//0x18DA10F1
+			can_send( can_snd_id[4], DAT_FRAME, 8, (u8 *)determine_pid );//0x18DA10F1
 			OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
-			if ( CAN_MessagePending(CAN1,CAN_FIFO0) ) { //have data, setting correct
-				debug_obd("CAN1,EXT_500 OK, ID is: 0x18DA10F1, FIFO0: %d\r\n",CAN_MessagePending(CAN1,CAN_FIFO0));
+			if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
+				debug_obd("CAN1,EXT_500 OK, ID is: 0x18DA10F1, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
 	
 				obd_typ = OBD_TYPE_CAN1 ;
 				BKP_WriteBackupRegister(BKP_DR3, 4);//0x18DA10F1, save CAN ID index
@@ -489,8 +587,19 @@ static void auto_detect_obd( void )
 	
 			return ;
 		}
-		else {//report this err to server
+		else {//report this err to server, RCV ID err
 			
+			CAN_Receive(CAN1,CAN_FIFO1, &can_rx_msg);
+			
+			if (can_rx_msg.IDE == CAN_ID_STD) { //unknow CAN STD ID, report to server
+				can_id = can_rx_msg.StdId ;
+			}
+			else { //unknow CAN EXT ID, report to server
+				can_id = can_rx_msg.ExtId ;
+			}
+			obd_report_unknow_canid( can_id );
+			debug_obd("Unknow CAN ID: %X FIFO:%d\r\n",can_id,(CAN1->RF1R)&0x03);
+
 			//report CAN speed and unknow CAN_ID to cloud server
 			for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
 				if ( !my_icar.warn[var_uchar].msg ) { //empty msg	

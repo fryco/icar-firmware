@@ -41,7 +41,7 @@ void  app_task_gsm (void *p_arg)
 	my_icar.mg323.need_dial = false ;
 	my_icar.mg323.voice_confirm = true ;
 
-	memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
+	memset(my_icar.mg323.ip_local, 0x0, IP_LEN);
 
 	uart2_init( );
 
@@ -627,7 +627,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 			case 0x31://1：连接状态，服务已经打开，Internet 连接已经初始化
 				i = 0 ;//222.222.222.222
-				memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
+				memset(my_icar.mg323.ip_local, 0x0, IP_LEN);
 				while ( (buf[i+14] != 0x22) && i < 15) { //"
 					my_icar.mg323.ip_local[i] = buf[i+14];
 					i++ ;
@@ -637,7 +637,7 @@ static unsigned char gsm_string_decode( unsigned char *buf , unsigned int *timer
 
 			case 0x32://2：Up 状态，Internet 连接已经建立，正使用一种或多种服务
 				i = 0 ;//222.222.222.222
-				memset(my_icar.mg323.ip_local, 0x0, IP_LEN-1);
+				memset(my_icar.mg323.ip_local, 0x0, IP_LEN);
 				while ( (buf[i+14] != 0x22) && i < 15) { //"
 					my_icar.mg323.ip_local[i] = buf[i+14];
 					i++ ;
