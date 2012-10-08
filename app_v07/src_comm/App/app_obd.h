@@ -23,6 +23,12 @@
 
 #define	prompt(x, args...)	printf("[%d,%02d%%]> ",OSTime/100,OSCPUUsage);printf(x,	##args);
 
+#define	OBD_SUPPORT_PID_CNT		16
+#define	OBD_BUF_SIZE			128
+
+#define STD_RCV_CAN_ID			0x07E8 		//0x07E8
+#define EXT_RCV_CAN_ID			0x18DAF110	//0x18DAF111 ?
+
 //BKP_DR2, OBD Flag:	15~12:KWP_TYPEDEF
 //						11~8:CAN2_TYPEDEF
 //						7~4: CAN1_TYPEDEF
@@ -94,12 +100,16 @@ typedef enum
 typedef enum 
 {
 	NO_CMD		= 0 , //no command
-	SPEED		= 1   //engine speed
+	SUPPORT_PID	= 1 , //update support table
+	SPEED		= 2   //engine speed
 } obd_cmd_typedef;
 
 struct OBD_DAT {
 	u8 can_tx_cnt;//can tx count
 	obd_cmd_typedef cmd;
+	u8 rx_buf[OBD_BUF_SIZE];
+	u8 support_pid[OBD_SUPPORT_PID_CNT];
+	bool update_support_table;
 };
 
 

@@ -390,10 +390,18 @@ void  app_task_manager (void *p_arg)
 
 
 		//For OBD CMD
-		if ( (OSTime/100)%3 == 0 ) {
-
-			my_icar.obd.cmd = SPEED ;
-			OSSemPost( sem_obd );
+		if ( obd_read_canid_idx ) {//have can id index
+			
+			if ( (OSTime/100)%3 == 0 ) {
+	
+				my_icar.obd.cmd = SPEED ;
+				OSSemPost( sem_obd );
+			}
+		}
+		else { //no can id index
+			if ( (OSTime/100)%15 == 0 ) {
+				OSSemPost( sem_obd );//retry detect every 15s
+			}
 		}
 		/* Insert delay, IWDG set to 2 second
 		App_taskmanger: longest time, but highest priority 
@@ -1556,7 +1564,7 @@ static unsigned char gsm_send_sn( unsigned char *sequence, unsigned char queue_c
 				
 				//Local IP
 				strncpy((char *)&c2s_data.tx_sn[23], \
-						(char *)my_icar.mg323.ip_local, IP_LEN-1);
+						(char *)my_icar.mg323.ip_local, IP_LEN);
 
 				//prompt("SN CMD: %02X ",c2s_data.tx_sn[0]);
 				chkbyte = GSM_HEAD ;
