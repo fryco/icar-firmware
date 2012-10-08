@@ -22,8 +22,6 @@ const unsigned int can_snd_id[] = {\
 0x18DA10F1\
 };
 
-//Request Supported PIDs from Vehicle, check sae j1979 2002.pdf page 26
-const u8 determine_pid[]="\x02\x01\x00\x00\x00\x00\x00\x00";
 
 static void obd_report_unknow_canid( u32 );
 static void obd_auto_detect( void );
@@ -33,7 +31,9 @@ static void obd_auto_detect( void );
 void  app_task_obd (void *p_arg)
 {
 	u8 var_uchar;
-	//u8 stream_test[]="\x02\x01\x00\x00\x00\x00\x00\x00";//Will be add zero in send function
+	//Request Supported PIDs from Vehicle, check sae j1979 2002.pdf page 26
+	u8 determine_pid[]="\x02\x01\x00\x00\x00\x00\x00\x00";
+
 	u16 can_id_idx = 0;
 	u32 can_id ;
 	CanRxMsg can_rx_msg;
@@ -167,7 +167,7 @@ void  app_task_obd (void *p_arg)
 			if ( my_icar.obd.can_tx_cnt ) { 
 
 				//send CAD ID: 0x18DB33F1
-				can_send( can_snd_id[can_id_idx], DAT_FRAME, 8, (u8 *)determine_pid );
+				can_send( can_snd_id[can_id_idx], DAT_FRAME, 8, determine_pid );
 
 				//CAN_Transmit(CAN1, &TxMessage);
 				my_icar.obd.can_tx_cnt--;
@@ -204,7 +204,7 @@ void  app_task_obd (void *p_arg)
 
 				debug_obd("CMD is get engine speed\r\n");
 				my_icar.obd.cmd = NO_CMD ;
-				can_send( can_snd_id[can_id_idx], DAT_FRAME, 8, (u8 *)determine_pid );
+				can_send( can_snd_id[can_id_idx], DAT_FRAME, 8, determine_pid );
 		
 				break;
 				
@@ -355,7 +355,8 @@ static void obd_report_unknow_canid( u32 id )
 static void obd_auto_detect( void )
 {
 	//Request Supported PIDs from Vehicle, check sae j1979 2002.pdf page 26
-	//u8 determine_pid[]="\x02\x01\x00\x00\x00\x00\x00\x00"; //Will be add zero in send function
+	u8 determine_pid[]="\x02\x01\x00\x00\x00\x00\x00\x00";
+
 	u8 obd_typ = 0 , var_uchar;
 	u32 can_id ;
 	
@@ -385,7 +386,7 @@ static void obd_auto_detect( void )
 	can_rec_all_id( true ); //save to fifo1
 
 	//send CAD ID: 0x07DF
-	can_send( can_snd_id[1], DAT_FRAME, 8, (u8 *)determine_pid );
+	can_send( can_snd_id[1], DAT_FRAME, 8, determine_pid );
 	OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
 	if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
 		debug_obd("CAN1,STD_250 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
@@ -394,7 +395,7 @@ static void obd_auto_detect( void )
 		BKP_WriteBackupRegister(BKP_DR3, 1);//0x07DF,save CAN ID index
 	}
 	else { //try CAD ID: 0x07E0 again
-		can_send( can_snd_id[2], DAT_FRAME, 8, (u8 *)determine_pid );
+		can_send( can_snd_id[2], DAT_FRAME, 8, determine_pid );
 		OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
 		if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
 			debug_obd("CAN1,STD_250 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
@@ -433,7 +434,7 @@ static void obd_auto_detect( void )
 		can_rec_all_id( true ); //save to fifo1
 
 		//send CAD ID: 0x18DB33F1
-		can_send( can_snd_id[3], DAT_FRAME, 8, (u8 *)determine_pid );//0x18DB33F1
+		can_send( can_snd_id[3], DAT_FRAME, 8, determine_pid );//0x18DB33F1
 		OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
 		if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
 			debug_obd("CAN1,EXT_250 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
@@ -442,7 +443,7 @@ static void obd_auto_detect( void )
 			BKP_WriteBackupRegister(BKP_DR3, 3);//0x18DB33F1, save CAN ID index
 		}
 		else { //try CAD ID: 0x18DA10F1 again
-			can_send( can_snd_id[4], DAT_FRAME, 8, (u8 *)determine_pid );//0x18DA10F1
+			can_send( can_snd_id[4], DAT_FRAME, 8, determine_pid );//0x18DA10F1
 			OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
 			if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
 				debug_obd("CAN1,EXT_250 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
@@ -511,7 +512,7 @@ static void obd_auto_detect( void )
 	can_rec_all_id( true ); //save to fifo1
 
 	//send CAD ID: 0x07DF
-	can_send( can_snd_id[1], DAT_FRAME, 8, (u8 *)determine_pid );
+	can_send( can_snd_id[1], DAT_FRAME, 8, determine_pid );
 	OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
 	if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
 		debug_obd("CAN1,STD_500 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
@@ -520,7 +521,7 @@ static void obd_auto_detect( void )
 		BKP_WriteBackupRegister(BKP_DR3, 1);//0x07DF,save CAN ID index
 	}
 	else { //try CAD ID: 0x07E0 again
-		can_send( can_snd_id[2], DAT_FRAME, 8, (u8 *)determine_pid );
+		can_send( can_snd_id[2], DAT_FRAME, 8, determine_pid );
 		OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
 		if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
 			debug_obd("CAN1,STD_500 OK, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
@@ -559,7 +560,7 @@ static void obd_auto_detect( void )
 		can_rec_all_id( true ); //save to fifo1
 
 		//send CAD ID: 0x18DB33F1
-		can_send( can_snd_id[3], DAT_FRAME, 8, (u8 *)determine_pid );//0x18DB33F1
+		can_send( can_snd_id[3], DAT_FRAME, 8, determine_pid );//0x18DB33F1
 		OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
 		if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
 			debug_obd("CAN1,EXT_500 OK, ID is: 0x18DB33F1, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
@@ -568,7 +569,7 @@ static void obd_auto_detect( void )
 			BKP_WriteBackupRegister(BKP_DR3, 3);//0x18DB33F1, save CAN ID index
 		}
 		else { //try CAD ID: 0x18DA10F1 again
-			can_send( can_snd_id[4], DAT_FRAME, 8, (u8 *)determine_pid );//0x18DA10F1
+			can_send( can_snd_id[4], DAT_FRAME, 8, determine_pid );//0x18DA10F1
 			OSTimeDlyHMSM(0, 0,	0, 50);	//wait 50 ms
 			if ( (CAN1->RF0R)&0x03 ) { //have data, setting correct
 				debug_obd("CAN1,EXT_500 OK, ID is: 0x18DA10F1, FIFO0: %d\r\n",(CAN1->RF0R)&0x03);
