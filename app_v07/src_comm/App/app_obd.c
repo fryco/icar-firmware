@@ -2,7 +2,8 @@
 
 extern struct ICAR_DEVICE my_icar;
 
-extern OS_EVENT 	*sem_obd	;
+extern OS_EVENT 	*sem_obd_task	;
+extern OS_EVENT 	*sem_obd_fifo	;
 
 //warn code define, internal use only, < 255
 #define	UNK_CAN_STDID			5	//unknow CAN STD ID
@@ -14,14 +15,15 @@ extern OS_EVENT 	*sem_obd	;
 #define	ERR_CAN_SUP_PID 		50  //Error get CAN  support PID
 
 //RO-data, save in flash
-const unsigned int can_snd_id[] = {\
-0x0,\
-0x07DF,\
-0x07E0,\
-0x18DB33F1,\
-0x18DA10F1\
+const unsigned int can_snd_id[] = {
+0x0,
+0x07DF,
+0x07E0,
+0x18DB33F1,
+0x18DA10F1
 };
 
+//Parameter ID, check http://en.wikipedia.org/wiki/OBD-II_PIDs
 
 static void obd_report_unknow_canid( u32 );
 static void obd_auto_detect( void );
@@ -44,7 +46,7 @@ void  app_task_obd (void *p_arg)
 
 //can_enquire_determine_pid( );
 
-	OSSemPend(sem_obd, 0, &os_err);//Wait task manger ask to start
+	OSSemPend(sem_obd_task, 0, &os_err);//Wait task manger ask to start
 
 	//BKP_DR2, OBD Flag:	15~12:KWP_TYPEDEF
 	//						11~8:CAN2_TYPEDEF
@@ -115,7 +117,7 @@ void  app_task_obd (void *p_arg)
 
 		debug_obd("BK2: %04X BK3: %04X\r\n",BKP_ReadBackupRegister(BKP_DR2),BKP_ReadBackupRegister(BKP_DR3));
 		debug_obd("can_id_idx = %d\r\n", can_id_idx);
-		OSSemPend(sem_obd, 0, &os_err);
+		OSSemPend(sem_obd_task, 0, &os_err);
 
 		debug_obd("CAN ID index ERR\r\n");
 		//Report err to server
@@ -151,6 +153,14 @@ void  app_task_obd (void *p_arg)
 		OSTimeDlyHMSM(0, 0,	30, 0);//wait 30s
 	}
 
+	for ( var_uchar = 0 ; var_uchar <= OBD_MAX_PID ; var_uchar++) {
+		if ( can_read_pid(var_uchar) ) {//read PID error
+			debug_obd("Read PID:%d ERR\r\n",var_uchar);
+		}
+		else {
+			debug_obd("Read PID:%d OK\r\n",var_uchar);
+		}
+	}
 	
 	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
 	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
@@ -160,7 +170,7 @@ void  app_task_obd (void *p_arg)
 
 	while ( 1 ) {
 		//debug_obd("OBD task Pend...\r\n");
-		OSSemPend(sem_obd, 0, &os_err);
+		OSSemPend(sem_obd_task, 0, &os_err);
 		if ( !os_err ) {
 
 			//CAN TX flag, for test only
@@ -176,7 +186,7 @@ void  app_task_obd (void *p_arg)
 			//execute CMD from app_taskmanager
 			switch ( my_icar.obd.cmd ) {
 
-			case SUPPORT_PID ://update support table
+			case READ_PID ://update support table
 
 				debug_obd("CMD is get ECU support pid\r\n");
 				my_icar.obd.cmd = NO_CMD ;
@@ -246,7 +256,7 @@ void  app_task_obd (void *p_arg)
 					CAN_ITConfig(CAN1,CAN_IT_FMP0, ENABLE);//enable FIFO0 FMP int
 				}
 				else { //still has data
-					OSSemPost( sem_obd );//2012/9/26 14:55:33 verify
+					OSSemPost( sem_obd_task );//2012/9/26 14:55:33 verify
 				}
 			}
 
@@ -269,7 +279,7 @@ void  app_task_obd (void *p_arg)
 					CAN_ITConfig(CAN1,CAN_IT_FMP1, ENABLE);//enable FIFO1 FMP int
 				}
 				else { //still has data
-					OSSemPost( sem_obd );//no verify
+					OSSemPost( sem_obd_task );//no verify
 				}
 			}			
 		}
@@ -620,4 +630,27 @@ static void obd_auto_detect( void )
 			return ;		
 		}
 	}
+}
+
+bool obd_check_support_pid( u16 id )
+{
+	int bytepos;              
+	int bitpos;               
+
+	if( (id < OBD_MIN_PID) || (id > OBD_MAX_PID )){
+
+		return false;
+	}
+
+	if ( !(id%0x20)) {//0x20,0x40,0x60,0x80: PIDs supported list
+		return false;
+	}
+	
+	id--;
+
+	bytepos=id/8;
+	bitpos=id%8;
+
+	//bit7 ~ bit 0 代表 数据流ID 1~8 
+	return 0 != (my_icar.obd.support_pid[bytepos] & (0x80>>bitpos));
 }

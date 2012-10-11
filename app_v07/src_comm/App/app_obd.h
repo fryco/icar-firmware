@@ -23,11 +23,19 @@
 
 #define	prompt(x, args...)	printf("[%d,%02d%%]> ",OSTime/100,OSCPUUsage);printf(x,	##args);
 
+#define STD_RCV_CAN_ID			0x07E8 		//0x07E8
+#define EXT_RCV_CAN_ID			0x18DAF110	//0x18DAF111 ?
+
+#define OBD_MIN_PID 			1
+#define OBD_MAX_PID		 		112
 #define	OBD_SUPPORT_PID_CNT		16
 #define	OBD_BUF_SIZE			128
 
-#define STD_RCV_CAN_ID			0x07E8 		//0x07E8
-#define EXT_RCV_CAN_ID			0x18DAF110	//0x18DAF111 ?
+//OBD error code define
+#define OBD_ERR_NONE 			0	//OK, no err
+#define OBD_ERR_UNSUPPORT_PID 	1	//unsupport PID
+#define OBD_ERR_REC_DAT_TIMEOUT	2	//Receive data timeout
+#define OBD_ERR_REC_UNKNOW_DAT	3	//Receive unknow data
 
 //BKP_DR2, OBD Flag:	15~12:KWP_TYPEDEF
 //						11~8:CAN2_TYPEDEF
@@ -100,7 +108,7 @@ typedef enum
 typedef enum 
 {
 	NO_CMD		= 0 , //no command
-	SUPPORT_PID	= 1 , //update support table
+	READ_PID	= 1 , //read Parameter ID
 	SPEED		= 2   //engine speed
 } obd_cmd_typedef;
 
@@ -118,5 +126,5 @@ struct OBD_DAT {
 /* Exported functions ------------------------------------------------------- */
 
 void  app_task_obd (void *p_arg);
-
+bool obd_check_support_pid( u16 );
 #endif /* __APP_OBD_H */

@@ -6,13 +6,16 @@ extern const unsigned int can_snd_id[];
 
 extern u8 obd_support_pid[OBD_SUPPORT_PID_CNT];
 
-extern OS_EVENT 	*sem_obd	;
+extern OS_EVENT 	*sem_obd_fifo	;
+//extern OS_EVENT 	*sem_obd_task	;
 
 //warn code define, internal use only
 #define	FIFO0_OF			10	//FIFO0 over flow
 #define	FIFO1_OF			20	//FIFO0 over flow
 #define	ENQUIRE_PID_SEM		30	//enquire can support PID error, OSSem
 #define	ENQUIRE_PID_DAT		40	//enquire can support PID error, no rec data
+#define	READ_PID_SEM 		50 	//Read can PID error
+#define	READ_DAT_TIMEOUT	60 	//Read can dat timeout
 
 /********************************************************************************
 * CAN1 Transmit mailbox empty Interrupt function
@@ -51,11 +54,10 @@ void USB_LP_CAN1_RX0_IRQHandler(void) //for know CAN ID
 	else { //receive a data from FIFO0
 		//不应在此次接收FIFO，因为有3个buffer可用，
 		//改在任务里接收，可充分利用buffer
-		//rx_msg_cnt0++;
 		CAN_ITConfig(CAN1,CAN_IT_FMP0, DISABLE);//disable FIFO0 FMP int
 
 		//Send semaphore: 在任务中接收FIFO
-		OSIntEnter(); OSSemPost( sem_obd ); OSIntExit();
+		OSIntEnter(); OSSemPost( sem_obd_fifo ); OSIntExit();
 		//CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 		//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
 	}
@@ -88,11 +90,10 @@ void CAN1_RX1_IRQHandler(void) //for unknow CAN ID
 	else { //receive a data from FIFO0
 		//不应在此次接收FIFO，因为有3个buffer可用，
 		//改在任务里接收，可充分利用buffer
-		//rx_msg_cnt0++;
 		CAN_ITConfig(CAN1,CAN_IT_FMP1, DISABLE);//disable FIFO1 FMP int
 
 		//Send semaphore: 在任务中接收FIFO
-		OSIntEnter(); OSSemPost( sem_obd ); OSIntExit();
+		OSIntEnter(); OSSemPost( sem_obd_fifo ); OSIntExit();
 		//CAN_Receive(CAN1,CAN_FIFO0, &RxMessage);
 		//CAN_ClearITPendingBit(CAN1, CAN_IT_FMP0);
 	}
@@ -307,35 +308,65 @@ bool can_send( u32 can_id, frame_typedef frame_typ, u8 dat_len, u8 * dat )
 
 bool can_receive( u8 * buffer, u16 bufsize, u16 * rec_len, u32 * rec_id )
 {
+	u8 var_uchar ;
+	CPU_INT08U	os_err;
 
-	u32 cur_time = OSTime ;
 	CanRxMsg can_rx_msg;
 	
 	if ( bufsize < 8 ) return false;
 		
-	while ( OSTime - my_icar.mg323.try_online_time < 3*OS_TICKS_PER_SEC ) {
-		if ( (CAN1->RF0R)&0x03 ) { //Rec ECU data 
-			debug_obd("CAN FIFO_0: %d\r\n", (CAN1->RF0R)&0x03);
-			
-			CAN_Receive(CAN1,CAN_FIFO0, &can_rx_msg);
+	OSSemPend(sem_obd_fifo, 3*OS_TICKS_PER_SEC, &os_err);//timeout: 3 seconds
 
-			*rec_len = can_rx_msg.Data[0]&0x0F ;
-			memcpy(buffer, &can_rx_msg.Data[1],*rec_len);
-			if (can_rx_msg.IDE == CAN_ID_STD) { //CAN STD ID
-				*rec_id = can_rx_msg.StdId;
+	if ( os_err ) { //error, maybe timeout
+		
+		debug_obd("OSSemPend err %d\r\n", os_err);
+		//report this error: 
+		for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
+			if ( !my_icar.warn[var_uchar].msg ) { //empty msg
+				//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
+				my_icar.warn[var_uchar].msg = (F_DRV_can) << 24 ;
+				my_icar.warn[var_uchar].msg |= READ_DAT_TIMEOUT << 16 ;//Read can data timeout
+				my_icar.warn[var_uchar].msg |= __LINE__ ;
+				var_uchar = MAX_WARN_MSG ;//end the loop
 			}
-			else { //CAN EXT ID
-				*rec_id = can_rx_msg.ExtId;
+		}
+
+		return false;
+	}
+	else { //receive data
+
+		if ( (CAN1->RF0R)&0x03 ) { //Rec ECU data
+			debug_obd("CAN FIFO_0: %d\r\n", (CAN1->RF0R)&0x03);
+				
+			CAN_Receive(CAN1,CAN_FIFO0, &can_rx_msg);
+				
+			if ( (can_rx_msg.Data[0]&0xf0) ){// >0x0F, err
+				debug_obd("Data too long!%s,%d\r\n",__FILE__,__LINE__);
+				return false;
 			}
-			
-			return true;
+			else { //data length ok
+				*rec_len = can_rx_msg.Data[0]&0x0F ;
+				memcpy(buffer, &can_rx_msg.Data[1],*rec_len);
+				if (can_rx_msg.IDE == CAN_ID_STD) { //CAN STD ID
+					*rec_id = can_rx_msg.StdId;
+				}
+				else { //CAN EXT ID
+					*rec_id = can_rx_msg.ExtId;
+				}
+				
+				if ( (CAN1->RF0R)&0x03 ) { //still have data in FIFO
+					debug_obd("Still have data in FIFO!%s,%d\r\n",__FILE__,__LINE__);
+					return false;
+				}
+					
+				return true;
+			}
 		}
 		else {
-			OSTimeDlyHMSM(0, 0, 0, 50);
+			debug_obd("Unknow data!%s,%d\r\n",__FILE__,__LINE__);
+			return false;
 		}
 	}
-	debug_obd("Timeout!%s,%d\r\n",__FILE__,__LINE__);
-	return false;
 }
 
 bool can_enquire_support_pid( void )
@@ -351,8 +382,9 @@ bool can_enquire_support_pid( void )
 
 	//Clean all FIFO_0	
 	while ( (CAN1->RF0R)&0x03 ) CAN1->RF0R |= CAN_RF0R_RFOM0;
-	//Clean all FIFO_1
-	while ( (CAN1->RF1R)&0x03 ) CAN1->RF1R |= CAN_RF1R_RFOM1;
+
+	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
+	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
 
 	
 	//Clean support table
@@ -387,6 +419,12 @@ bool can_enquire_support_pid( void )
 	}
 	
 	//Trying round 2
+	//Clean all FIFO_0	
+	while ( (CAN1->RF0R)&0x03 ) CAN1->RF0R |= CAN_RF0R_RFOM0;
+
+	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
+	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
+
 	determine_pid[2]=0x20;
 	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, determine_pid );
 
@@ -417,6 +455,12 @@ bool can_enquire_support_pid( void )
 
 
 	//Trying round 3
+	//Clean all FIFO_0	
+	while ( (CAN1->RF0R)&0x03 ) CAN1->RF0R |= CAN_RF0R_RFOM0;
+
+	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
+	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
+
 	determine_pid[2]=0x40;
 	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, determine_pid );
 
@@ -446,6 +490,12 @@ bool can_enquire_support_pid( void )
 	}
 
 	//Trying round 4
+	//Clean all FIFO_0	
+	while ( (CAN1->RF0R)&0x03 ) CAN1->RF0R |= CAN_RF0R_RFOM0;
+
+	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
+	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
+
 	determine_pid[2]=0x60;
 	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, determine_pid );
 
@@ -574,4 +624,40 @@ bool can_enquire_support_pid( void )
 		}
 	}
 	*/
+}
+
+
+u8 can_read_pid( u8 id )
+{
+
+	u8 var_uchar;
+	u8 read_pid[]="\x02\x01\x00\x00\x00\x00\x00\x00";
+	u16 rec_len;
+	u32 can_id ;
+	
+	if ( !obd_check_support_pid( id ) ) return OBD_ERR_UNSUPPORT_PID;
+	
+	//Clean all FIFO_0	
+	while ( (CAN1->RF0R)&0x03 ) CAN1->RF0R |= CAN_RF0R_RFOM0;
+
+	/* Enable Interrupt for receive FIFO 0 and FIFO overflow */
+	CAN_ITConfig(CAN1,CAN_IT_FMP0 | CAN_IT_FOV0, ENABLE);
+
+	read_pid[2]= id;
+	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, read_pid );
+	
+	if ( can_receive( my_icar.obd.rx_buf, OBD_BUF_SIZE, &rec_len, &can_id) ) {//Rec Data
+		
+		debug_obd("Rec %d:",rec_len);
+		for ( var_uchar = 0 ; var_uchar < rec_len ; var_uchar++ ) {
+			printf(" %02X",my_icar.obd.rx_buf[var_uchar]);
+		}
+		printf(", from ID:%08X\r\n", can_id);
+		return OBD_ERR_NONE;
+	}
+	else { 
+		
+		return OBD_ERR_REC_DAT_TIMEOUT;
+	}
+
 }
