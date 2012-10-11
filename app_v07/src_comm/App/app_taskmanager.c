@@ -9,7 +9,8 @@ unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";//Don't 
 static	OS_STK		app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
 static	OS_STK		app_task_obd_stk[APP_TASK_OBD_STK_SIZE];
 
-OS_EVENT 	*sem_obd	;//for develop CAN
+OS_EVENT 	*sem_obd_task	;//for develop CAN
+OS_EVENT 	*sem_obd_fifo	;//for develop CAN
 
 static void calc_sn( void );
 static void show_sys_info( void );
@@ -201,7 +202,8 @@ void  app_task_manager (void *p_arg)
 #endif
 
 	//Init SEMAPHORES
-	sem_obd = OSSemCreate(0);
+	sem_obd_task = OSSemCreate(0);
+	sem_obd_fifo = OSSemCreate(0);
 
 	//Suspend GSM task for develop CAN
 	os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
@@ -215,7 +217,7 @@ void  app_task_manager (void *p_arg)
 		iwdg_init( );
 	#endif
 
-	OSSemPost( sem_obd );//Ask obd task to start
+	OSSemPost( sem_obd_task );//Ask obd task to start
 	
 	while	(1)
 	{
@@ -395,12 +397,12 @@ void  app_task_manager (void *p_arg)
 			if ( (OSTime/100)%3 == 0 ) {
 	
 				my_icar.obd.cmd = SPEED ;
-				OSSemPost( sem_obd );
+				OSSemPost( sem_obd_task );
 			}
 		}
 		else { //no can id index
 			if ( (OSTime/100)%15 == 0 ) {
-				OSSemPost( sem_obd );//retry detect every 15s
+				OSSemPost( sem_obd_task );//retry detect every 15s
 			}
 		}
 		/* Insert delay, IWDG set to 2 second
@@ -1607,7 +1609,7 @@ void console_cmd( unsigned char cmd, unsigned char *flag )
 	case 'c' ://OBD CAN TX test
 		prompt("CAN TX...\r\n");
 		my_icar.obd.can_tx_cnt++;
-		OSSemPost( sem_obd );
+		OSSemPost( sem_obd_task );
 		break;
 
 	case 'C' ://Clear OBD type
