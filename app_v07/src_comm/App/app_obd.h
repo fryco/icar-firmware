@@ -31,6 +31,9 @@
 #define	OBD_SUPPORT_PID_CNT		16
 #define	OBD_BUF_SIZE			128
 
+//popular PID:
+#define	OBD_PID_ENGINE_RPM		0x0C		//0 ~ 16,383.75,rpm,((A*256)+B)/4
+
 //OBD error code define
 #define OBD_ERR_NONE 			0	//OK, no err
 #define OBD_ERR_UNSUPPORT_PID 	1	//unsupport PID
@@ -117,6 +120,7 @@ struct OBD_DAT {
 	obd_cmd_typedef cmd;
 	u8 rx_buf[OBD_BUF_SIZE];
 	u8 support_pid[OBD_SUPPORT_PID_CNT];
+	u8 pid;
 	bool update_support_table;
 };
 

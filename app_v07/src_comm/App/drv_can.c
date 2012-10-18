@@ -253,7 +253,8 @@ void can_init( can_speed_typedef can_spd,  can_std_typedef can_typ )
 
 bool can_send( u32 can_id, frame_typedef frame_typ, u8 dat_len, u8 * dat )
 {
-	u8 i , var_uchar ;
+	u8 i ;
+	u8 var_uchar ;
 	CanTxMsg can_tx_msg;
 
 	if ( can_id > 0x7FF ) {//CAN EXT
@@ -294,15 +295,17 @@ bool can_send( u32 can_id, frame_typedef frame_typ, u8 dat_len, u8 * dat )
 		}
 		else {//end this loop
 			i = 0 ;
+			/*
 			debug_obd("CAN send:");
 			for ( var_uchar = 0 ; var_uchar < dat_len ; var_uchar++ ) {
 				printf(" %02X", can_tx_msg.Data[var_uchar]);
 			}
 			printf(" to %X OK\r\n", can_id);
+			*/
 			return true;
 		}
 	}
-	debug_obd("CAN send to %X ERR\r\n", can_id);
+	debug_obd("CAN send to %X ERR. %s:%d\r\n", can_id,__FILE__,__LINE__);
 	return false;
 }
 
@@ -334,9 +337,9 @@ bool can_receive( u8 * buffer, u16 bufsize, u16 * rec_len, u32 * rec_id )
 		return false;
 	}
 	else { //receive data
-
+		OSTimeDlyHMSM(0, 0,	0, 10);
 		if ( (CAN1->RF0R)&0x03 ) { //Rec ECU data
-			debug_obd("CAN FIFO_0: %d\r\n", (CAN1->RF0R)&0x03);
+			//debug_obd("CAN FIFO_0: %d\r\n", (CAN1->RF0R)&0x03);
 				
 			CAN_Receive(CAN1,CAN_FIFO0, &can_rx_msg);
 				
@@ -363,6 +366,8 @@ bool can_receive( u8 * buffer, u16 bufsize, u16 * rec_len, u32 * rec_id )
 			}
 		}
 		else {
+			debug_obd("CAN FIFO_0: %d\r\n", (CAN1->RF0R)&0x03);
+			debug_obd("CAN FIFO_1: %d\r\n", (CAN1->RF1R)&0x03);
 			debug_obd("Unknow data!%s,%d\r\n",__FILE__,__LINE__);
 			return false;
 		}
@@ -647,17 +652,17 @@ u8 can_read_pid( u8 id )
 	can_send( can_snd_id[obd_read_canid_idx], DAT_FRAME, 8, read_pid );
 	
 	if ( can_receive( my_icar.obd.rx_buf, OBD_BUF_SIZE, &rec_len, &can_id) ) {//Rec Data
-		
+		/*		
 		debug_obd("Rec %d:",rec_len);
 		for ( var_uchar = 0 ; var_uchar < rec_len ; var_uchar++ ) {
 			printf(" %02X",my_icar.obd.rx_buf[var_uchar]);
 		}
 		printf(", from ID:%08X\r\n", can_id);
+		*/
 		return OBD_ERR_NONE;
 	}
 	else { 
 		
 		return OBD_ERR_REC_DAT_TIMEOUT;
 	}
-
 }

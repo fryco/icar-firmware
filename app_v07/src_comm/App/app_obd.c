@@ -188,25 +188,30 @@ void  app_task_obd (void *p_arg)
 
 			case READ_PID ://update support table
 
-				debug_obd("CMD is get ECU support pid\r\n");
+				debug_obd("CMD is Read ECU pid:%d\r\n",my_icar.obd.pid);
 				my_icar.obd.cmd = NO_CMD ;
-				if ( !can_enquire_support_pid( ) ) { //update support table ERR
-			
-					debug_obd("Get CAN PID Err\r\n");
-					my_icar.obd.update_support_table = false ;
-					//Report err to server
-					for ( var_uchar = 0 ; var_uchar < MAX_WARN_MSG ; var_uchar++) {
-						if ( !my_icar.warn[var_uchar].msg ) { //empty msg	
-							//unsigned int msg;//file name(1 Byte), msg(1 Byte), line(2 B)
-							my_icar.warn[var_uchar].msg = (F_APP_OBD) << 24 ;
-							my_icar.warn[var_uchar].msg |= ERR_CAN_SUP_PID << 16 ;//Error get CAN  support PID
-							my_icar.warn[var_uchar].msg |= __LINE__ ;
-							var_uchar = MAX_WARN_MSG ;//end the loop
-						}
-					}
+				var_uchar = can_read_pid( my_icar.obd.pid );//result in my_icar.obd.rx_buf
+				if ( var_uchar ) {//read PID error
+					debug_obd("Read PID err: %d\r\n", var_uchar);
 				}
-				else {
-					my_icar.obd.update_support_table = true ;
+				else {//get ECU data
+					//debug_obd("Read PID OK: %d\r\n", var_uchar);
+					switch ( my_icar.obd.pid ) {
+
+					case OBD_PID_ENGINE_RPM:
+						debug_obd("Read RPM OK.\r\n");
+						debug_obd("Rec %d:",rec_len);
+						for ( var_uchar = 0 ; var_uchar < rec_len ; var_uchar++ ) {
+							printf(" %02X",my_icar.obd.rx_buf[var_uchar]);
+						}
+						printf(", from ID:%08X\r\n", can_id);
+
+						break;
+
+					default://maybe error
+						debug_obd("PID err:%d\r\n",my_icar.obd.pid);
+						break;
+					}
 				}
 				break;
 

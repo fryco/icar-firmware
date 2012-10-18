@@ -396,7 +396,8 @@ void  app_task_manager (void *p_arg)
 			
 			if ( (OSTime/100)%3 == 0 ) {
 	
-				my_icar.obd.cmd = SPEED ;
+				my_icar.obd.cmd = READ_PID ;
+				my_icar.obd.pid = OBD_PID_ENGINE_RPM;
 				OSSemPost( sem_obd_task );
 			}
 		}
