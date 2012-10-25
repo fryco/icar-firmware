@@ -1,28 +1,37 @@
-//$URL: https://icar-firmware.googlecode.com/svn/ubuntu/iCar_v03/tcp_server.c $ 
+//$URL: https://icar-firmware.googlecode.com/svn/ubuntu/iCar_v03/tcp_server.c $
 //$Rev: 99 $, $Date: 2012-02-29 09:32:56 +0800 (Wed, 29 Feb 2012) $
 
-#include <stdio.h>  
-#include <stdlib.h>  
-#include <string.h>  
-#include <sys/types.h>  
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <syslog.h>
-#include <unistd.h>  
-#include <signal.h>  
-#include <time.h> 
+#include <unistd.h>
+#include <signal.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
 
+//#define DEBUG_SMTP
+
 #include "database.h"
 #include "commands.h"
+#include "smtp.h"
 #include "misc.h"
 
-#define BACKLOG 5        //Maximum queue of pending connections  
+#define BACKLOG 5        //Maximum queue of pending connections
 
-#define iCar_RELEASE "\niCar server v03, built by cn0086@139.com at " __DATE__" "__TIME__ "\n" 
+#define iCar_RELEASE "\niCar server v03, built by cn0086@139.com at " __DATE__" "__TIME__ "\n"
+
+#define PERIOD_CHECK_DB		3*60	//check database every 3*60 seconds
+#define PERIOD_SEND_MAIL	30*60	//send mail every 1*60*60 seconds
+
+static time_t last_time;
 
 /* Flag indicating whether debug mode is on.  */
 int debug_flag = 0;
@@ -35,22 +44,49 @@ unsigned char icar_db_name[]="icar_v03";
 unsigned char  *cloud_host="cn0086.info";
 unsigned char  *log_host="127.0.0.1";
 
+unsigned char  *mail_notice="adscrz@gmail.com";
+unsigned char  *mail_emergency="cn0086@139.com";
+
 static int sock_server = -1;
 
-void sig_proccess_server(int signo)  
-{  
+void sig_proccess_server(int signo)
+{
 	close(sock_server);
-	fprintf(stderr, "\nClose socket and exit.\n");  
-	exit(1);  
-}  
+	fprintf(stderr, "\nClose socket and exit.\n");
+	exit(1);
+}
 
-void child_exit(int num) 
+void child_exit(int num)
 {
 	//Received SIGCHLD signal
 	int status;
 	int pid = waitpid(-1, &status, WNOHANG);
 	if (WIFEXITED(status)) {
 		;//fprintf(stderr, "The child %d exit with code %d\n", pid, WEXITSTATUS(status));
+	}
+}
+
+// 定时检查服务器并发邮件
+void period_check(  )
+{
+	time_t now_time=time(NULL);
+	char mail_buf[BUFSIZE], err;
+	
+	fprintf(stderr, "\r\n--> %.24s\r\n",(char *)ctime(&now_time));
+
+	if ( now_time - last_time > PERIOD_SEND_MAIL ) {
+		memset(mail_buf, '\0', BUFSIZE);
+		snprintf(mail_buf,BUFSIZE,"DAEMON CHK %.24s\r\n",(char *)ctime((&now_time)));
+	
+		err = smtp_send("smtp.139.com", 25, mail_notice, mail_buf, "\r\n");
+		if ( err ) {
+			fprintf(stderr,"Send mail failure: %d\r\n",err);
+			//exit(1);
+		}
+		else {
+			fprintf(stderr,"Send mail ok.\r\n");
+			last_time = now_time;
+		}
 	}
 }
 
@@ -67,13 +103,13 @@ static void usage(void)
 
 
 void process_conn_server(struct icar_data *mycar)
-{  
+{
 	ssize_t size = 0;
 	unsigned char recv_buf[BUFSIZE];
 	unsigned char send_buf[BUFSIZE];
 	unsigned int buf_index ;
 	unsigned int chk_count ;
-	time_t ticks=time(NULL); 
+	time_t ticks=time(NULL);
 	struct tm *tblock;
 	int cmd_err_cnt = 0 ;//command error count
 	struct icar_command cmd ;
@@ -101,9 +137,9 @@ void process_conn_server(struct icar_data *mycar)
 		return ;
 	}
 
-		//while ( 1 ) 
+		//while ( 1 )
 		{//for test only, send current time continue
-			memset(send_buf, '\0', BUFSIZE);  
+			memset(send_buf, '\0', BUFSIZE);
 			snprintf(send_buf,100,"%.24s Welcome to CQT server\r\n",(char *)ctime(&ticks));
 			write(mycar->client_socket,send_buf,strlen(send_buf));
 		}
@@ -115,7 +151,7 @@ void process_conn_server(struct icar_data *mycar)
 
 		//以下基于假设：每次读取1个或更多包，不会收到不完整包
 		//HEAD+SEQ+PCB+Length, please refer to: iCar protocol_通讯协议
-		size = read(mycar->client_socket, recv_buf, BUFSIZE); 
+		size = read(mycar->client_socket, recv_buf, BUFSIZE);
 		if (size == 0 || size > BUFSIZE) { //no data or overflow
 			return;
 		}
@@ -139,7 +175,7 @@ void process_conn_server(struct icar_data *mycar)
 //				if ( (buf_index + cmd.len) > (size-6) ) {
 				if ( (buf_index + cmd.len) > (size-6) \
 					|| cmd.chk != recv_buf[buf_index+cmd.len+5] ) { //illegal package
-						
+
 					fprintf(stderr, "\r\nErr package: ");
 					for ( chk_count = 0 ; chk_count < cmd.len+6 ; chk_count++) {
 						fprintf(stderr, "%02X ",recv_buf[buf_index+chk_count]);
@@ -147,10 +183,10 @@ void process_conn_server(struct icar_data *mycar)
 					fprintf(stderr, "\r\nCMD: %c\tLen= %d\tRec chk= 0x%02X\tCal chk= 0x%02X\r\n",\
 							recv_buf[2],cmd.len,recv_buf[buf_index+cmd.len+5],cmd.chk);
 					fprintf(stderr, "Check %s, line: %d\r\n",__FILE__, __LINE__);
-					
+
 					//report to cloud
 					cloud_pid = fork();
-					if (cloud_pid == 0) { //In child process	
+					if (cloud_pid == 0) { //In child process
 
 						memset(send_buf, '\0', BUFSIZE);
 						for ( var_u8 = 0 ; var_u8 < cmd.len + 5 ; var_u8++ ) {//move cmd to snd_buf
@@ -162,7 +198,7 @@ void process_conn_server(struct icar_data *mycar)
 								(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 								(char *)inet_ntoa(mycar->client_addr.sin_addr),\
 								recv_buf[2],send_buf,cmd.chk);
-		
+
 						cloud_post( cloud_host, &post_buf, 80 );
 						cloud_post( log_host, &post_buf, 86 );
 						exit( 0 );
@@ -193,7 +229,7 @@ void process_conn_server(struct icar_data *mycar)
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
-					
+
 					case 0x51://'Q' Quit
 						if ( debug_flag ) {
 							fprintf(stderr, "CMD is Quit, disconnect...\n");
@@ -215,7 +251,7 @@ void process_conn_server(struct icar_data *mycar)
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
-					
+
 					case GSM_CMD_TIME: //0x54, 'T', Get server Time
 						cmd_get_time( mycar,&cmd,\
 							&recv_buf[buf_index], send_buf );
@@ -248,7 +284,7 @@ void process_conn_server(struct icar_data *mycar)
 						cmd_err_cnt++;
 						break;
 					}//end of handle the input cmd
-					
+
 					if ( cmd_err_cnt > 3 ) {
 						goto exit_process_conn_server;
 					}
@@ -272,15 +308,18 @@ int main(int ac, char **av)
 	extern char *optarg;
 	extern int optind;
 	int opt, err;
-	
+
 	const char *remote_ip;
 	char *test_user = NULL, *test_host = NULL, *test_addr = NULL;
 	int remote_port;
-	int listen_port = 23;  
+	int listen_port = 23;
 	struct sockaddr_in server_addr;
 	int flag=1,flag_len=sizeof(int);
 	pid_t pid;
 	struct icar_data mycar ;
+
+	time_t ticks=time(NULL);
+	char mail_buf[BUFSIZE];
 
 	signal(SIGCHLD, child_exit);
 	signal(SIGINT, sig_proccess_server);
@@ -330,11 +369,12 @@ int main(int ac, char **av)
 		return -1;
 	}
 
-	sock_server = socket(AF_INET, SOCK_STREAM, 0);  
+
+	sock_server = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock_server < 0) {
 		syslog(LOG_ERR, "Socket error, check %s:%d",__FILE__, __LINE__);
 		fprintf(stderr, "Socket error, check %s:%d\n",__FILE__, __LINE__);
-		return -1;  
+		return -1;
 	}
 
 	//set server info
@@ -355,23 +395,48 @@ int main(int ac, char **av)
 										__FILE__, __LINE__);
 	}
 
-	err = bind(sock_server, (struct sockaddr *)&server_addr, sizeof(server_addr)); 
+
+	err = bind(sock_server, (struct sockaddr *)&server_addr, sizeof(server_addr));
 	if (err < 0) {
 		syslog(LOG_ERR, "bind error, check %s:%d",__FILE__, __LINE__);
 		fprintf(stderr, "bind port: %d error, please try other port.\n",listen_port);
-		return -1;  
+		return -1;
 	}
 
 	err = listen(sock_server, BACKLOG);
 	if (err < 0) {
 		syslog(LOG_ERR, "listen error, check %s:%d",__FILE__, __LINE__);
 		fprintf(stderr, "Listen error, check %s:%d\n",__FILE__, __LINE__);
-		return -1;  
+		return -1;
 	}
 
-	for ( ;; ) {
+	//Send email to notice server up
+	memset(mail_buf, '\0', BUFSIZE);
+	snprintf(mail_buf,BUFSIZE,"DAEMON %d up @ %.24s\r\n",listen_port,(char *)ctime((&ticks)));
+
+	err = smtp_send("smtp.139.com", 25, mail_notice, mail_buf, "\r\n");
+	if ( err ) {
+		fprintf(stderr,"Send mail failure: %d\r\n",err);
+		//exit(1);
+	}
+	else {
+		fprintf(stderr,"Send mail ok.\r\n");
+	}
+
+	//Create new process (non-block) for period_check
+	pid = fork();
+	if (pid == 0) { //In child process
+		fprintf(stderr, "In child:%d for period_check\n",getpid());
+		last_time=time(NULL);
+		while ( 1 ) {
+			sleep( PERIOD_CHECK_DB ) ;
+			period_check( );					
+		}
+	}
+
+	while ( 1 ) {
 		int addrlen = sizeof(struct sockaddr);
-		
+
 		//Accept new connection
 		mycar.client_socket = accept(sock_server, (struct sockaddr *)&mycar.client_addr, &addrlen);
 		if (mycar.client_socket < 0) {
