@@ -97,7 +97,7 @@ void get_sysinfo( char *buf, int buf_len )
         	user_cnt++;
         }
     }
-    sprintf(tmp,"%d user%s\n", user_cnt, (user_cnt != 1 ? "s" : ""));
+    sprintf(tmp,"%d user%s\n", user_cnt, (user_cnt > 1 ? "s" : ""));
 	strcat(buf, tmp);
 	endutent();
 		
@@ -177,7 +177,7 @@ unsigned char smtp_send(char *smtp_server, unsigned int smtp_port, char *mail_to
 	
 	//发送准备登陆信息
 	memset( send_buf, 0, BUFSIZE);
-	strcat(send_buf, "AUTH PLAIN ADEzODI4NDMxMTA2AG1vdG8zOTg=\r\n");
+	strcat(send_buf, "AUTH PLAIN ADEzODY5Njg5NDQwAHNtdHBAMTM5\r\n");
 	send(sockfd, send_buf, strlen(send_buf), 0);
 	debug_smtp(stderr,"--> %s",  send_buf);
 
@@ -185,9 +185,9 @@ unsigned char smtp_send(char *smtp_server, unsigned int smtp_port, char *mail_to
 	recv(sockfd, recv_buf,sizeof( recv_buf),0);
 	debug_smtp(stderr,"<-- %s\r\n",  recv_buf);
 
-	//MAIL FROM:<13828431106@139.com>
+	//MAIL FROM:<13869689440@139.com>
 	memset( send_buf, 0, BUFSIZE);
-	strcat(send_buf, "MAIL FROM:<13828431106@139.com>\r\n");
+	strcat(send_buf, "MAIL FROM:<13869689440@139.com>\r\n");
 	send(sockfd, send_buf, strlen(send_buf), 0);
 	debug_smtp(stderr,"--> %s",  send_buf);
 
@@ -195,7 +195,7 @@ unsigned char smtp_send(char *smtp_server, unsigned int smtp_port, char *mail_to
 	recv(sockfd, recv_buf,sizeof( recv_buf),0);
 	debug_smtp(stderr,"<-- %s\r\n",  recv_buf);
 
-	//RCPT TO:<13828431106@139.com>
+	//RCPT TO:<13869689440@139.com>
 	memset( send_buf, 0, BUFSIZE);
 	strcat(send_buf, "RCPT TO:<");
 	strcat(send_buf, mail_to);

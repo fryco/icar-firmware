@@ -29,7 +29,7 @@
 #define iCar_RELEASE "\niCar server v03, built by cn0086@139.com at " __DATE__" "__TIME__ "\n"
 
 #define PERIOD_CHECK_DB		3*60	//check database every 3*60 seconds
-#define PERIOD_SEND_MAIL	30*60	//send mail every 1*60*60 seconds
+#define PERIOD_SEND_MAIL	5*60*60	//send mail every 1*60*60 seconds
 
 static time_t last_time;
 
@@ -44,7 +44,7 @@ unsigned char icar_db_name[]="icar_v03";
 unsigned char  *cloud_host="cn0086.info";
 unsigned char  *log_host="127.0.0.1";
 
-unsigned char  *mail_notice="adscrz@gmail.com";
+unsigned char  *mail_notice="cn0086.info@gmail.com";
 unsigned char  *mail_emergency="cn0086@139.com";
 
 static int sock_server = -1;
