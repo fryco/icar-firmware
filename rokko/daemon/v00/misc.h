@@ -4,6 +4,7 @@
 /* misc.c */
 
 int	 a2port(const char *);
+void get_sysinfo( char *buf, int buf_len );
 
 #endif /* _MISC_H */
 

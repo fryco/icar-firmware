@@ -1,14 +1,16 @@
 /* misc.c */
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <limits.h>
+
+#include "config.h"
 #include "misc.h"
 
 #define INVALID 	1
 #define TOOSMALL 	2
 #define TOOLARGE 	3
+
+static const int FSHIFT = 16;           /* nr of bits of precision */
+#define FIXED_1         (1<<FSHIFT)     /* 1.0 as fixed-point */
+#define LOAD_INT(x) ((x) >> FSHIFT)
+#define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
 
 long long
 strtonum(const char *numstr, long long minval, long long maxval,
@@ -64,4 +66,88 @@ a2port(const char *s)
 	if (errstr != NULL)
 		return -1;
 	return (int)port;
+}
+
+void get_sysinfo( char *buf, int buf_len )
+{
+	/* 用于进制转换的常量。*/
+	const double megabyte = 1024 * 1024;
+	
+	char tmp[BUFSIZE] ;
+	int user_cnt = 0;
+	struct utmp* entry;
+ 
+	int updays, uphours, upminutes;
+	struct sysinfo info;
+	struct tm *current_time;
+	time_t current_secs;
+
+	time(&current_secs);
+	current_time = localtime(&current_secs);
+
+	sysinfo(&info);
+
+	sprintf(buf, "%2d:%02d, up ", current_time->tm_hour, current_time->tm_min);
+	
+	updays = (int) info.uptime / (60*60*24);
+	if (updays) {
+		sprintf(tmp,"%d day%s, ", updays, (updays != 1) ? "s" : "");
+		strcat(buf, tmp);
+	}
+	upminutes = (int) info.uptime / 60;
+	uphours = (upminutes / 60) % 24;
+	upminutes %= 60;
+	if(uphours) {
+		sprintf(tmp,"%2d:%02d, ", uphours, upminutes);
+		strcat(buf, tmp);
+	}
+	else {
+		sprintf(tmp,"%d min, ", upminutes);
+		strcat(buf, tmp);
+	}
+	
+	sprintf(tmp,"load avg: %ld.%02ld, %ld.%02ld, %ld.%02ld, ", 
+			LOAD_INT(info.loads[0]), LOAD_FRAC(info.loads[0]), 
+			LOAD_INT(info.loads[1]), LOAD_FRAC(info.loads[1]), 
+			LOAD_INT(info.loads[2]), LOAD_FRAC(info.loads[2]));
+	strcat(buf, tmp);
+	
+	sprintf (tmp,"free RAM: %5.1f MB, ", info.freeram / megabyte);
+	strcat(buf, tmp);
+	sprintf (tmp,"process cnt: %d\n\n", info.procs);
+	strcat(buf, tmp);
+
+	if ( strlen(buf) > (buf_len<<1) ) {//buf too long
+		sprintf (buf,"Buf too long, check %s:%d\n", __FILE__,__LINE__);
+	}
+
+	setutent();
+    while ((entry = getutent()) != NULL)
+    {
+        if ( (entry->ut_type == USER_PROCESS) && (entry->ut_name[0] != '\0') ) {
+        	user_cnt++;
+        }
+    }
+    sprintf(tmp,"%d user%s\n", user_cnt, (user_cnt > 1 ? "s" : ""));
+	strcat(buf, tmp);
+	endutent();
+		
+	setutent();
+	user_cnt = 0;
+    while ((entry = getutent()) != NULL)
+    {
+
+        if ( (entry->ut_type == USER_PROCESS) && (entry->ut_name[0] != '\0') ) {
+        	user_cnt++;
+	        sprintf(tmp,"%d: %s, from: %s, time: %s", user_cnt, entry->ut_user,
+               entry->ut_host, ctime((const time_t *)&entry->ut_tv));
+			strcat(buf, tmp);
+        }
+    }
+	endutent();
+
+	if ( strlen(buf) > (buf_len - 2) ) {//buf too long
+		sprintf (buf,"Buf too long, check %s:%d\n", __FILE__,__LINE__);
+	}
+	strcat(buf, "\n");
 }

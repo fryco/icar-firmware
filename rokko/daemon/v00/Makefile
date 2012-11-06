@@ -7,8 +7,8 @@ MYSQL_LIB = -l mysqlclient
 
 LIBS=-lm
 
-DEPS = rokkod.h misc.h
-OBJ = rokkod.o misc.o
+DEPS = rokkod.h misc.h log.h
+OBJ = rokkod.o misc.o log.c
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)

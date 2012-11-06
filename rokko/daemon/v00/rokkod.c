@@ -15,6 +15,12 @@
 int update_interval=5, foreground=0, listen_port=23;
 
 char pidfile[EMAIL+1];
+char log_msg[BUFSIZE+1];
+
+static time_t last_time;
+
+extern char logname[EMAIL+1];
+extern FILE *logfile;
 
 int main(int argc, char *argv[])
 {
@@ -43,24 +49,36 @@ int main(int argc, char *argv[])
  				pid = 0;
  			fclose(pidf);
  			if(pid && !kill(pid, 0)) {
- 				printf("rokkod is already running.\n");
+ 				printf("rokkod is already running, PID: %d.\n",pid);
  				exit(1);
  			}
  		}
  	}		
 
+ 	if ( log_init( "/tmp/" ) ) { //error
+		printf("Create log dir error! %s:%d\n",__FILE__,__LINE__);
+		exit(1);
+	}
 
  	/* Add signal handler for hangups/terminators. */
  	signal(SIGTERM,handler); //exit when run kill...
 
-	//signal(SIGCHLD, handler); exit when ???
 	signal(SIGINT, handler); //exit when Crtl-C
 
+	//signal(SIGCHLD, SIG_IGN); /* 忽略子进程结束信号，防止出现僵尸进程 */ 
+	
+		snprintf(log_msg,BUFSIZE,"==> Start rokko daemon, PID: %d, port: %d\n",getpid(),listen_port);
+		if (log_save(log_msg)) {
+			printf("Save log error! %s:%d\n",__FILE__,__LINE__);
+			exit(1);
+		}
 
 	/* Now run in the background. */
-	if (!foreground) bg();
-
-	fprintf(stderr,"PID:%d %d\n",getpid(),__LINE__);
+	if (!foreground) {
+		fclose(logfile);
+		logfile=NULL;
+		bg();
+	}
 
 	{
 		FILE *pidf;
@@ -77,13 +95,32 @@ int main(int argc, char *argv[])
 		}
 	}
 
+
+	//Create new process (non-block) for period_check
+	switch(fork())
+	{
+		case 0://In child process
+			printf("In child:%d for period_check\n",getpid());
+			last_time=time(NULL);
+			while ( 1 ) {
+				sleep( PERIOD_CHECK_DB ) ;
+				period_check( );					
+			}
+			break;
+			
+		case -1:
+			perror("fork failed"); exit(1);
+		default:
+			break;
+	}
+
+
 	/* The main loop. */
 	while (1)
 	{
 
 		/* Save valueable CPU cycles. */
 		sleep(update_interval);
-
 	
 	}
 }
@@ -114,6 +151,8 @@ void bg(void)
 
 	/* Be nice to umount */
 	chdir("/");
+	
+	umask(0); /* 重设文件创建掩码 */ 
 }
 
 void scan_args(int argc, char *argv[])
@@ -150,6 +189,15 @@ void scan_args(int argc, char *argv[])
 	printf("Listen port: %d\n",listen_port);
 }
 
+void handler(int s)
+{
+	
+	//fprintf(stderr,"PID:%d %d\n",getpid(),__LINE__);
+	/* Exit gracefully. */
+	if(pidfile[0])
+		unlink(pidfile);
+	exit(0);
+}
 
 void print_help(char *argv[])
 {
@@ -171,12 +219,36 @@ void print_version(void)
 	exit(0);
 }
 
-void handler(int s)
+// 定时检查服务器并发邮件
+void period_check(  )
 {
+	time_t now_time=time(NULL);
+	char mail_buf[BUFSIZE], err;
 	
-	//fprintf(stderr,"PID:%d %d\n",getpid(),__LINE__);
-	/* Exit gracefully. */
-	if(pidfile[0])
-		unlink(pidfile);
-	exit(0);
+	printf(" --> Period check, port: %d\n",listen_port);
+	
+	if ( now_time - last_time > PERIOD_SEND_MAIL ) {
+		mail_buf[0] = '\0';
+		snprintf(mail_buf,BUFSIZE,"Daemon CHK %.24s\r\n",(char *)ctime((&now_time)));
+	
+		//err = smtp_send("smtp.139.com", 25, mail_notice, mail_buf, "\r\n");
+		if ( err ) {
+			log_save("Send mail failure!\r\n");
+			//exit(1);
+		}
+		else {
+			log_save("Send mail ok.\r\n");
+			last_time = now_time;
+		}
+		
+		snprintf(log_msg,BUFSIZE,"PID: %d, port: %d\n",getpid(),listen_port);
+		if (log_save(log_msg)) {
+			printf("Save log error! %s:%d\n",__FILE__,__LINE__);
+			exit(1);
+		}
+
+		get_sysinfo( log_msg, BUFSIZE) ;
+		log_save( log_msg ) ;
+
+	}
 }
