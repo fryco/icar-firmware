@@ -7,9 +7,14 @@
  *      $Rev$, $Date$
  */
 
+#ifndef _ROKKOD_H 
+#define _ROKKOD_H
 
 int main(int, char *[]);
 void bg(void);
 void scan_args(int, char *[]);
 void print_help(char *[]);
 void print_version(void);
+void period_check( void );
+
+#endif /* _ROKKOD_H */
