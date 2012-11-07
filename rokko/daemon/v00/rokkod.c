@@ -15,16 +15,19 @@
 int update_interval=5, foreground=0, listen_port=23;
 
 char pidfile[EMAIL+1];
-char log_msg[BUFSIZE+1];
 
 static time_t last_time;
 
-extern char logname[EMAIL+1];
-extern FILE *logfile;
+extern char logdir[EMAIL+1], logname[EMAIL+1];
+
+FILE *logfile=NULL;
 
 int main(int argc, char *argv[])
 {
 	void handler(int);
+	unsigned int i=0;
+	char log_buffer[BUFSIZE+1];
+	FILE *fh=NULL;
 
 	/* Properly initialize these to an empty string */
 	pidfile[0] = '\0';
@@ -67,16 +70,10 @@ int main(int argc, char *argv[])
 
 	//signal(SIGCHLD, SIG_IGN); /* 忽略子进程结束信号，防止出现僵尸进程 */ 
 	
-		snprintf(log_msg,BUFSIZE,"==> Start rokko daemon, PID: %d, port: %d\n",getpid(),listen_port);
-		if (log_save(log_msg)) {
-			printf("Save log error! %s:%d\n",__FILE__,__LINE__);
-			exit(1);
-		}
-
+	printf("Listen port: %d\n\n",listen_port);
+	
 	/* Now run in the background. */
 	if (!foreground) {
-		fclose(logfile);
-		logfile=NULL;
 		bg();
 	}
 
@@ -102,9 +99,58 @@ int main(int argc, char *argv[])
 		case 0://In child process
 			printf("In child:%d for period_check\n",getpid());
 			last_time=time(NULL);
+			
+			FILE *child_log;
+
+			struct timeval tv;
+			char logtime[EMAIL+1] , newname[EMAIL+1];
+		
+			gettimeofday(&tv,NULL);
+		
+			strftime(logtime,EMAIL,"/%Y%m%d",(const void *)localtime(&tv.tv_sec));
+			
+			strcat(newname,logdir);strcat(newname,logtime);
+			snprintf(&newname[strlen(newname)],16,"_%d.txt",listen_port);
+			strcat(logname, newname);
+	
+			child_log = fopen(newname, "a");
+
+			if ( !child_log ) {
+				log_err("file open err!");
+			}
+
+			snprintf(logtime,EMAIL,"==> Start rokko daemon, PID: %d, port: %d\n",getpid(),listen_port);
+			log_save1(child_log, logtime);
+
 			while ( 1 ) {
 				sleep( PERIOD_CHECK_DB ) ;
-				period_check( );					
+
+				memset(logtime, '\0', sizeof(logtime));	
+				memset(newname, '\0', sizeof(newname));
+
+				gettimeofday(&tv,NULL);
+				strftime(logtime,EMAIL,"/%Y%m%d",(const void *)localtime(&tv.tv_sec));
+				
+				strcat(newname,logdir);strcat(newname,logtime);
+				snprintf(&newname[strlen(newname)],16,"_%d.txt",listen_port);
+
+				if ( strcmp(newname,logname) ) {//different
+					fflush(child_log);
+					fclose(child_log);
+					strcat(logname, newname);
+		
+					//create new log file
+					sleep( 10 ) ;
+					child_log = fopen(newname, "a");
+
+					if ( !child_log ) {
+						memset(logtime, '\0', sizeof(logtime));	
+						snprintf(logtime,EMAIL,"open %s err! %d\n",newname,__LINE__);
+						log_err(logtime);
+					}					
+				}
+
+				period_check( child_log );
 			}
 			break;
 			
@@ -115,13 +161,32 @@ int main(int argc, char *argv[])
 	}
 
 
+		fh = fopen("/tmp/log/fh.txt", "a");
+
+		if ( !fh ) {
+			exit(1);
+		}
+
 	/* The main loop. */
 	while (1)
 	{
 
 		/* Save valueable CPU cycles. */
 		sleep(update_interval);
-	
+
+		if ( fh ) {
+			
+			memset(log_buffer, '\0', sizeof(log_buffer));
+
+			get_sysinfo( log_buffer, BUFSIZE) ;
+			log_save1(fh, log_buffer ) ;
+
+			snprintf(log_buffer,EMAIL,"%d PID:%d\n",i,getpid());
+
+			log_save1(fh, log_buffer);
+		
+			i++;
+		}
 	}
 }
 
@@ -186,7 +251,6 @@ void scan_args(int argc, char *argv[])
 	}
 	
 	printf("%s\n", rokkod_RELEASE );
-	printf("Listen port: %d\n",listen_port);
 }
 
 void handler(int s)
@@ -194,8 +258,14 @@ void handler(int s)
 	
 	//fprintf(stderr,"PID:%d %d\n",getpid(),__LINE__);
 	/* Exit gracefully. */
-	if(pidfile[0])
+	if(pidfile[0]) {
 		unlink(pidfile);
+	}
+	
+	if ( logfile ) { 
+		fclose(logfile);
+	}
+	
 	exit(0);
 }
 
@@ -220,10 +290,10 @@ void print_version(void)
 }
 
 // 定时检查服务器并发邮件
-void period_check(  )
+void period_check( FILE *fp)
 {
 	time_t now_time=time(NULL);
-	char mail_buf[BUFSIZE], err;
+	char mail_buf[BUFSIZE+1], log_buf[BUFSIZE+1], err;
 	
 	printf(" --> Period check, port: %d\n",listen_port);
 	
@@ -233,22 +303,19 @@ void period_check(  )
 	
 		//err = smtp_send("smtp.139.com", 25, mail_notice, mail_buf, "\r\n");
 		if ( err ) {
-			log_save("Send mail failure!\r\n");
+			;//log_save("Send mail failure!\r\n");
 			//exit(1);
 		}
 		else {
-			log_save("Send mail ok.\r\n");
+			//log_save("Send mail ok.\r\n");
 			last_time = now_time;
 		}
 		
-		snprintf(log_msg,BUFSIZE,"PID: %d, port: %d\n",getpid(),listen_port);
-		if (log_save(log_msg)) {
-			printf("Save log error! %s:%d\n",__FILE__,__LINE__);
-			exit(1);
+		if ( fp ) {
+			memset(log_buf, '\0', sizeof(log_buf));
+	
+			get_sysinfo( log_buf, BUFSIZE) ;
+			log_save1(fp, log_buf ) ;
 		}
-
-		get_sysinfo( log_msg, BUFSIZE) ;
-		log_save( log_msg ) ;
-
 	}
 }

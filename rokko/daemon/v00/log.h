@@ -11,6 +11,7 @@
 #define _LOG_H
 
 int log_init( char* path );
-int log_save( char* );
+int log_err( char* );
+int log_save1( FILE *, char* );
 
 #endif /* _LOG_H */

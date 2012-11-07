@@ -15,6 +15,6 @@ void bg(void);
 void scan_args(int, char *[]);
 void print_help(char *[]);
 void print_version(void);
-void period_check( void );
+void period_check( FILE * );
 
 #endif /* _ROKKOD_H */

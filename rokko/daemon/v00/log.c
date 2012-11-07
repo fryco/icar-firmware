@@ -14,8 +14,6 @@ extern int foreground, listen_port;
 
 char logdir[EMAIL+1], logname[EMAIL+1];
 
-FILE *logfile=NULL;
-
 int log_init( char* path )
 {
 	DIR *d; 
@@ -32,13 +30,12 @@ int log_init( char* path )
 	
 	if(!(d = opendir(logdir))){
 		//try to create dir
-		//if ( mkdir(logdir, 0644) ) { //failure
-		if ( mkdir(logdir, 0777) ) { //failure
+		if ( mkdir(logdir, 0644) ) { //failure
 			printf("error opendir %s !!!\n",logdir);
 			return -1;
 		}
 		else { 
-			printf("Create log dir %s ok\n",logdir);
+			printf("Create log dir %s ok\n\n",logdir);
 		}
 	}
 
@@ -46,12 +43,10 @@ int log_init( char* path )
 	return 0 ;
 }
 
-int log_save(char *msg)
+int log_save1(FILE *log, char *msg)
 {
 	struct timeval tv;
 	char logtime[EMAIL+1] , newname[EMAIL+1];
-	
-	logtime[0] = newname[0] = '\0';
 
 	gettimeofday(&tv,NULL);
 
@@ -62,35 +57,35 @@ int log_save(char *msg)
 
 	strftime(logtime,EMAIL,"%T ",(const void *)localtime(&tv.tv_sec));
 	
-	//printf("Time:%s\n",logtime);printf("Logname:%s\n",logname);printf("newname:%s\n",newname);
 	
-	if ( logfile ) { 
-		
-		if ( strcmp(newname,logname) ) {//different
-			fclose(logfile);
-			logfile=NULL;
-			strcat(logname, newname);
+	if ( log ) { 
+		fprintf(log, "%s", logtime);
+		fprintf(log, "%s", msg);
+		fflush(log);
+	}		
 
-			//create new log file
-			logfile = fopen(newname, "a");
-		}
-
-		fprintf(logfile, "%s", logtime);		
-		fprintf(logfile, "%s", msg);
-	}
-	else { //create log file first
-		logfile = fopen(newname, "a");
-		if ( logfile ) {
-			fprintf(logfile, "%s", logtime);
-			fprintf(logfile, "%s", msg);
-			strcat(logname, newname);
-		}
-		else {
-			return -1;
-		}
-	}
 	if ( foreground ) printf("%s %s",logtime,msg);
-		
-	return 0;
+
+	return 0;	
+}
+
+int log_err( char *msg)
+{
+	struct timeval tv;
+	char logtime[EMAIL+1];
+	FILE *fp;
 	
+	gettimeofday(&tv,NULL);
+
+	strftime(logtime,EMAIL,"/%Y%m%d %T ",(const void *)localtime(&tv.tv_sec));
+	
+	fp = fopen("/tmp/log_err.txt", "a");
+	if ( fp ) { 
+		fprintf(fp, "%s", logtime);
+		fprintf(fp, "%s", msg);
+		fflush(fp);
+		fclose(fp) ;
+	}
+
+	return 0;	
 }
