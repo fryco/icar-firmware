@@ -43,12 +43,11 @@
 #include <sys/param.h>
 #include <sys/sysinfo.h>
 
-//#include <sys/stat.h>
 
-//#include "log.h"
+#define	EMAIL				128
+#define BUFSIZE 			1024*2
 
-#define	EMAIL	128
-#define BUFSIZE 1024*2
+#define	LOG_DIR				"/tmp/"
 
 //#define PERIOD_CHECK_DB		3*60	//check database every 3*60 seconds
 //#define PERIOD_SEND_MAIL	5*60*60	//send mail every 1*60*60 seconds

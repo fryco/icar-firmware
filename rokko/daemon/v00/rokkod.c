@@ -25,6 +25,7 @@ FILE *logfile=NULL;
 int main(int argc, char *argv[])
 {
 	void handler(int);
+	void child_exit(int);
 	unsigned int i=0;
 	char log_buffer[BUFSIZE+1];
 	FILE *fh=NULL;
@@ -58,7 +59,7 @@ int main(int argc, char *argv[])
  		}
  	}		
 
- 	if ( log_init( "/tmp/" ) ) { //error
+ 	if ( log_init( LOG_DIR ) ) { //error
 		printf("Create log dir error! %s:%d\n",__FILE__,__LINE__);
 		exit(1);
 	}
@@ -69,6 +70,7 @@ int main(int argc, char *argv[])
 	signal(SIGINT, handler); //exit when Crtl-C
 
 	//signal(SIGCHLD, SIG_IGN); /* 忽略子进程结束信号，防止出现僵尸进程 */ 
+	signal(SIGCHLD, child_exit);
 	
 	printf("Listen port: %d\n\n",listen_port);
 	
@@ -134,23 +136,19 @@ int main(int argc, char *argv[])
 				strcat(newname,logdir);strcat(newname,logtime);
 				snprintf(&newname[strlen(newname)],16,"_%d.txt",listen_port);
 
-				if ( strcmp(newname,logname) ) {//different
-					fflush(child_log);
-					fclose(child_log);
-					strcat(logname, newname);
+				//strcat(logname, newname);
 		
-					//create new log file
-					sleep( 10 ) ;
-					child_log = fopen(newname, "a");
+				child_log = fopen(newname, "a");
 
-					if ( !child_log ) {
-						memset(logtime, '\0', sizeof(logtime));	
-						snprintf(logtime,EMAIL,"open %s err! %d\n",newname,__LINE__);
-						log_err(logtime);
-					}					
+				if ( child_log ) {
+					period_check( child_log );
+					fclose(child_log);
 				}
-
-				period_check( child_log );
+				else {
+					memset(logtime, '\0', sizeof(logtime));	
+					snprintf(logtime,EMAIL,"open %s err! %d\n",newname,__LINE__);
+					log_err(logtime);
+				}
 			}
 			break;
 			
@@ -267,6 +265,21 @@ void handler(int s)
 	}
 	
 	exit(0);
+}
+
+void child_exit(int num)
+{
+	//Received SIGCHLD signal
+	int status;
+	FILE *fp;
+	int pid = waitpid(-1, &status, WNOHANG);
+	if (WIFEXITED(status)) {
+		fp = fopen("/tmp/log/log_err.txt", "a");
+		if ( fp ) { 
+			fprintf(fp, "Child %d exit with code %d\n", pid, WEXITSTATUS(status));
+			fclose(fp) ;
+		}
+	}
 }
 
 void print_help(char *argv[])
