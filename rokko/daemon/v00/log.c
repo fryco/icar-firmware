@@ -79,7 +79,7 @@ int log_err( char *msg)
 
 	strftime(logtime,EMAIL,"/%Y%m%d %T ",(const void *)localtime(&tv.tv_sec));
 	
-	fp = fopen("/tmp/log_err.txt", "a");
+	fp = fopen("/tmp/log/log_err.txt", "a");
 	if ( fp ) { 
 		fprintf(fp, "%s", logtime);
 		fprintf(fp, "%s", msg);

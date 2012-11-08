@@ -6,6 +6,6 @@ rokko£¬ÊÇ"Áù¼×"µÄÓ¢ÎÄ·­Òë£¬Áù¼×£¨¼××Ó¡¢¼×Ðç¡¢¼×Éê¡¢¼×Îç¡¢¼×³½¡¢¼×Òú£©ÊÇÑôÉñ£¬ÎªÌ
 
 2, ÏîÄ¿°üÀ¨ÔÚ·þÎñÆ÷ºóÌ¨ÔËÐÐµÄ daemon, ÔÚµ¥Æ¬»ú¶ËÔËÐÐµÄ client ³ÌÐò
 daemon ÔËÐÐÔÚ Linux ÏµÍ³ÉÏ£¬Ä¿Ç°ÊÇÔÚLinux 2.6.38-8-generic #42-Ubuntu SMP ÉÏ¿ª·¢
+test Ä¿Â¼ÊÇÒ»Ð©²âÊÔ³ÌÐò£¬ÈçÑéÖ¤daemon×î´óÁ¬½ÓÊýµÈ
 client ÔËÐÐÔÚSTM32F103ÏµÁÐµ¥Æ¬»úÉÏ£¬Ä¿Ç°ÊÇÍ¨¹ýGPRS Á¬½Óµ½daemon ÉÏ
-
 
