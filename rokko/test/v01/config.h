@@ -34,7 +34,7 @@
 #define BUFSIZE 			1024*2
 
 #define CMD_CNT				10
-#define PROCESS_CNT			10
+#define PROCESS_CNT			100
 
 #define	LOG_DIR				"/tmp/"
 
