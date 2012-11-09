@@ -126,6 +126,7 @@ int single_connect( void ) {
 		debug_conn(stderr,"\n\n");
 	}
 	
+	sleep(1);
 	debug_conn(stderr,"Close socket and quit.\n");
 	close(client_sockfd);//¹Ø±ÕÌ×½Ó×Ö
 
