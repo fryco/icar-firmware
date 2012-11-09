@@ -3,7 +3,6 @@ CFLAGS=-I. -I/usr/include/mysql
 CC = gcc  
 
 ODIR=.
-MYSQL_LIB = -l mysqlclient
 
 LIBS=-lm
 
@@ -14,7 +13,7 @@ OBJ = tcp_client.o
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 client: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(MYSQL_LIB)
+	$(CC) -o $@ $^ $(CFLAGS)
 
 .PHONY: clean
 
