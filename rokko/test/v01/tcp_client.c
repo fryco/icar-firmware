@@ -53,7 +53,7 @@ int	main(int argc, char	*argv[])
 					perror("fork failed"); exit(1);
 				default:
 					if ( var_int >= 1000 ) {
-						printf("Test %lld\tfailure:%lld\n",chk_cnt,err_cnt);
+						printf("Test %lld\tpass:%lld\tfailure:%lld\n",chk_cnt,chk_cnt-err_cnt,err_cnt);
 						var_int = 0 ;
 					}
 					else {
