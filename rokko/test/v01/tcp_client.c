@@ -5,7 +5,7 @@ int single_connect( void ) ;
 //#define DEBUG_CONN
 
 #ifdef DEBUG_CONN
-	#define debug_conn		fprintf
+	#define debug_conn		printf
 #else
 	#define debug_conn		//
 #endif
@@ -26,12 +26,15 @@ static const unsigned char cmd_time[ ] =
 };
 
 unsigned int process_cnt = 0 ;
+unsigned long long err_cnt = 0 ;
 	
 int	main(int argc, char	*argv[])
 {
 	void child_exit(int);
+	unsigned int var_int = 0 ;
+	unsigned long long chk_cnt = 0 ;
 	
-	fprintf(stderr,"Parent: %d\n",getpid());
+	printf("Parent: %d\n",getpid());
 	signal(SIGCHLD, child_exit);
 	while ( 1 ) {
 		if ( process_cnt < PROCESS_CNT ) {
@@ -42,21 +45,28 @@ int	main(int argc, char	*argv[])
 				case 0:
 					debug_conn(stderr,"In child: %d\n",getpid());
 					if ( single_connect( ) ) {
-						fprintf(stderr,"Test failure!\n");
+						debug_conn("Test failure!\n");
 						exit(1);
 					}
 					exit(0);
 				case -1:
 					perror("fork failed"); exit(1);
 				default:
+					if ( var_int >= 1000 ) {
+						printf("Test %lld\tfailure:%lld\n",chk_cnt,err_cnt);
+						var_int = 0 ;
+					}
+					else {
+						var_int++;
+					}
 					process_cnt++;
-					//sleep( 1 ) ;
+					chk_cnt++;
 					break;
 			}
 		}
 
 		sleep( 1 ) ;
-		//fprintf(stderr,"%d connection\n",process_cnt);
+		//printf("%d connection\n",process_cnt);
 
 	}
 }
@@ -83,7 +93,7 @@ int single_connect( void ) {
 
 	if(connect(client_sockfd,(struct sockaddr *)&remote_addr,sizeof(struct sockaddr))<0)
 	{
-		perror("connect");
+		//perror("connect");
 		return 1;
 	}
 	debug_conn(stderr,"connected to server: %s:%d\n\n",SERVER_ADDR,SERVER_PORT);
@@ -130,6 +140,9 @@ void child_exit(int num)
 	int pid = waitpid(-1, &status, WNOHANG);
 	if (WIFEXITED(status)) {
 		debug_conn(stderr,"Child %d exit with code %d\n", pid, WEXITSTATUS(status));
+		if ( WEXITSTATUS(status) ) {
+			err_cnt++;
+		}
 	}
 	
 	if ( process_cnt > 0 ) process_cnt--;
