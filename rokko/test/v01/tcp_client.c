@@ -74,9 +74,9 @@ int	main(int argc, char	*argv[])
 int single_connect( void ) {
 				
 	int	client_sockfd;
-	unsigned int var_int, len;
+	unsigned int var_int, cmd_cnt, len;
 	struct sockaddr_in remote_addr;	//服务器端网络地址结构体
-	unsigned char var_char, buf[BUFSIZE];  //数据传送的缓冲区
+	unsigned char buf[BUFSIZE];  //数据传送的缓冲区
 
 	memset(&remote_addr,0,sizeof(remote_addr));	//数据初始化--清零
 	remote_addr.sin_family=AF_INET;	//设置为IP通信
@@ -101,7 +101,7 @@ int single_connect( void ) {
 	len = read(client_sockfd, buf, BUFSIZE); buf[len]='\0';
 	debug_conn(stderr,"%s",buf); //打印服务器端信息
 
-	for ( var_char = 0 ; var_char < CMD_CNT ; var_char++ ) {
+	for ( cmd_cnt = 0 ; cmd_cnt < CMD_CNT ; cmd_cnt++ ) {
 		write(client_sockfd,cmd_login,cmd_login[4]+6);
 		debug_conn(stderr,"--> Login CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
 		
