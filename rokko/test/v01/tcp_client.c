@@ -93,7 +93,7 @@ int single_connect( void ) {
 
 	if(connect(client_sockfd,(struct sockaddr *)&remote_addr,sizeof(struct sockaddr))<0)
 	{
-		//perror("connect");
+		perror("connect");
 		return 1;
 	}
 	debug_conn(stderr,"connected to server: %s:%d\n\n",SERVER_ADDR,SERVER_PORT);
@@ -101,31 +101,65 @@ int single_connect( void ) {
 	len = read(client_sockfd, buf, BUFSIZE); buf[len]='\0';
 	debug_conn(stderr,"%s",buf); //打印服务器端信息
 
-	for ( cmd_cnt = 0 ; cmd_cnt < CMD_CNT ; cmd_cnt++ ) {
-		write(client_sockfd,cmd_login,cmd_login[4]+6);
-		debug_conn(stderr,"--> Login CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
+	if ( CMD_CNT == 0 ) {
 		
-		len = read(client_sockfd, buf, BUFSIZE);
-		if ( len < 5 ) return 1 ;
-		debug_conn(stderr,"<-- %d Bytes:",len);
-		for ( var_int = 0 ; var_int < len ; var_int++ ) {
-			debug_conn(stderr," %02X",buf[var_int]);
+		while ( 1 ) {
+			write(client_sockfd,cmd_login,cmd_login[4]+6);
+			debug_conn(stderr,"--> Login CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
+			
+			len = read(client_sockfd, buf, BUFSIZE);
+			if ( len < 5 ) return 1 ;
+			debug_conn(stderr,"<-- %d Bytes:",len);
+			for ( var_int = 0 ; var_int < len ; var_int++ ) {
+				debug_conn(stderr," %02X",buf[var_int]);
+			}
+			debug_conn(stderr,"\n\n");
+			
+		
+			write(client_sockfd,cmd_time,cmd_time[4]+6);
+			debug_conn(stderr,"--> Time CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
+			
+			len = read(client_sockfd, buf, BUFSIZE);
+			if ( len < 5 ) return 1 ;
+			debug_conn(stderr,"<-- %d Bytes:",len);
+			for ( var_int = 0 ; var_int < len ; var_int++ ) {
+				debug_conn(stderr," %02X",buf[var_int]);
+			}
+			debug_conn(stderr,"\n\n");
+			sleep(10);
 		}
-		debug_conn(stderr,"\n\n");
 		
-	
-		write(client_sockfd,cmd_time,cmd_time[4]+6);
-		debug_conn(stderr,"--> Time CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
-		
-		len = read(client_sockfd, buf, BUFSIZE);
-		if ( len < 5 ) return 1 ;
-		debug_conn(stderr,"<-- %d Bytes:",len);
-		for ( var_int = 0 ; var_int < len ; var_int++ ) {
-			debug_conn(stderr," %02X",buf[var_int]);
-		}
-		debug_conn(stderr,"\n\n");
 	}
-	
+	else {
+		
+		for ( cmd_cnt = 0 ; cmd_cnt < CMD_CNT ; cmd_cnt++ ) {
+			write(client_sockfd,cmd_login,cmd_login[4]+6);
+			debug_conn(stderr,"--> Login CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
+			
+			len = read(client_sockfd, buf, BUFSIZE);
+			if ( len < 5 ) return 1 ;
+			debug_conn(stderr,"<-- %d Bytes:",len);
+			for ( var_int = 0 ; var_int < len ; var_int++ ) {
+				debug_conn(stderr," %02X",buf[var_int]);
+			}
+			debug_conn(stderr,"\n\n");
+			
+		
+			write(client_sockfd,cmd_time,cmd_time[4]+6);
+			debug_conn(stderr,"--> Time CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
+			
+			len = read(client_sockfd, buf, BUFSIZE);
+			if ( len < 5 ) return 1 ;
+			debug_conn(stderr,"<-- %d Bytes:",len);
+			for ( var_int = 0 ; var_int < len ; var_int++ ) {
+				debug_conn(stderr," %02X",buf[var_int]);
+			}
+			debug_conn(stderr,"\n\n");
+			sleep(10);
+		}
+		
+	}
+
 	//sleep(1);
 	debug_conn(stderr,"Close socket and quit.\n");
 	close(client_sockfd);//关闭套接字
