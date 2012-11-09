@@ -33,8 +33,8 @@
 #define	EMAIL				128
 #define BUFSIZE 			1024*2
 
-#define CMD_CNT				10
-#define PROCESS_CNT			100
+#define CMD_CNT				32
+#define PROCESS_CNT			1024
 
 #define	LOG_DIR				"/tmp/"
 
