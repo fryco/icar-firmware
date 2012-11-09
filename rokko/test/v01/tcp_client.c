@@ -59,7 +59,7 @@ int	main(int argc, char	*argv[])
 		}
 
 		if ( time(NULL) - last_time > 5 ) {
-			printf("Active %lld\tpass:%lld\tfailure:%lld\n",chk_cnt,chk_cnt-err_cnt,err_cnt);
+			printf("Test %lld\tpass:%lld\tfailure:%lld\n",chk_cnt,chk_cnt-err_cnt,err_cnt);
 			last_time = time(NULL);
 		}
 		else{
@@ -105,7 +105,15 @@ int single_connect( void ) {
 			debug_conn(stderr,"--> Login CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
 			
 			len = read(client_sockfd, buf, BUFSIZE);
-			if ( len < 5 ) return 1 ;
+			if ( len < 5 ) {
+				printf("<-- %d Bytes:",len);
+				for ( var_int = 0 ; var_int < len ; var_int++ ) {
+					printf(" %02X",buf[var_int]);
+				}
+				printf("\n\n");
+				
+				return 1 ;
+			}
 			debug_conn(stderr,"<-- %d Bytes:",len);
 			for ( var_int = 0 ; var_int < len ; var_int++ ) {
 				debug_conn(stderr," %02X",buf[var_int]);
@@ -117,7 +125,16 @@ int single_connect( void ) {
 			debug_conn(stderr,"--> Time CMD: %02X, Send %d Bytes\n",cmd_login[2],cmd_login[4]+6);
 			
 			len = read(client_sockfd, buf, BUFSIZE);
-			if ( len < 5 ) return 1 ;
+			if ( len < 5 ) {
+				printf("<-- %d Bytes:",len);
+				for ( var_int = 0 ; var_int < len ; var_int++ ) {
+					printf(" %02X",buf[var_int]);
+				}
+				printf("\n\n");
+				
+				return 1 ;
+			}
+
 			debug_conn(stderr,"<-- %d Bytes:",len);
 			for ( var_int = 0 ; var_int < len ; var_int++ ) {
 				debug_conn(stderr," %02X",buf[var_int]);
