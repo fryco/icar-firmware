@@ -31,14 +31,14 @@ unsigned long long err_cnt = 0 ;
 int	main(int argc, char	*argv[])
 {
 	void child_exit(int);
-	unsigned int var_int = 0 ;
+	//unsigned int var_int = 0 ;
 	unsigned long long chk_cnt = 0 ;
+	time_t last_time = 0;
 	
 	printf("Parent: %d\n",getpid());
 	signal(SIGCHLD, child_exit);
 	while ( 1 ) {
-		if ( process_cnt < PROCESS_CNT ) {
-		//for ( process_cnt = 0 ; process_cnt < PROCESS_CNT ; process_cnt++ ) {
+		while ( process_cnt < PROCESS_CNT ) {
 			
 			switch(fork())
 			{
@@ -52,22 +52,19 @@ int	main(int argc, char	*argv[])
 				case -1:
 					perror("fork failed"); exit(1);
 				default:
-					if ( var_int >= 1000 ) {
-						printf("Test %lld\tpass:%lld\tfailure:%lld\n",chk_cnt,chk_cnt-err_cnt,err_cnt);
-						var_int = 0 ;
-					}
-					else {
-						var_int++;
-					}
 					process_cnt++;
 					chk_cnt++;
 					break;
 			}
 		}
 
-		sleep( 1 ) ;
-		//printf("%d connection\n",process_cnt);
-
+		if ( time(NULL) - last_time > 5 ) {
+			printf("Active %lld\tpass:%lld\tfailure:%lld\n",chk_cnt,chk_cnt-err_cnt,err_cnt);
+			last_time = time(NULL);
+		}
+		else{
+			sleep( 1 ) ;		
+		}
 	}
 }
 
