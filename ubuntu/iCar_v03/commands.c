@@ -350,9 +350,9 @@ int cmd_err_log( struct icar_data *mycar, struct icar_command * cmd,\
 			//Create new process (non-block) for cloud post
 			cloud_pid = fork();
 			if (cloud_pid == 0) { //In child process
-				//fprintf(stderr, "In child:%d for cloud post\n",getpid());
+				fprintf(stderr, "In child:%d for cloud post\n",getpid());
 
-				//cloud_post( cloud_host, &post_buf, 80 );
+				cloud_post( cloud_host, &post_buf, 80 );
 				cloud_post( log_host, &post_buf, 86 );
 				exit( 0 );
 			}
@@ -814,7 +814,7 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 
 	int fd;
 	unsigned int i, chk_count , data_len, fpos, fw_size, fw_rev;
-	unsigned char *filename="./fw/stm32_v00/20120831.bin";
+	unsigned char *filename="./fw/stm32_v00/20121211.bin";
 	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
 	pid_t cloud_pid;
 	unsigned char post_buf[BUFSIZE];
@@ -837,6 +837,13 @@ int cmd_upgrade_fw( struct icar_data *mycar, struct icar_command * cmd,\
 		close(fd);  
 		return 20;  
 	}  
+
+	//check firmware size
+	if ( fw_size < MIN_FW_SIZE ) {//must > 40KB
+		fprintf(stderr,"Error, firmware size: %d Bytes < 40KB\r\n",fw_size);
+		close(fd);  
+		return 30;  
+	}
 
 	//check firmware size
 	if ( fw_size > MAX_FW_SIZE-1 ) {//must < 60KB

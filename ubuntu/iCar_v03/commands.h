@@ -24,6 +24,7 @@
 #define GSM_CMD_WARN			0x57 //'W', warn msg report
 
 #define MAX_FW_SIZE				61450 //60*1024+10
+#define MIN_FW_SIZE				40960 //40*1024
 
 unsigned int crctablefast (unsigned char* p, unsigned long len);
 

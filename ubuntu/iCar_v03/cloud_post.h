@@ -9,8 +9,8 @@
   ******************************************************************************
   */ 
 
-#ifndef _CLOUD_TCP_CLIENT_ 
-#define _CLOUD_TCP_CLIENT_
+#ifndef _CLOUD_POST_H 
+#define _CLOUD_POST_H
 
 typedef struct _cloud_tcpclient{ 
     int socket;

@@ -506,14 +506,10 @@ int record_command(struct icar_data *mycar, unsigned char *buf, unsigned char * 
 	//DATA: command 
 	//i.e:  C9 00 54 00 0A 30 32 50 31 31 41 48 30 30 30 FC
 
-	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
-		;//fprintf(stderr, "%02X ",*(buf+buf_index));
-	}
-
 	cmd_seq = buf[1];
 	cmd_pcb = buf[2];
 	buf_len = buf[3] << 8 | buf[4];
-	//fprintf(stderr, "\r\nSEQ: 0x%02X, PCB: 0x%02X, Len: %d\r\n",\
+	fprintf(stderr, "\r\nSEQ: 0x%02X, PCB: 0x%02X, Len: %d\r\n",\
 		cmd_seq,cmd_pcb,buf_len);
 
 	if ( buf_len ) {
@@ -633,9 +629,10 @@ int record_signal(struct icar_data *mycar, unsigned char *buf, unsigned char *p_
 	cmd_seq = buf[1];
 	buf_len = buf[3] << 8 | buf[4];
 
+	/* 很耗资源，慎开！
 	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
 		;//fprintf(stderr, "%02X ",*(buf+buf_index));
-	}
+	}*/
 	//fprintf(stderr, "\r\nLen: %d ",buf_len);
 
 	record_seq = buf[5] << 8 | buf[6];
@@ -708,9 +705,10 @@ int record_ip(struct icar_data *mycar, unsigned char *buf, unsigned char *p_buf)
 
 	buf_len = buf[3] << 8 | buf[4];
 
+	/* 很耗资源，慎开！
 	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
 		;//fprintf(stderr, "%02X ",*(buf+buf_index));
-	}
+	}*/
 	//fprintf(stderr, "\r\nLen: %d ",buf_len);
 
 	ostime = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[9];
@@ -793,9 +791,10 @@ int record_error(struct icar_data *mycar, unsigned char *buf, unsigned char *par
 	//	   66 66 2C 20 63 68 65 63 6B 20 61 70 70 5F 67 73 6D 2E 68 
 	buf_len = buf[3] << 8 | buf[4];
 
+	/* 很耗资源，慎开！
 	for ( buf_index = 0 ; buf_index < buf_len+6 ; buf_index++ ) {
 		;//fprintf(stderr, "%02X ",*(buf+buf_index));
-	}
+	}*/
 	//fprintf(stderr, "\r\nLen: %d ",buf_len);
 
 	err_time = buf[5] << 24 | buf[6] << 16 | buf[7] << 8 | buf[8];
@@ -909,10 +908,10 @@ int ask_instruction(struct icar_data *mycar, unsigned char *buf, unsigned char *
 	MYSQL_ROW sqlrow;
 	unsigned long sqlrow_cnt = 0 ;
 
-	// *ist = 0x55 ;//Upgrade firmware
+	 *ist = 0x55 ;//Upgrade firmware
 	// *ist = 0x75 ;//Update parameter
 
-	 *ist = 0 ;//No new instruction
+	// *ist = 0 ;//No new instruction
 
 	//input: HEAD+SEQ+PCB+LEN+CHK
 
