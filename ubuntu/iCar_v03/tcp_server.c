@@ -321,7 +321,8 @@ int main(int ac, char **av)
 	time_t ticks=time(NULL);
 	char mail_buf[BUFSIZE];
 
-	signal(SIGCHLD, child_exit);
+	//signal(SIGCHLD, child_exit);
+	signal(SIGCHLD, SIG_IGN);
 	signal(SIGINT, sig_proccess_server);
 
 	/* Parse command-line arguments. */

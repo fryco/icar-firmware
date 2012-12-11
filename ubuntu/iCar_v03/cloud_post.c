@@ -200,6 +200,8 @@ int cloud_post( char *remote_host, char *request, int port )
 
 	char *response = NULL;
 
+	//return 0; //for test only
+	
 	cloud_tcpclient_create(&client,remote_host,port);
 
 	if(http_post(&client,remote_host,"/cn0086_bbs/mach_post.php",request,&response)){
