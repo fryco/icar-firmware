@@ -1,6 +1,6 @@
 #include "main.h"
 
-#define	BUILD_DATE "iCar Boot loader, built at "__DATE__" "__TIME__", $Rev: 305 $\r\n"
+#define	BUILD_DATE "iCar Boot loader, built at "__DATE__" "__TIME__", $Rev$\r\n"
 
 unsigned int jump_address;
 unsigned int page_size; 
