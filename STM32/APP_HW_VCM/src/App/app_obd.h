@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/app_v07/src_comm/App/app_obd.h $ 
-  * @version $Rev: 279 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-10-18 13:02:30 +0800 (周四, 2012-10-18) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   ******************************************************************************
 **/
 

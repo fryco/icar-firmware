@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/STM32/APP_HW_v00/src_cust/App/drv_gpio.h $ 
-  * @version $Rev: 262 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-08-28 11:55:00 +0800 (周二, 2012-08-28) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file is for general purpose input/output define in STM32
   ******************************************************************************
   */ 

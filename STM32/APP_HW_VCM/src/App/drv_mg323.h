@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/app_v07/src_comm/App/drv_mg323.h $ 
-  * @version $Rev: 263 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-08-29 14:33:09 +0800 (周三, 2012-08-29) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This is GSM module: MG323 driver
   ******************************************************************************
   */
