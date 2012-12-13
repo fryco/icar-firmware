@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/bootloader_v02/src_comm/App/main.h $ 
-  * @version $Rev: 173 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-05-08 10:27:51 +0800 (周二, 2012-05-08) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file contains all necessary *.h and global define.
   ******************************************************************************
   */ 

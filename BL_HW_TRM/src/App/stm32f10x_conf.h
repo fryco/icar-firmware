@@ -7,10 +7,10 @@
   * @brief   Library configuration file.
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/bootloader_v02/src_comm/App/stm32f10x_conf.h $ 
-  * @version $Rev: 173 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-05-08 10:27:51 +0800 (周二, 2012-05-08) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   ******************************************************************************
   */ 
 
