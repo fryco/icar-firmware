@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/app_v07/src_comm/App/drv_can.h $ 
-  * @version $Rev: 278 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-10-11 17:19:08 +0800 (周四, 2012-10-11) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This is realtime clock driver in STM32
   ******************************************************************************
   */

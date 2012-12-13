@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/app_v07/src_comm/App/main.h $ 
-  * @version $Rev: 270 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-09-06 15:58:29 +0800 (周四, 2012-09-06) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file contains all necessary *.h and global define.
   ******************************************************************************
   */ 
