@@ -5,25 +5,6 @@
  *
  *      $URL$
  *      $Rev$, $Date$
-#include <time.h>
-#include <sys/time.h>
-#include <sys/param.h>
-#include <sys/utsname.h>
-#include <syslog.h>
-
-#include <sys/types.h>
-#include <sys/wait.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <limits.h>
 
  */
 
@@ -38,21 +19,30 @@
 #include <dirent.h>
 #include <errno.h>
 #include <utmp.h>
-
 #include <time.h>
+
+#include <netdb.h>
+
 #include <sys/param.h>
 #include <sys/sysinfo.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 
 #define	EMAIL				128
-#define BUFSIZE 			1024*2
+#define BUFSIZE 			2048
 
 #define	LOG_DIR				"/tmp/"
 
 //#define PERIOD_CHECK_DB		3*60	//check database every 3*60 seconds
-//#define PERIOD_SEND_MAIL	5*60*60	//send mail every 1*60*60 seconds
+#define PERIOD_SEND_MAIL	5*60*60	//send mail every 1*60*60 seconds
 
 #define PERIOD_CHECK_DB		3	//check database every 3*60 seconds
-#define PERIOD_SEND_MAIL	5	//send mail every 1*60*60 seconds
+//#define PERIOD_SEND_MAIL	5	//send mail every 1*60*60 seconds
+
+#define NOTICER_ADDR		"cn0086@139.com"
+//#define NOTICER_ADDR		"cn0086.info@gmail.com"
+#define EMERGENCY_ADDR		"cn0086@139.com"
+
 
 #endif /* _CONFIG_H */
