@@ -10,7 +10,7 @@
 #include "config.h"
 #include "rokkod.h"
 
-#define rokkod_RELEASE "\nRokko daemon v00, built by cn0086@139.com at " __DATE__" "__TIME__ "\n"
+#define rokkod_RELEASE "\nRokko daemon v00, built by cn0086.info@gmail.com at " __DATE__" "__TIME__ "\n"
 
 int update_interval=5, foreground=0, listen_port=23;
 
@@ -254,7 +254,7 @@ void scan_args(int argc, char *argv[])
 void handler(int s)
 {
 	
-	//fprintf(stderr,"PID:%d %d\n",getpid(),__LINE__);
+	//printf("PID:%d %d\n",getpid(),__LINE__);
 	/* Exit gracefully. */
 	if(pidfile[0]) {
 		unlink(pidfile);
@@ -314,7 +314,7 @@ void period_check( FILE *fp)
 		mail_buf[0] = '\0';
 		snprintf(mail_buf,BUFSIZE,"Daemon CHK %.24s\r\n",(char *)ctime((&now_time)));
 	
-		//err = smtp_send("smtp.139.com", 25, mail_notice, mail_buf, "\r\n");
+		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_buf, "\r\n");
 		if ( err ) {
 			;//log_save("Send mail failure!\r\n");
 			//exit(1);
