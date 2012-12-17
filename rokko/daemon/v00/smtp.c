@@ -2,10 +2,10 @@
 
 #include "smtp.h"
 
-//#define DEBUG_SMTP
+#define DEBUG_SMTP
 
 #ifdef DEBUG_SMTP
-	#define debug_smtp(x, args...)  printf(##args);
+#define debug_smtp(x, args...)  fprintf(x, ##args);
 #else
 	#define debug_smtp(x, args...)  ;
 #endif
@@ -71,8 +71,8 @@ unsigned char smtp_send(char *smtp_server, unsigned int smtp_port, char *mail_to
 	debug_smtp(stderr,"<-- %s\r\n",  recv_buf);
 	
 	//发送准备登陆信息
-	memset( send_buf, 0, BUFSIZE);
-	strcat(send_buf, "AUTH PLAIN ADEzODY5Njg5NDQwAHNtdHBAMTM5\r\n");
+	//strcat(send_buf, "AUTH PLAIN ADEzODY5Njg5NDQwAHNtdHBAMTM5\r\n");
+	strcat(send_buf, "AUTH PLAIN ADEzODI4NDMxMTA2AG1vdG8zOTg=\r\n");
 	send(sockfd, send_buf, strlen(send_buf), 0);
 	debug_smtp(stderr,"--> %s",  send_buf);
 
@@ -81,8 +81,8 @@ unsigned char smtp_send(char *smtp_server, unsigned int smtp_port, char *mail_to
 	debug_smtp(stderr,"<-- %s\r\n",  recv_buf);
 
 	//MAIL FROM:<13869689440@139.com>
-	memset( send_buf, 0, BUFSIZE);
-	strcat(send_buf, "MAIL FROM:<13869689440@139.com>\r\n");
+	//strcat(send_buf, "MAIL FROM:<13869689440@139.com>\r\n");
+	strcat(send_buf, "MAIL FROM:<13828431106@139.com>\r\n");
 	send(sockfd, send_buf, strlen(send_buf), 0);
 	debug_smtp(stderr,"--> %s",  send_buf);
 

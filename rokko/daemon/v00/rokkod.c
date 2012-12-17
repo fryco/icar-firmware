@@ -16,7 +16,7 @@ int update_interval=5, foreground=0, listen_port=23;
 
 char pidfile[EMAIL+1];
 
-static time_t last_time;
+static time_t last_time = 0;
 
 extern char logdir[EMAIL+1], logname[EMAIL+1];
 
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 	{
 		case 0://In child process
 			printf("In child:%d for period_check\n",getpid());
-			last_time=time(NULL);
+			//last_time=time(NULL);
 			
 			FILE *child_log;
 
@@ -315,6 +315,7 @@ void period_check( FILE *fp)
 		snprintf(mail_buf,BUFSIZE,"Daemon CHK %.24s\r\n",(char *)ctime((&now_time)));
 	
 		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_buf, "\r\n");
+		last_time = now_time;
 		if ( err ) {
 			;//log_save("Send mail failure!\r\n");
 			//exit(1);
