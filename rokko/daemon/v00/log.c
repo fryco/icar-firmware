@@ -43,7 +43,7 @@ int log_init( char* path )
 	return 0 ;
 }
 
-int log_save1(FILE *log, char *msg)
+int log_save(FILE *log, char *msg)
 {
 	struct timeval tv;
 	char logtime[EMAIL+1] , newname[EMAIL+1];

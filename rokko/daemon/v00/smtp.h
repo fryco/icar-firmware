@@ -14,6 +14,7 @@
 
 // Function prototype
 
-unsigned char smtp_send(char *smtp_server, unsigned int smtp_port, char *mail_to, char *mail_subject, char *mail_body);
-
+unsigned char smtp_send(char *smtp_server, 
+						unsigned int smtp_port, char *mail_to, 
+						char *mail_subject, char *mail_body, char *err_str);
 #endif /* _SMTP_H */

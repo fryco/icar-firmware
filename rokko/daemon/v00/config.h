@@ -36,12 +36,12 @@
 #define	LOG_DIR				"/tmp/"
 
 //#define PERIOD_CHECK_DB		3*60	//check database every 3*60 seconds
-#define PERIOD_SEND_MAIL	1*60*60	//send mail every 1*60*60 seconds
+//#define PERIOD_SEND_MAIL	1*60*60	//send mail every 1*60*60 seconds
 
 #define PERIOD_CHECK_DB		3	//check database every 3*60 seconds
-//#define PERIOD_SEND_MAIL	10	//send mail every 1*60*60 seconds
+#define PERIOD_SEND_MAIL	30*60	//send mail every 1*60*60 seconds
 
-#define NOTICER_ADDR		"cn0086@139.com"
+#define NOTICER_ADDR		"cn0086@139.com;adscrz@163.com"
 #define EMERGENCY_ADDR		"cn0086@139.com"
 
 

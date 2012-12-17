@@ -100,7 +100,6 @@ int main(int argc, char *argv[])
 	{
 		case 0://In child process
 			printf("In child:%d for period_check\n",getpid());
-			//last_time=time(NULL);
 			
 			FILE *child_log;
 
@@ -122,7 +121,7 @@ int main(int argc, char *argv[])
 			}
 
 			snprintf(logtime,EMAIL,"==> Start rokko daemon, PID: %d, port: %d\n",getpid(),listen_port);
-			log_save1(child_log, logtime);
+			log_save(child_log, logtime);
 
 			while ( 1 ) {
 				sleep( PERIOD_CHECK_DB ) ;
@@ -135,8 +134,6 @@ int main(int argc, char *argv[])
 				
 				strcat(newname,logdir);strcat(newname,logtime);
 				snprintf(&newname[strlen(newname)],16,"_%d.txt",listen_port);
-
-				//strcat(logname, newname);
 		
 				child_log = fopen(newname, "a");
 
@@ -177,11 +174,11 @@ int main(int argc, char *argv[])
 			memset(log_buffer, '\0', sizeof(log_buffer));
 
 			get_sysinfo( log_buffer, BUFSIZE) ;
-			log_save1(fh, log_buffer ) ;
+			log_save(fh, log_buffer ) ;
 
 			snprintf(log_buffer,EMAIL,"%d PID:%d\n",i,getpid());
 
-			log_save1(fh, log_buffer);
+			log_save(fh, log_buffer);
 		
 			i++;
 		}
@@ -306,30 +303,29 @@ void print_version(void)
 void period_check( FILE *fp)
 {
 	time_t now_time=time(NULL);
-	char mail_buf[BUFSIZE+1], log_buf[BUFSIZE+1], err;
-	
-	printf(" --> Period check, port: %d\n",listen_port);
+	char mail_buf[BUFSIZE+1], log_buf[BUFSIZE+1],err;
 	
 	if ( now_time - last_time > PERIOD_SEND_MAIL ) {
+		printf(" --> Period send mail, port: %d\n",listen_port);
+		
 		mail_buf[0] = '\0';
-		snprintf(mail_buf,BUFSIZE,"Daemon CHK %.24s\r\n",(char *)ctime((&now_time)));
+		snprintf(mail_buf,BUFSIZE,"%.24s\r\n",(char *)ctime((&now_time)));
 	
-		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_buf, "\r\n");
+		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_buf, "\r\n",log_buf);
 		last_time = now_time;
 		if ( err ) {
-			;//log_save("Send mail failure!\r\n");
-			//exit(1);
+			printf("Err: %s",log_buf);
+			log_save(fp, log_buf);
 		}
 		else {
-			//log_save("Send mail ok.\r\n");
-			last_time = now_time;
+			log_save(fp, "Send mail ok.\r\n");
 		}
 		
 		if ( fp ) {
 			memset(log_buf, '\0', sizeof(log_buf));
 	
 			get_sysinfo( log_buf, BUFSIZE) ;
-			log_save1(fp, log_buf ) ;
+			log_save(fp, log_buf ) ;
 		}
 	}
 }
