@@ -1,4 +1,8 @@
+ifeq ($(shell getconf LONG_BIT),64) 
+CFLAGS=-I. -I/usr/include/mysql -L/usr/lib64/mysql
+else
 CFLAGS=-I. -I/usr/include/mysql -L/usr/lib/mysql
+endif
 
 CC = gcc  
 
