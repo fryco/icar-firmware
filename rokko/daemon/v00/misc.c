@@ -7,6 +7,14 @@
 #define TOOSMALL 	2
 #define TOOLARGE 	3
 
+#ifndef LLONG_MIN
+	#define LLONG_MIN     (-LLONG_MAX-1)
+#endif
+
+#ifndef LLONG_MAX
+	#define LLONG_MAX    9223372036854775807LL
+#endif
+
 static const int FSHIFT = 16;           /* nr of bits of precision */
 #define FIXED_1         (1<<FSHIFT)     /* 1.0 as fixed-point */
 #define LOAD_INT(x) ((x) >> FSHIFT)
