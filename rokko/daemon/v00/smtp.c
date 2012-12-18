@@ -118,7 +118,7 @@ unsigned char smtp_send(char *smtp_server,
 	//strcat(send_buf, "MAIL FROM:<13869689440@139.com>\r\n");
 	strcat(send_buf, "MAIL FROM:<13828431106@139.com>\r\n");
 	write( sockfd, send_buf, strlen(send_buf));
-	debug_smtp("--> %s",  send_buf);
+	printf("--> %s",  send_buf);
 
 	if ( mail_fp ) { 
 		fprintf(mail_fp, "-> %s", send_buf);
@@ -145,7 +145,7 @@ unsigned char smtp_send(char *smtp_server,
 	strcat(send_buf, mail_to);
 	strcat(send_buf, ">\r\n");
 	write( sockfd, send_buf, strlen(send_buf));
-	debug_smtp("--> %s",  send_buf);
+	printf("--> %s",  send_buf);
 
 	if ( mail_fp ) { 
 		fprintf(mail_fp, "-> %s", send_buf);
