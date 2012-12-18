@@ -69,8 +69,8 @@ int main(int argc, char *argv[])
 
 	signal(SIGINT, handler); //exit when Crtl-C
 
-	//signal(SIGCHLD, SIG_IGN); /* 忽略子进程结束信号，防止出现僵尸进程 */ 
-	signal(SIGCHLD, child_exit);
+	signal(SIGCHLD, SIG_IGN); /* 忽略子进程结束信号，防止出现僵尸进程 */ 
+	//signal(SIGCHLD, child_exit);
 	
 	printf("Listen port: %d\n\n",listen_port);
 	
@@ -267,9 +267,15 @@ void handler(int s)
 void child_exit(int num)
 {
 	//Received SIGCHLD signal
+	wait3(NULL,WNOHANG,NULL);
+/*
 	int status;
 	FILE *fp;
+
 	int pid = waitpid(-1, &status, WNOHANG);
+	
+	wait3(NULL,WNOHANG,NULL);
+	
 	if (WIFEXITED(status)) {
 		fp = fopen("/tmp/log/log_err.txt", "a");
 		if ( fp ) { 
@@ -277,6 +283,7 @@ void child_exit(int num)
 			fclose(fp) ;
 		}
 	}
+*/
 }
 
 void print_help(char *argv[])
@@ -305,14 +312,20 @@ void period_check( FILE *fp)
 	time_t now_time=time(NULL);
 	char mail_buf[BUFSIZE+1], log_buf[BUFSIZE+1],err;
 	
+	printf("now: %d\tlast: %d\t%d\r\n",now_time,last_time,now_time - last_time);
 	if ( now_time - last_time > PERIOD_SEND_MAIL ) {
+		bzero( log_buf, sizeof(log_buf));
+		snprintf( log_buf, sizeof(log_buf),"last_time = %d\n\n",last_time);
+		log_save(fp, log_buf);
+
+		last_time = now_time;
 		printf("==> Period send mail, port: %d\n",listen_port);
 		
 		mail_buf[0] = '\0';
-		snprintf(mail_buf,BUFSIZE,"%.24s\r\n",(char *)ctime((&now_time)));
+		snprintf(mail_buf,BUFSIZE,"v1 %.24s\r\n",(char *)ctime((&now_time)));
 	
 		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_buf, "\r\n",log_buf);
-		last_time = now_time;
+
 		if ( err ) {
 			//printf("Err: %s",log_buf);
 			log_save(fp, log_buf);
