@@ -27,6 +27,10 @@ unsigned char smtp_send(char *smtp_server,
 	int sockfd;
 	struct sockaddr_in server_addr;
 	struct hostent *host;
+
+	FILE *mail_fp;
+	
+	mail_fp = fopen("mail.log", "a");
 	
 	/*取得主机IP地址*/
 	if((host=gethostbyname(smtp_server))==NULL)
@@ -88,20 +92,24 @@ unsigned char smtp_send(char *smtp_server,
 		bzero( recv_buf, sizeof(recv_buf));
 		size = read( sockfd, recv_buf, sizeof( recv_buf));
 		if (size == 0 || size > sizeof( recv_buf)) { //no data or overflow
+			write( sockfd, "QUIT\r\n", strlen("QUIT\r\n"));
+			close(sockfd);
+			
 			printf("Rec CNT err! check %s:%d\n",__FILE__,__LINE__);
-			return 35;
+			return 35 ;
 		}
 		retry--;
 	}
 
 	debug_smtp("<-- %s\r\n",  recv_buf);
 	if ( strstr(recv_buf,"failed") ) { //454 Authentication failed
-		printf("Authentication failed! check %s:%d\n",__FILE__,__LINE__);
+		write( sockfd, "QUIT\r\n", strlen("QUIT\r\n"));
+		close(sockfd);
 
+		printf("Authentication failed! check %s:%d\n",__FILE__,__LINE__);
 		bzero( err_str, sizeof(err_str));
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 40\r\n");
-		close(sockfd);
 		return 40 ;
 	}
 
@@ -112,9 +120,24 @@ unsigned char smtp_send(char *smtp_server,
 	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
+	if ( mail_fp ) { 
+		fprintf(mail_fp, "-> %s", send_buf);
+	}
+
 	bzero( recv_buf, sizeof(recv_buf));
 	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
+
+	if ( strstr(recv_buf,"250") == NULL ) { //shoud return: 250 ok
+		write( sockfd, "QUIT\r\n", strlen("QUIT\r\n"));
+		close(sockfd); 
+
+		printf("No 250! check %s:%d\n",__FILE__,__LINE__);
+		bzero( err_str, sizeof(err_str));
+		strcat(err_str, recv_buf);
+		strcat(err_str, "\r\nErr code: 45\r\n");
+		return 45 ;
+	}
 
 	//RCPT TO:<13869689440@139.com>
 	bzero( send_buf, sizeof(send_buf));
@@ -124,17 +147,35 @@ unsigned char smtp_send(char *smtp_server,
 	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
+	if ( mail_fp ) { 
+		fprintf(mail_fp, "-> %s", send_buf);
+		fclose(mail_fp) ;
+	}
+
 	bzero( recv_buf, sizeof(recv_buf));
 	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
-	if ( strstr(recv_buf,"Invalid rcpt") ) { //No receiver address
-		printf("Invalid mail address! check %s:%d\n",__FILE__,__LINE__);
 
+	if ( strstr(recv_buf,"Invalid rcpt") ) { //No receiver address
+		write( sockfd, "QUIT\r\n", strlen("QUIT\r\n"));
+		close(sockfd);
+
+		printf("Invalid mail address! check %s:%d\n",__FILE__,__LINE__);
 		bzero( err_str, sizeof(err_str));
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 50\r\n");
-		close(sockfd);
 		return 50 ;
+	}
+
+	if ( strstr(recv_buf,"250") == NULL ) { //shoud return: 250 ok
+		write( sockfd, "QUIT\r\n", strlen("QUIT\r\n"));
+		close(sockfd); 
+
+		printf("No 250! check %s:%d\n",__FILE__,__LINE__);
+		bzero( err_str, sizeof(err_str));
+		strcat(err_str, recv_buf);
+		strcat(err_str, "\r\nErr code: 55\r\n");
+		return 55 ;
 	}
 
 	//DATA	
@@ -146,7 +187,7 @@ unsigned char smtp_send(char *smtp_server,
 	bzero( recv_buf, sizeof(recv_buf));
 	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
-	
+
 	//Mail subject	
 	bzero( send_buf, sizeof(send_buf));
 	strcat(send_buf, "subject:");
@@ -181,15 +222,15 @@ unsigned char smtp_send(char *smtp_server,
 		bzero( err_str, sizeof(err_str));
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 60\r\n");
+
+		write( sockfd, "QUIT\r\n", strlen("QUIT\r\n"));
 		close(sockfd); 
 		return 60 ;
 	}
 	
 	//QUIT
-	bzero( send_buf, sizeof(send_buf));
-	strcat(send_buf, "QUIT\r\n");
-	write( sockfd, send_buf, strlen(send_buf));
-	debug_smtp("--> %s",  send_buf);
+	write( sockfd, "QUIT\r\n", strlen("QUIT\r\n"));
+	debug_smtp("--> %s",  "QUIT\r\n");
 
 	bzero( recv_buf, sizeof(recv_buf));
 	size = read( sockfd, recv_buf, sizeof( recv_buf));
@@ -200,6 +241,8 @@ unsigned char smtp_send(char *smtp_server,
 		bzero( err_str, sizeof(err_str));
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 70\r\n");
+
+		write( sockfd, "QUIT\r\n", strlen("QUIT\r\n"));
 		close(sockfd);
 		return 70 ;
 	}
