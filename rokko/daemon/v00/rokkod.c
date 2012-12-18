@@ -126,8 +126,8 @@ int main(int argc, char *argv[])
 			while ( 1 ) {
 				sleep( PERIOD_CHECK_DB ) ;
 
-				memset(logtime, '\0', sizeof(logtime));	
-				memset(newname, '\0', sizeof(newname));
+				bzero( logtime, sizeof(logtime));	
+				bzero( newname, sizeof(newname));
 
 				gettimeofday(&tv,NULL);
 				strftime(logtime,EMAIL,"/%Y%m%d",(const void *)localtime(&tv.tv_sec));
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
 					fclose(child_log);
 				}
 				else {
-					memset(logtime, '\0', sizeof(logtime));	
+					bzero( logtime, sizeof(logtime));	
 					snprintf(logtime,EMAIL,"open %s err! %d\n",newname,__LINE__);
 					log_err(logtime);
 				}
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
 
 		if ( fh ) {
 			
-			memset(log_buffer, '\0', sizeof(log_buffer));
+			bzero( log_buffer, sizeof(log_buffer));
 
 			get_sysinfo( log_buffer, BUFSIZE) ;
 			log_save(fh, log_buffer ) ;
@@ -306,7 +306,7 @@ void period_check( FILE *fp)
 	char mail_buf[BUFSIZE+1], log_buf[BUFSIZE+1],err;
 	
 	if ( now_time - last_time > PERIOD_SEND_MAIL ) {
-		printf(" --> Period send mail, port: %d\n",listen_port);
+		printf("==> Period send mail, port: %d\n",listen_port);
 		
 		mail_buf[0] = '\0';
 		snprintf(mail_buf,BUFSIZE,"%.24s\r\n",(char *)ctime((&now_time)));
@@ -314,15 +314,16 @@ void period_check( FILE *fp)
 		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_buf, "\r\n",log_buf);
 		last_time = now_time;
 		if ( err ) {
-			printf("Err: %s",log_buf);
+			//printf("Err: %s",log_buf);
 			log_save(fp, log_buf);
 		}
 		else {
 			log_save(fp, "Send mail ok.\r\n");
 		}
+		printf("==> End send mail, return %d\r\n",err);
 		
-		if ( fp ) {
-			memset(log_buf, '\0', sizeof(log_buf));
+		if ( 0 ) {
+			bzero( log_buf, sizeof(log_buf));
 	
 			get_sysinfo( log_buf, BUFSIZE) ;
 			log_save(fp, log_buf ) ;

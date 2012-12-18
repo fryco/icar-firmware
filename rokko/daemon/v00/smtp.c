@@ -20,9 +20,10 @@ unsigned char smtp_send(char *smtp_server,
 						unsigned int smtp_port, char *mail_to, 
 						char *mail_subject, char *mail_body, char *err_str)
 {
-	char recv_buf[BUFSIZE];
-	char send_buf[BUFSIZE];
+	char recv_buf[BUFSIZE], send_buf[BUFSIZE];
+	char retry = 0;
 
+	ssize_t size = 0;
 	int sockfd;
 	struct sockaddr_in server_addr;
 	struct hostent *host;
@@ -59,127 +60,147 @@ unsigned char smtp_send(char *smtp_server,
 
 	// Wait for a reply
 	//
-	memset( recv_buf,0,BUFSIZE);
-	recv(sockfd, recv_buf,sizeof( recv_buf),0);
+	bzero( recv_buf, sizeof(recv_buf));
+	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n", recv_buf);
 
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	strcat(send_buf, "EHLO localhost\r\n");
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 	
-	memset( recv_buf,0,BUFSIZE);
-	recv(sockfd, recv_buf,sizeof( recv_buf),0);
+	bzero( recv_buf, sizeof(recv_buf));
+	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
 	
 	//发送准备登陆信息
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	//strcat(send_buf, "AUTH PLAIN ADEzODY5Njg5NDQwAHNtdHBAMTM5\r\n");
 	strcat(send_buf, "AUTH PLAIN ADEzODI4NDMxMTA2AG1vdG8zOTg=\r\n");
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
-	memset( recv_buf,0,BUFSIZE);
-	recv(sockfd, recv_buf,sizeof( recv_buf),0);
+	retry = 10 ;
+	bzero( recv_buf, sizeof(recv_buf));
+	size = read( sockfd, recv_buf, sizeof( recv_buf));
+
+	while ( retry & size < 15 ) {
+		bzero( recv_buf, sizeof(recv_buf));
+		size = read( sockfd, recv_buf, sizeof( recv_buf));
+		if (size == 0 || size > sizeof( recv_buf)) { //no data or overflow
+			printf("Rec CNT err! check %s:%d\n",__FILE__,__LINE__);
+			return 35;
+		}
+		retry--;
+	}
+
 	debug_smtp("<-- %s\r\n",  recv_buf);
 	if ( strstr(recv_buf,"failed") ) { //454 Authentication failed
 		printf("Authentication failed! check %s:%d\n",__FILE__,__LINE__);
 
-		memset(err_str, '\0', sizeof(err_str));
+		bzero( err_str, sizeof(err_str));
 		strcat(err_str, recv_buf);
+		strcat(err_str, "\r\nErr code: 40\r\n");
 		close(sockfd);
 		return 40 ;
 	}
 
 	//MAIL FROM:<13869689440@139.com>
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	//strcat(send_buf, "MAIL FROM:<13869689440@139.com>\r\n");
 	strcat(send_buf, "MAIL FROM:<13828431106@139.com>\r\n");
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
-	memset( recv_buf,0,BUFSIZE);
-	recv(sockfd, recv_buf,sizeof( recv_buf),0);
+	bzero( recv_buf, sizeof(recv_buf));
+	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
 
 	//RCPT TO:<13869689440@139.com>
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	strcat(send_buf, "RCPT TO:<");
 	strcat(send_buf, mail_to);
 	strcat(send_buf, ">\r\n");
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
-	memset( recv_buf,0,BUFSIZE);
-	recv(sockfd, recv_buf,sizeof( recv_buf),0);
+	bzero( recv_buf, sizeof(recv_buf));
+	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
 	if ( strstr(recv_buf,"Invalid rcpt") ) { //No receiver address
 		printf("Invalid mail address! check %s:%d\n",__FILE__,__LINE__);
 
-		memset(err_str, '\0', sizeof(err_str));
+		bzero( err_str, sizeof(err_str));
 		strcat(err_str, recv_buf);
+		strcat(err_str, "\r\nErr code: 50\r\n");
 		close(sockfd);
 		return 50 ;
 	}
 
 	//DATA	
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	strcat(send_buf, "DATA\r\n");
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
-	memset( recv_buf,0,BUFSIZE);
-	recv(sockfd, recv_buf,sizeof( recv_buf),0);
+	bzero( recv_buf, sizeof(recv_buf));
+	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
 	
 	//Mail subject	
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	strcat(send_buf, "subject:");
 	strcat(send_buf, mail_subject);
 	strcat(send_buf, "\r\n");
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
 	//Mail body
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	strcat(send_buf, mail_body);
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
 	get_sysinfo( send_buf, BUFSIZE) ;
-	send(sockfd, send_buf, strlen(send_buf), 0);
-	send(sockfd, "\r\n", strlen("\r\n"), 0);
+	write( sockfd, send_buf, strlen(send_buf));
+	write( sockfd, "\r\n", strlen("\r\n"));
 	debug_smtp("--> %s",  send_buf);
 		
 	//Mail end
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	strcat(send_buf, ".\r\n");
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
-	memset( recv_buf,0,BUFSIZE);
-	recv(sockfd, recv_buf,sizeof( recv_buf),0);
+	bzero( recv_buf, sizeof(recv_buf));
+	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
 
 	if ( strstr(recv_buf,"250") == NULL ) { //no found
 		printf("Err rec! check %s:%d\n",__FILE__,__LINE__);
+		bzero( err_str, sizeof(err_str));
+		strcat(err_str, recv_buf);
+		strcat(err_str, "\r\nErr code: 60\r\n");
 		close(sockfd); 
 		return 60 ;
 	}
 	
 	//QUIT
-	memset( send_buf, 0, BUFSIZE);
+	bzero( send_buf, sizeof(send_buf));
 	strcat(send_buf, "QUIT\r\n");
-	send(sockfd, send_buf, strlen(send_buf), 0);
+	write( sockfd, send_buf, strlen(send_buf));
 	debug_smtp("--> %s",  send_buf);
 
-	memset( recv_buf,0,BUFSIZE);
-	recv(sockfd, recv_buf,sizeof( recv_buf),0);
+	bzero( recv_buf, sizeof(recv_buf));
+	size = read( sockfd, recv_buf, sizeof( recv_buf));
 	debug_smtp("<-- %s\r\n",  recv_buf);
 
 	if ( strstr(recv_buf,"221") == NULL ) { //no found
 		printf("Err rec! check %s:%d\n",__FILE__,__LINE__);
-		close(sockfd); 
+		bzero( err_str, sizeof(err_str));
+		strcat(err_str, recv_buf);
+		strcat(err_str, "\r\nErr code: 70\r\n");
+		close(sockfd);
 		return 70 ;
 	}
 
