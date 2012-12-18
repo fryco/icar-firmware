@@ -314,15 +314,15 @@ void period_check( FILE *fp)
 	
 	printf("now: %d\tlast: %d\t%d\r\n",now_time,last_time,now_time - last_time);
 	if ( now_time - last_time > PERIOD_SEND_MAIL ) {
-		bzero( log_buf, sizeof(log_buf));
-		snprintf( log_buf, sizeof(log_buf),"last_time = %d\n\n",last_time);
-		log_save(fp, log_buf);
+		//bzero( log_buf, sizeof(log_buf));
+		//snprintf( log_buf, sizeof(log_buf),"last_time = %d\n\n",last_time);
+		//log_save(fp, log_buf);
 
 		last_time = now_time;
 		printf("==> Period send mail, port: %d\n",listen_port);
 		
 		mail_buf[0] = '\0';
-		snprintf(mail_buf,BUFSIZE,"v1 %.24s\r\n",(char *)ctime((&now_time)));
+		snprintf(mail_buf,BUFSIZE,"v2 %.24s\r\n",(char *)ctime((&now_time)));
 	
 		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_buf, "\r\n",log_buf);
 
