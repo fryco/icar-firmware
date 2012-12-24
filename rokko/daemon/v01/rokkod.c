@@ -55,14 +55,14 @@ int main(int argc, char *argv[])
  				pid = 0;
  			fclose(pidf);
  			if(pid && !kill(pid, 0)) {
- 				printf("rokkod is already running, PID: %d.\n",pid);
+ 				fprintf(stderr, "rokkod is already running, PID: %d.\n",pid);
  				exit(1);
  			}
  		}
  	}		
 
  	if ( log_init( LOG_DIR ) ) { //error
-		printf("Create log dir error! %s:%d\n",__FILE__,__LINE__);
+		fprintf(stderr, "Create log dir error! %s:%d\n",__FILE__,__LINE__);
 		exit(1);
 	}
 
@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 	signal(SIGCHLD, SIG_IGN); /* 忽略子进程结束信号，防止出现僵尸进程 */ 
 	//signal(SIGCHLD, child_exit);
 	
-	printf("Listen port: %d\n\n",listen_port);
+	fprintf(stderr, "Listen port: %d\n\n",listen_port);
 	
 	/* Now run in the background. */
 	if (!foreground) {
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 	switch(fork())
 	{
 		case 0://In child process
-			printf("In child:%d for period_check\n",getpid());
+			fprintf(stderr, "In child:%d for period_check\n",getpid());
 			
 			FILE *child_log;
 
@@ -161,30 +161,12 @@ int main(int argc, char *argv[])
 	/* Main program, create log file first */
 	char log_buffer[BUFSIZE+1];
 	struct rokko_data rokko ;
-	FILE *srv_log;
-
-	char srvname[EMAIL+1];
-
-	srvname[0] ='\0';
-	strcat(srvname,logdir);strcat(srvname,"/daemon.txt");
-
-	srv_log = fopen(srvname, "a");
-
-	if ( !srv_log ) {
-		printf("Create %s err, check %s:%d\n",srvname,__FILE__, __LINE__);
-		exit(1);
-	}
 
 	if ( sock_init( listen_port ) ) {//err
-		printf("sock init err!\r\n");
+		fprintf(stderr, "sock init err!\r\n");
 		exit(1);
 	}
 	
-	bzero( log_buffer, sizeof(log_buffer));
-	snprintf(log_buffer,BUFSIZE,"Start daemon, port:%d\n",listen_port);
-	log_save(srv_log, log_buffer ) ;
-	fclose( srv_log );
-
 	/* Main loop, accept TCP socket connect */
 	while (1)
 	{
@@ -194,36 +176,15 @@ int main(int argc, char *argv[])
 		//Accept new connection
 		rokko.client_socket = accept(sock_server, (struct sockaddr *)&rokko.client_addr, &addrlen);
 		if (rokko.client_socket < 0) {
-			printf("Accept new connection error, check %s:%d",__FILE__, __LINE__);
-
-			bzero( log_buffer, sizeof(log_buffer));
-			snprintf(log_buffer,BUFSIZE,"Accept new connection error, check %s:%d",\
-										__FILE__, __LINE__);
-			log_save(srv_log, log_buffer ) ;
-
+			fprintf(stderr, "Accept new connection error, check %s:%d",__FILE__, __LINE__);
 			continue; //error, stop this connection
-		}
-
-		//Record this connection
-		srv_log = fopen(srvname, "a");
-		if ( srv_log ) {
-			bzero( log_buffer, sizeof(log_buffer));
-			snprintf(log_buffer,BUFSIZE,"Accept connection, PID: %d, from: %s:%d\n",\
-								getpid(),(char *)inet_ntoa(rokko.client_addr.sin_addr),\
-								ntohs(rokko.client_addr.sin_port));
-			log_save(srv_log, log_buffer ) ;
-			fclose( srv_log );
-		}
-		
-		if ( foreground ) {
-			printf("%s",log_buffer);
 		}
 
 		//Create new process for this connection
 		switch(fork())
 		{
 			case 0://In child process
-				printf("In child:%d for period_check\n",getpid());
+				fprintf(stderr, "\nChild:%d for new connection\t",getpid());
 				
 				close(sock_server);
 				
@@ -234,15 +195,6 @@ int main(int argc, char *argv[])
 									getpid(),(char *)inet_ntoa(rokko.client_addr.sin_addr),\
 									ntohs(rokko.client_addr.sin_port));
 
-				srv_log = fopen(srvname, "a");
-				if ( srv_log ) {
-					log_save(srv_log, log_buffer ) ;
-					fclose( srv_log );
-				}
-				
-				if ( foreground ) {
-					printf("%s",log_buffer);
-				}
 				close(rokko.client_socket);
 
 				exit(0);
@@ -256,20 +208,6 @@ int main(int argc, char *argv[])
 
 		/* Save valueable CPU cycles. */
 		sleep(update_interval);
-
-		if ( srv_log ) {
-			
-			bzero( log_buffer, sizeof(log_buffer));
-
-			get_sysinfo( log_buffer, BUFSIZE) ;
-			log_save(srv_log, log_buffer ) ;
-
-			snprintf(log_buffer,EMAIL,"%d PID:%d\n",i,getpid());
-
-			log_save(srv_log, log_buffer);
-		
-			i++;
-		}
 	}
 }
 
@@ -287,7 +225,7 @@ void bg(void)
 			exit(0);
 	}
 
-	//printf("In child:%d\n",getpid());
+	//fprintf(stderr, "In child:%d\n",getpid());
 
 	if (-1==setsid()) {
 		perror("setsid failed"); exit(1);
@@ -325,7 +263,7 @@ void scan_args(int argc, char *argv[])
 			case 'p':
 				listen_port = a2port(optarg);
 				if (listen_port <= 0) {
-					printf("Bad port number, the port must: 1 ~ 65535\n");
+					fprintf(stderr, "Bad port number, the port must: 1 ~ 65535\n");
 					exit(1);
 				}
 				break;
@@ -333,13 +271,13 @@ void scan_args(int argc, char *argv[])
 		}
 	}
 	
-	printf("%s\n", rokkod_RELEASE );
+	fprintf(stderr, "%s\n", rokkod_RELEASE );
 }
 
 void handler(int s)
 {
 	
-	//printf("PID:%d %d\n",getpid(),__LINE__);
+	//fprintf(stderr, "PID:%d %d\n",getpid(),__LINE__);
 	/* Exit gracefully. */
 	if(pidfile[0]) {
 		unlink(pidfile);
@@ -376,21 +314,21 @@ void child_exit(int num)
 
 void print_help(char *argv[])
 {
-	printf("%s\n", rokkod_RELEASE );
-	printf("usage: %s [OPTION]...\n", argv[0]);
-	printf("commandline options override settings from configuration file\n\n");
-	printf("  -?             this help\n");
-	printf("  -b             create bootid and exit [ignored on FreeBSD]\n");
-	printf("  -f             run in foreground [debug]\n");
-	printf("  -d             log the detail\n");
-	printf("  -p             port, default is 23\n\n");
+	fprintf(stderr, "%s\n", rokkod_RELEASE );
+	fprintf(stderr, "usage: %s [OPTION]...\n", argv[0]);
+	fprintf(stderr, "commandline options override settings from configuration file\n\n");
+	fprintf(stderr, "  -?             this help\n");
+	fprintf(stderr, "  -b             create bootid and exit [ignored on FreeBSD]\n");
+	fprintf(stderr, "  -f             run in foreground [debug]\n");
+	fprintf(stderr, "  -d             log the detail\n");
+	fprintf(stderr, "  -p             port, default is 23\n\n");
 	exit(0);
 }
 
 void print_version(void)
 {
-	printf("%s\n", rokkod_RELEASE );
-	printf("enhanced and maintained by cn0086 <cn0086.info@gmail.com>\n\n");
+	fprintf(stderr, "%s\n", rokkod_RELEASE );
+	fprintf(stderr, "enhanced and maintained by cn0086 <cn0086.info@gmail.com>\n\n");
 	exit(0);
 }
 
@@ -400,7 +338,7 @@ void period_check( FILE *fp)
 	time_t now_time=time(NULL);
 	char mail_buf[BUFSIZE+1], log_buf[BUFSIZE+1],err;
 	
-	printf("now: %d\tlast: %d\t%d\r\n",(int)now_time,(int)last_time,\
+	fprintf(stderr, "now: %d\tlast: %d\t%d\r\n",(int)now_time,(int)last_time,\
 			(int)(now_time - last_time));
 	if ( now_time - last_time > PERIOD_SEND_MAIL ) {
 		//bzero( log_buf, sizeof(log_buf));
@@ -408,7 +346,7 @@ void period_check( FILE *fp)
 		//log_save(fp, log_buf);
 
 		last_time = now_time;
-		printf("==> Period send mail, port: %d\n",listen_port);
+		fprintf(stderr, "==> Period send mail, port: %d\n",listen_port);
 		
 		mail_buf[0] = '\0';
 		snprintf(mail_buf,BUFSIZE,"C0 %.24s\r\n",(char *)ctime((&now_time)));
@@ -416,13 +354,13 @@ void period_check( FILE *fp)
 		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_buf, "\r\n",log_buf);
 
 		if ( err ) {
-			//printf("Err: %s",log_buf);
+			//fprintf(stderr, "Err: %s",log_buf);
 			log_save(fp, log_buf);
 		}
 		else {
 			log_save(fp, "Send mail ok.\r\n");
 		}
-		printf("==> End send mail, return %d\r\n",err);
+		fprintf(stderr, "==> End send mail, return %d\r\n",err);
 		
 		if ( 0 ) {
 			bzero( log_buf, sizeof(log_buf));
@@ -441,7 +379,7 @@ unsigned char sock_init( unsigned int port )
 	//Create sotcket
 	sock_server = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock_server < 0) {
-		printf("Socket error, check %s:%d\n",__FILE__, __LINE__);
+		fprintf(stderr, "Socket error, check %s:%d\n",__FILE__, __LINE__);
 		return 10;
 	}
 
@@ -454,20 +392,20 @@ unsigned char sock_init( unsigned int port )
 	/* Set socket options: Allow local port reuse in TIME_WAIT.	 */
 	if (setsockopt(sock_server, SOL_SOCKET, SO_REUSEADDR,
 			&flag, flag_len) == -1) {
-		printf("setsockopt SO_REUSEADDR error, check %s:%d\n",\
+		fprintf(stderr, "setsockopt SO_REUSEADDR error, check %s:%d\n",\
 										__FILE__, __LINE__);
 	}
 
 
 	err = bind(sock_server, (struct sockaddr *)&server_addr, sizeof(server_addr));
 	if (err < 0) {
-		printf("Bind port: %d error, please try other port.\n",port);
+		fprintf(stderr, "Bind port: %d error, please try other port.\n",port);
 		return 20;
 	}
 
 	err = listen(sock_server, BACKLOG);
 	if (err < 0) {
-		printf("Listen error, check %s:%d\n",__FILE__, __LINE__);
+		fprintf(stderr, "Listen error, check %s:%d\n",__FILE__, __LINE__);
 		return 30;
 	}
 	
@@ -494,7 +432,7 @@ void daemon_server(struct rokko_data *rokko)
 	rokko->sn = cmd.pro_sn ;
 
 	if ( foreground ) {
-		fprintf(stderr, "\n%sConnect: %s:%d\n",\
+		fprintf(stderr, "%sFrom: %s:%d\n",\
 				(char *)ctime(&ticks),(char *)inet_ntoa(rokko->client_addr.sin_addr),\
 				ntohs(rokko->client_addr.sin_port));
 	}
@@ -503,9 +441,9 @@ void daemon_server(struct rokko_data *rokko)
 /*
 	if(db_connect(&(rokko->mydb)))
 	{//failure
-		printf("Database no ready, exit.\n");
-		printf("Check: 1, Have install mysql?\n");
-		printf("       2, host, user, password, database are correct?\n");
+		fprintf(stderr, "Database no ready, exit.\n");
+		fprintf(stderr, "Check: 1, Have install mysql?\n");
+		fprintf(stderr, "       2, host, user, password, database are correct?\n");
 		return ;
 	}
 */
