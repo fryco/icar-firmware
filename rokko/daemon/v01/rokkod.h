@@ -30,7 +30,16 @@ struct rokko_data {
 	unsigned char hw_rev;
 	unsigned int fw_rev;
 	int  err_code;
-	char err_msg[BUFSIZE];
+	char err_msg[BUFSIZE+1];
+};
+
+struct rokko_command {
+	unsigned char seq;//sequence
+	unsigned char pcb;//protocol control byte
+	unsigned char len;//length;
+	unsigned char *inf;//Information Field
+	unsigned char chk;//^ result
+	unsigned char pro_sn[10];//product serial number
 };
 
 int main(int, char *[]);
@@ -39,5 +48,7 @@ void scan_args(int, char *[]);
 void print_help(char *[]);
 void print_version(void);
 void period_check( FILE * );
+unsigned char sock_init( unsigned int );
+void daemon_server(struct rokko_data *);
 
 #endif /* _ROKKOD_H */

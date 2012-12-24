@@ -11,8 +11,8 @@ MYSQL_LIB = -l mysqlclient
 
 LIBS=-lm
 
-DEPS = rokkod.h tcp_server.h misc.h log.h smtp.h
-OBJ = rokkod.o tcp_server.o misc.o log.c smtp.c
+DEPS = rokkod.h misc.h log.h smtp.h
+OBJ = rokkod.o misc.o log.c smtp.c
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
