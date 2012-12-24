@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 		default:
 			break;
 	}
-printf("Check %s:%d",__FILE__, __LINE__);
+
 	/* Main program, create log file first */
 	char log_buffer[BUFSIZE+1];
 	struct rokko_data rokko ;
@@ -175,48 +175,16 @@ printf("Check %s:%d",__FILE__, __LINE__);
 		exit(1);
 	}
 
-/*
 	if ( sock_init( listen_port ) ) {//err
 		printf("sock init err!\r\n");
 		exit(1);
-	}*/
+	}
 	
-	int flag=1, err, flag_len=sizeof(int);
-	
-	//Create sotcket
-	sock_server = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock_server < 0) {
-		printf("Socket error, check %s:%d\n",__FILE__, __LINE__);
-		return 10;
-	}
+	bzero( log_buffer, sizeof(log_buffer));
+	snprintf(log_buffer,BUFSIZE,"Start daemon, port:%d\n",listen_port);
+	log_save(srv_log, log_buffer ) ;
+	fclose( srv_log );
 
-	//set server info
-	bzero(&server_addr, sizeof(server_addr));
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	server_addr.sin_port = htons(listen_port);
-
-	/* Set socket options: Allow local port reuse in TIME_WAIT.	 */
-	if (setsockopt(sock_server, SOL_SOCKET, SO_REUSEADDR,
-			&flag, flag_len) == -1) {
-		printf("setsockopt SO_REUSEADDR error, check %s:%d\n",\
-										__FILE__, __LINE__);
-	}
-
-printf("Check %s:%d",__FILE__, __LINE__);
-	err = bind(sock_server, (struct sockaddr *)&server_addr, sizeof(server_addr));
-	if (err < 0) {
-		printf("Bind port: %d error, please try other port.\n",listen_port);
-		return 20;
-	}
-
-	err = listen(sock_server, BACKLOG);
-	if (err < 0) {
-		printf("Listen error, check %s:%d\n",__FILE__, __LINE__);
-		return 30;
-	}
-
-	printf("Check %s:%d",__FILE__, __LINE__);
 	/* Main loop, accept TCP socket connect */
 	while (1)
 	{
@@ -237,12 +205,16 @@ printf("Check %s:%d",__FILE__, __LINE__);
 		}
 
 		//Record this connection
-		bzero( log_buffer, sizeof(log_buffer));
-		snprintf(log_buffer,BUFSIZE,"Accept connection, PID: %d, from: %s:%d\n",\
-							getpid(),(char *)inet_ntoa(rokko.client_addr.sin_addr),\
-							ntohs(rokko.client_addr.sin_port));
-		log_save(srv_log, log_buffer ) ;
-
+		srv_log = fopen(srvname, "a");
+		if ( srv_log ) {
+			bzero( log_buffer, sizeof(log_buffer));
+			snprintf(log_buffer,BUFSIZE,"Accept connection, PID: %d, from: %s:%d\n",\
+								getpid(),(char *)inet_ntoa(rokko.client_addr.sin_addr),\
+								ntohs(rokko.client_addr.sin_port));
+			log_save(srv_log, log_buffer ) ;
+			fclose( srv_log );
+		}
+		
 		if ( foreground ) {
 			printf("%s",log_buffer);
 		}
@@ -254,14 +226,20 @@ printf("Check %s:%d",__FILE__, __LINE__);
 				printf("In child:%d for period_check\n",getpid());
 				
 				close(sock_server);
-				//process_conn_server(&mycar);
+				
+				daemon_server(&rokko);
 
 				bzero( log_buffer, sizeof(log_buffer));
 				snprintf(log_buffer,BUFSIZE,"Close  connection, PID: %d, from: %s:%d\n",\
 									getpid(),(char *)inet_ntoa(rokko.client_addr.sin_addr),\
 									ntohs(rokko.client_addr.sin_port));
-				log_save(srv_log, log_buffer ) ;
 
+				srv_log = fopen(srvname, "a");
+				if ( srv_log ) {
+					log_save(srv_log, log_buffer ) ;
+					fclose( srv_log );
+				}
+				
 				if ( foreground ) {
 					printf("%s",log_buffer);
 				}
@@ -453,4 +431,96 @@ void period_check( FILE *fp)
 			log_save(fp, log_buf ) ;
 		}
 	}
+}
+
+//return 0: ok, others: err
+unsigned char sock_init( unsigned int port )
+{	
+	int flag=1, err, flag_len=sizeof(int);
+	
+	//Create sotcket
+	sock_server = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock_server < 0) {
+		printf("Socket error, check %s:%d\n",__FILE__, __LINE__);
+		return 10;
+	}
+
+	//set server info
+	bzero(&server_addr, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	server_addr.sin_port = htons(port);
+
+	/* Set socket options: Allow local port reuse in TIME_WAIT.	 */
+	if (setsockopt(sock_server, SOL_SOCKET, SO_REUSEADDR,
+			&flag, flag_len) == -1) {
+		printf("setsockopt SO_REUSEADDR error, check %s:%d\n",\
+										__FILE__, __LINE__);
+	}
+
+
+	err = bind(sock_server, (struct sockaddr *)&server_addr, sizeof(server_addr));
+	if (err < 0) {
+		printf("Bind port: %d error, please try other port.\n",port);
+		return 20;
+	}
+
+	err = listen(sock_server, BACKLOG);
+	if (err < 0) {
+		printf("Listen error, check %s:%d\n",__FILE__, __LINE__);
+		return 30;
+	}
+	
+	return 0;
+}
+
+void daemon_server(struct rokko_data *rokko)
+{
+	ssize_t size = 0;
+	unsigned char recv_buf[BUFSIZE+1];
+	unsigned char send_buf[BUFSIZE+1];
+	unsigned int buf_index ;
+	unsigned int chk_count ;
+	time_t ticks=time(NULL);
+	struct tm *tblock;
+	int cmd_err_cnt = 0 ;//command error count
+	struct rokko_command cmd ;
+
+	unsigned char var_u8 ;
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
+
+	memset(cmd.pro_sn, 0x0, 10);
+	rokko->sn = cmd.pro_sn ;
+
+	if ( foreground ) {
+		fprintf(stderr, "\n%sConnect: %s:%d\n",\
+				(char *)ctime(&ticks),(char *)inet_ntoa(rokko->client_addr.sin_addr),\
+				ntohs(rokko->client_addr.sin_port));
+	}
+
+	//connect mysql
+/*
+	if(db_connect(&(rokko->mydb)))
+	{//failure
+		printf("Database no ready, exit.\n");
+		printf("Check: 1, Have install mysql?\n");
+		printf("       2, host, user, password, database are correct?\n");
+		return ;
+	}
+*/
+	while ( 1 )
+	{//for test only, send current time continue
+		ticks=time(NULL);
+		memset(send_buf, '\0', BUFSIZE);
+		snprintf(send_buf,100,"%.24s, %s:%d\r\n",(char *)ctime(&ticks),\
+				(char *)inet_ntoa(rokko->client_addr.sin_addr),ntohs(rokko->client_addr.sin_port));
+		write(rokko->client_socket,send_buf,strlen(send_buf));
+		sleep( 3 );
+	}
+
+
+exit_process_conn_server:
+
+	mysql_close(&(rokko->mydb.mysql));
 }
