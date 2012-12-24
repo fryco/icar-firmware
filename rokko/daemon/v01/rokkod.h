@@ -3,8 +3,8 @@
  *
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $URL: https://icar-firmware.googlecode.com/svn/rokko/daemon/v00/rokkod.h $
- *      $Rev: 288 $, $Date: 2012-11-07 16:10:16 +0800 (Wed, 07 Nov 2012) $
+ *      $URL$
+ *      $Rev$, $Date$
  */
 
 #ifndef _ROKKOD_H 
