@@ -47,5 +47,8 @@
 #define NOTICER_ADDR		"cn0086@139.com"
 #define EMERGENCY_ADDR		"cn0086@139.com"
 
+//For GSM <==> Server protocol
+#define GSM_HEAD				0xDE
+#define GSM_CMD_LOGIN			0x4C //'L', Login
 
 #endif /* _CONFIG_H */
