@@ -28,7 +28,7 @@ struct rokko_data {
 
 	unsigned char * sn;
 	unsigned char hw_rev;
-	unsigned int fw_rev;
+	unsigned short fw_rev;
 	int  err_code;
 	char err_msg[BUFSIZE+1];
 };
@@ -38,7 +38,7 @@ struct rokko_command {
 	unsigned char pcb;//protocol control byte
 	unsigned char len;//length;
 	unsigned char *inf;//Information Field
-	unsigned char chk;//^ result
+	unsigned short crc16;//crc16 result
 	unsigned char pro_sn[10];//product serial number
 };
 

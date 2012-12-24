@@ -418,6 +418,7 @@ void daemon_server(struct rokko_data *rokko)
 	unsigned char recv_buf[BUFSIZE+1];
 	unsigned char send_buf[BUFSIZE+1];
 	unsigned int buf_index ;
+	unsigned short recv_crc16;
 	unsigned int chk_count ;
 	time_t ticks=time(NULL);
 	struct tm *tblock;
@@ -447,17 +448,61 @@ void daemon_server(struct rokko_data *rokko)
 		return ;
 	}
 */
-	while ( 1 )
+	while ( 0 )
 	{//for test only, send current time continue
 		ticks=time(NULL);
 		memset(send_buf, '\0', BUFSIZE);
-		snprintf(send_buf,100,"%.24s, %s:%d\r\n",(char *)ctime(&ticks),\
+		snprintf(send_buf,100,"%.24s, From %s:%d\r\n",(char *)ctime(&ticks),\
 				(char *)inet_ntoa(rokko->client_addr.sin_addr),ntohs(rokko->client_addr.sin_port));
 		write(rokko->client_socket,send_buf,strlen(send_buf));
 		sleep( 3 );
 	}
 
+	while ( 1 ) {
 
+		//read the content from remote site
+		memset(recv_buf, '\0', BUFSIZE);
+
+		//以下基于假设：每次读取1个或更多包，不会收到不完整包
+		//HEAD+SEQ+PCB+Length, please refer to: rokko_protocol_通讯协议
+		size = read(rokko->client_socket, recv_buf, BUFSIZE);
+		if (size == 0 || size > BUFSIZE) { //no data or overflow
+			return;
+		}
+
+		ticks=time(NULL);
+		fprintf(stderr, "\r\n%.24s  Rec:%02d Bytes\r\n",(char *)ctime(&ticks),size-1);
+
+		//find the HEAD flag: GSM_HEAD
+		for ( buf_index = 0 ; buf_index < size ; buf_index++ ) {
+			if ( recv_buf[buf_index] == GSM_HEAD ) { //found first HEAD : GSM_HEAD
+
+				cmd.pcb = recv_buf[buf_index+2];
+				cmd.len = recv_buf[buf_index+3] << 8 | recv_buf[buf_index+4];
+				recv_crc16 = ((recv_buf[buf_index+cmd.len+5])<<8)|(recv_buf[buf_index+cmd.len+6]);
+
+				//calc the CRC :
+				cmd.crc16 = crc16tablefast(&recv_buf[buf_index] , cmd.len+5);
+			
+				if ( (buf_index + cmd.len) > (size-7) || cmd.crc16 != recv_crc16 ) { //illegal package
+
+					fprintf(stderr, "\r\nErr package: ");
+					for ( chk_count = 0 ; chk_count < cmd.len+7 ; chk_count++) {
+						fprintf(stderr, "%02X ",recv_buf[buf_index+chk_count]);
+					}
+					fprintf(stderr, "\r\nCMD: %c\tLen= %d\tRec CRC= 0x%04X\tCal CRC= 0x%04X\r\n",\
+							cmd.pcb,cmd.len,recv_crc16,cmd.crc16);
+					fprintf(stderr, "Check %s, line: %d\r\n",__FILE__, __LINE__);
+				}//End err package
+				else {//correct package
+					fprintf(stderr, "at %d CMD: %c Len:%d\r\n",buf_index,cmd.pcb,cmd.len);
+				}
+
+				buf_index = buf_index + 6 ;//take HEAD(1),SEQ(1),PCB(1),LEN(2)...+CRC16
+			}//end of if ( recv_buf[buf_index] == GSM_HEAD )
+		}
+	}//End of while( 1 )
+		
 exit_process_conn_server:
 
 	mysql_close(&(rokko->mydb.mysql));
