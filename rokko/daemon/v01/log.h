@@ -3,8 +3,8 @@
  *
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $URL: https://icar-firmware.googlecode.com/svn/rokko/daemon/v00/log.h $
- *      $Rev: 315 $, $Date: 2012-12-17 19:39:33 +0800 (Mon, 17 Dec 2012) $
+ *      $URL$
+ *      $Rev$, $Date$
  */
 
 #ifndef _LOG_H 
