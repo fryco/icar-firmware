@@ -10,7 +10,7 @@
 #include "config.h"
 #include "rokkod.h"
 
-#define rokkod_RELEASE "\nRokko daemon v00, built by cn0086.info@gmail.com at " __DATE__" "__TIME__ "\n"
+#define rokkod_RELEASE "\nRokko daemon v00, built by Jack at " __DATE__" "__TIME__ "\n"
 
 //for default parameters
 unsigned int update_interval=5, foreground=0, listen_port=23;
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
 			while ( 0 ) {
 				sleep( PERIOD_CHECK_DB ) ;
 
-				bzero( logtime, sizeof(logtime));	
+				bzero( logtime, sizeof(logtime));
 				bzero( newname, sizeof(newname));
 
 				gettimeofday(&tv,NULL);
@@ -429,7 +429,7 @@ void daemon_server(struct rokko_data *rokko)
 	pid_t cloud_pid;
 	unsigned char post_buf[BUFSIZE];
 
-	memset(cmd.pro_sn, 0x0, 10);
+	bzero( cmd.pro_sn, sizeof(cmd.pro_sn));
 	rokko->sn = cmd.pro_sn ;
 
 	if ( foreground ) {
@@ -451,7 +451,7 @@ void daemon_server(struct rokko_data *rokko)
 	while ( 0 )
 	{//for test only, send current time continue
 		ticks=time(NULL);
-		memset(send_buf, '\0', BUFSIZE);
+		bzero( send_buf, sizeof(send_buf));
 		snprintf(send_buf,100,"%.24s, From %s:%d\r\n",(char *)ctime(&ticks),\
 				(char *)inet_ntoa(rokko->client_addr.sin_addr),ntohs(rokko->client_addr.sin_port));
 		write(rokko->client_socket,send_buf,strlen(send_buf));
@@ -461,7 +461,7 @@ void daemon_server(struct rokko_data *rokko)
 	while ( 1 ) {
 
 		//read the content from remote site
-		memset(recv_buf, '\0', BUFSIZE);
+		bzero( recv_buf, sizeof(recv_buf));
 
 		//以下基于假设：每次读取1个或更多包，不会收到不完整包
 		//HEAD+SEQ+PCB+Length, please refer to: rokko_protocol_通讯协议
@@ -496,6 +496,34 @@ void daemon_server(struct rokko_data *rokko)
 				}//End err package
 				else {//correct package
 					fprintf(stderr, "at %d CMD: %c Len:%d\r\n",buf_index,cmd.pcb,cmd.len);
+					
+					//handle the input cmd
+					switch (cmd.pcb) {
+
+					//DE 6A 4C 00 1D 00 04 19 DA 44 45 4D 4F 44 41 33 30 42 
+					//32 00 00 00 0D 31 30 2E 31 31 31 2E 32 36 2E 36 75 5C
+					case GSM_CMD_LOGIN: //0x4C, 'L', Login to server
+						if ( cmd_login( rokko,&cmd,\
+							&recv_buf[buf_index], send_buf ) == 1 ) {
+
+							goto exit_process_conn_server;
+						}
+						buf_index = buf_index + cmd.len ;//update index
+						break;
+
+					default:
+						fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
+						//cmd_unknow_cmd( mycar,&cmd,\
+							&recv_buf[buf_index], send_buf );
+
+						cmd_err_cnt++;
+						break;
+					}//end of handle the input cmd
+
+					if ( cmd_err_cnt > 3 ) {
+						goto exit_process_conn_server;
+					}
+
 				}
 
 				buf_index = buf_index + 6 ;//take HEAD(1),SEQ(1),PCB(1),LEN(2)...+CRC16
