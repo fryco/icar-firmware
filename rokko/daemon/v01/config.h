@@ -50,5 +50,6 @@
 //For GSM <==> Server protocol, need to same as STM32 firmware define
 #define GSM_HEAD				0xDE
 #define GSM_CMD_LOGIN			0x4C //'L', Login
-
+#define GSM_CMD_NEW				0x4E //'N', new data/instruction
+#define GSM_CMD_UPGRADE			0x55 //'U', Upgrade firmware
 #endif /* _CONFIG_H */

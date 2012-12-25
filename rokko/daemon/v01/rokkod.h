@@ -36,7 +36,7 @@ struct rokko_data {
 struct rokko_command {
 	unsigned char seq;//sequence
 	unsigned char pcb;//protocol control byte
-	unsigned char len;//length;
+	unsigned int len;//length;
 	unsigned char *inf;//Information Field
 	unsigned short crc16;//crc16 result
 	unsigned char pro_sn[10];//product serial number

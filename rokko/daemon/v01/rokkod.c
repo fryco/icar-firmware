@@ -6,7 +6,7 @@
  *      $URL$
  *      $Rev$, $Date$
  */
-
+//http://www.cnblogs.com/faraway/archive/2009/03/06/1404449.html
 #include "config.h"
 #include "rokkod.h"
 
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 		//Accept new connection
 		rokko.client_socket = accept(sock_server, (struct sockaddr *)&rokko.client_addr, &addrlen);
 		if (rokko.client_socket < 0) {
-			fprintf(stderr, "Accept new connection error, check %s:%d",__FILE__, __LINE__);
+			//fprintf(stderr, "Accept new connection error, check %s:%d",__FILE__, __LINE__);
 			continue; //error, stop this connection
 		}
 
@@ -375,6 +375,7 @@ void period_check( FILE *fp)
 unsigned char sock_init( unsigned int port )
 {	
 	int flag=1, err, flag_len=sizeof(int);
+	struct timeval timeout = {3,0};
 	
 	//Create sotcket
 	sock_server = socket(AF_INET, SOCK_STREAM, 0);
@@ -396,6 +397,10 @@ unsigned char sock_init( unsigned int port )
 										__FILE__, __LINE__);
 	}
 
+	//设置发送超时
+	//setsockopt(socket, SOL_SOCKET,SO_SNDTIMEO, (char *)&timeout,sizeof(struct timeval));
+	//设置接收超时
+	setsockopt(sock_server, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,sizeof(struct timeval));
 
 	err = bind(sock_server, (struct sockaddr *)&server_addr, sizeof(server_addr));
 	if (err < 0) {
@@ -415,14 +420,16 @@ unsigned char sock_init( unsigned int port )
 void daemon_server(struct rokko_data *rokko)
 {
 	ssize_t size = 0;
-	unsigned char recv_buf[BUFSIZE+1];
-	unsigned char send_buf[BUFSIZE+1];
+	unsigned char recv_buf[BUFSIZE];
+	unsigned char send_buf[BUFSIZE];
+	unsigned char cmd_err_cnt = 0 ;//command error count
+	unsigned char send_seq = 0x80; //server send sequence, 0x80 ~ 0xFF
 	unsigned int buf_index ;
 	unsigned short recv_crc16;
 	unsigned int chk_count ;
 	time_t ticks=time(NULL);
 	struct tm *tblock;
-	int cmd_err_cnt = 0 ;//command error count
+
 	struct rokko_command cmd ;
 
 	unsigned char var_u8 ;
@@ -451,7 +458,7 @@ void daemon_server(struct rokko_data *rokko)
 	while ( 0 )
 	{//for test only, send current time continue
 		ticks=time(NULL);
-		bzero( send_buf, sizeof(send_buf));
+		bzero( send_buf, BUFSIZE);
 		snprintf(send_buf,100,"%.24s, From %s:%d\r\n",(char *)ctime(&ticks),\
 				(char *)inet_ntoa(rokko->client_addr.sin_addr),ntohs(rokko->client_addr.sin_port));
 		write(rokko->client_socket,send_buf,strlen(send_buf));
@@ -461,74 +468,93 @@ void daemon_server(struct rokko_data *rokko)
 	while ( 1 ) {
 
 		//read the content from remote site
-		bzero( recv_buf, sizeof(recv_buf));
-
+		bzero( recv_buf, BUFSIZE);
+		
 		//以下基于假设：每次读取1个或更多包，不会收到不完整包
 		//HEAD+SEQ+PCB+Length, please refer to: rokko_protocol_通讯协议
 		size = read(rokko->client_socket, recv_buf, BUFSIZE);
 		if (size == 0 || size > BUFSIZE) { //no data or overflow
+			fprintf(stderr, "No data %d, timeout\n",size);
 			return;
 		}
 
 		ticks=time(NULL);
-		fprintf(stderr, "\r\n%.24s  Rec:%02d Bytes\r\n",(char *)ctime(&ticks),size-1);
 
-		//find the HEAD flag: GSM_HEAD
-		for ( buf_index = 0 ; buf_index < size ; buf_index++ ) {
-			if ( recv_buf[buf_index] == GSM_HEAD ) { //found first HEAD : GSM_HEAD
-
-				cmd.pcb = recv_buf[buf_index+2];
-				cmd.len = recv_buf[buf_index+3] << 8 | recv_buf[buf_index+4];
-				recv_crc16 = ((recv_buf[buf_index+cmd.len+5])<<8)|(recv_buf[buf_index+cmd.len+6]);
-
-				//calc the CRC :
-				cmd.crc16 = crc16tablefast(&recv_buf[buf_index] , cmd.len+5);
+		if ( size > 0 ) {
 			
-				if ( (buf_index + cmd.len) > (size-7) || cmd.crc16 != recv_crc16 ) { //illegal package
+			fprintf(stderr, "\r\n%.24s  Rec:%02d Bytes\r\n",(char *)ctime(&ticks),size);
 
-					fprintf(stderr, "\r\nErr package: ");
-					for ( chk_count = 0 ; chk_count < cmd.len+7 ; chk_count++) {
-						fprintf(stderr, "%02X ",recv_buf[buf_index+chk_count]);
-					}
-					fprintf(stderr, "\r\nCMD: %c\tLen= %d\tRec CRC= 0x%04X\tCal CRC= 0x%04X\r\n",\
-							cmd.pcb,cmd.len,recv_crc16,cmd.crc16);
-					fprintf(stderr, "Check %s, line: %d\r\n",__FILE__, __LINE__);
-				}//End err package
-				else {//correct package
-					fprintf(stderr, "at %d CMD: %c Len:%d\r\n",buf_index,cmd.pcb,cmd.len);
-					
-					//handle the input cmd
-					switch (cmd.pcb) {
-
-					//DE 6A 4C 00 1D 00 04 19 DA 44 45 4D 4F 44 41 33 30 42 
-					//32 00 00 00 0D 31 30 2E 31 31 31 2E 32 36 2E 36 75 5C
-					case GSM_CMD_LOGIN: //0x4C, 'L', Login to server
-						if ( cmd_login( rokko,&cmd,\
-							&recv_buf[buf_index], send_buf ) == 1 ) {
-
+			//find the HEAD flag: GSM_HEAD
+			for ( buf_index = 0 ; buf_index < size ; buf_index++ ) {
+				if ( recv_buf[buf_index] == GSM_HEAD ) { //found first HEAD : GSM_HEAD
+	
+					cmd.pcb = recv_buf[buf_index+2];
+					cmd.len = recv_buf[buf_index+3] << 8 | recv_buf[buf_index+4];
+					recv_crc16 = ((recv_buf[buf_index+cmd.len+5])<<8)|(recv_buf[buf_index+cmd.len+6]);
+	
+					//calc the CRC :
+					cmd.crc16 = crc16tablefast(&recv_buf[buf_index] , cmd.len+5);
+				
+					if ( (buf_index + cmd.len) > (size-7) || cmd.crc16 != recv_crc16 ) { //illegal package
+	
+						fprintf(stderr, "\r\nErr package: ");
+						for ( chk_count = 0 ; chk_count < cmd.len+7 ; chk_count++) {
+							fprintf(stderr, "%02X ",recv_buf[buf_index+chk_count]);
+						}
+						fprintf(stderr, "\r\nCMD: %c\tLen= %d\tRec CRC= 0x%04X\tCal CRC= 0x%04X\r\n",\
+								cmd.pcb,cmd.len,recv_crc16,cmd.crc16);
+						fprintf(stderr, "Check %s, line: %d\r\n",__FILE__, __LINE__);
+					}//End err package
+					else {//correct package
+						fprintf(stderr, "at %d CMD: %c Len:%d\r\n",buf_index,cmd.pcb,cmd.len);
+						
+						//handle the input cmd
+						switch (cmd.pcb) {
+	
+						//DE 6A 4C 00 1D 00 04 19 DA 44 45 4D 4F 44 41 33 30 42 
+						//32 00 00 00 0D 31 30 2E 31 31 31 2E 32 36 2E 36 75 5C
+						case GSM_CMD_LOGIN: //0x4C, 'L', Login to server
+							if ( rec_cmd_login( rokko,&cmd,\
+								&recv_buf[buf_index], send_buf ) == 1 ) {
+	
+								goto exit_process_conn_server;
+							}
+							buf_index = buf_index + cmd.len ;//update index
+							break;
+	
+						default:
+							fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
+							//cmd_unknow_cmd( mycar,&cmd,\
+								&recv_buf[buf_index], send_buf );
+	
+							cmd_err_cnt++;
+							break;
+						}//end of handle the input cmd
+	
+						if ( cmd_err_cnt > 3 ) {
 							goto exit_process_conn_server;
 						}
-						buf_index = buf_index + cmd.len ;//update index
-						break;
-
-					default:
-						fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
-						//cmd_unknow_cmd( mycar,&cmd,\
-							&recv_buf[buf_index], send_buf );
-
-						cmd_err_cnt++;
-						break;
-					}//end of handle the input cmd
-
-					if ( cmd_err_cnt > 3 ) {
-						goto exit_process_conn_server;
+	
 					}
-
-				}
-
-				buf_index = buf_index + 6 ;//take HEAD(1),SEQ(1),PCB(1),LEN(2)...+CRC16
-			}//end of if ( recv_buf[buf_index] == GSM_HEAD )
+	
+					buf_index = buf_index + 6 ;//take HEAD(1),SEQ(1),PCB(1),LEN(2)...+CRC16
+				}//end of if ( recv_buf[buf_index] == GSM_HEAD )
+			}
+		}//End of size > 0
+		else { //size = 0 or < 0
+			if ( size == -1 ) {
+				fprintf(stderr, "\r\n%.24s  Rec timeout\r\n",(char *)ctime(&ticks));
+			}
+			else {
+				fprintf(stderr, "size err %d\n",size);
+			}
 		}
+		
+		//Send CMD from server
+		if ( strlen(rokko->sn) == 10 ) {
+			snd_cmd( rokko, &send_seq, send_buf ) ;
+		}
+
 	}//End of while( 1 )
 		
 exit_process_conn_server:

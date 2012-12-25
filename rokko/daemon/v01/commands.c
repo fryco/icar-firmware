@@ -7,7 +7,7 @@
 extern unsigned int foreground;
 
 //0: ok, 1: disconnect immediately
-unsigned char cmd_login( struct rokko_data *rokko, struct rokko_command * cmd,\
+unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cmd,\
 				unsigned char *rec_buf, unsigned char *snd_buf )
 {//case GSM_CMD_LOGIN: //0x4C, 'L', Login to server
 
@@ -47,7 +47,7 @@ unsigned char cmd_login( struct rokko_data *rokko, struct rokko_command * cmd,\
 		
 		if ( 1 ) {//if check DB ok, TBD
 			//send successful respond 
-			bzero( snd_buf, sizeof(snd_buf));
+			bzero( snd_buf, BUFSIZE);
 			snd_buf[0] = GSM_HEAD ;
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
@@ -95,7 +95,7 @@ unsigned char cmd_login( struct rokko_data *rokko, struct rokko_command * cmd,\
 		} //end check DB ok
 		else {//failure
 			//send failure respond 
-			bzero( snd_buf, sizeof(snd_buf));
+			bzero( snd_buf, BUFSIZE);
 			snd_buf[0] = GSM_HEAD ;
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
@@ -122,3 +122,46 @@ unsigned char cmd_login( struct rokko_data *rokko, struct rokko_command * cmd,\
 		}
 	}
 }
+
+//0:ok, others: err
+unsigned char snd_cmd( struct rokko_data *rokko, unsigned char *sequence, unsigned char *snd_buf )
+{//send command to client
+
+	unsigned short var_short;
+			
+			bzero( snd_buf, BUFSIZE);
+			
+			snd_buf[0] = GSM_HEAD ;
+			snd_buf[1] = *sequence ;
+
+			if ( snd_buf[1] == 0xFF ) { //Server => client, seq: 0x80~FF
+				*sequence = 0x80 ;
+			}
+			else {
+				*sequence = snd_buf[1]+1;//increase seq
+			}
+
+			snd_buf[2] = GSM_CMD_NEW ;
+			snd_buf[3] =  00;//len high
+			snd_buf[4] =  01;//len low
+
+			snd_buf[5] = GSM_CMD_UPGRADE ;
+			
+			//Calc CRC16
+			var_short = crc16tablefast(snd_buf , ((snd_buf[3]<<8)|(snd_buf[4]))+5);
+			
+			snd_buf[6] = (var_short)>>8 ;
+			snd_buf[7] = (var_short)&0xFF ;
+			
+			if ( foreground ) {
+				fprintf(stderr, "Ask new data: ");
+				for ( var_short = 0 ; var_short < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; var_short++ ) {
+					fprintf(stderr, "%02X ",snd_buf[var_short]);
+				}
+				fprintf(stderr, "to %s\n",rokko->sn);
+			}
+		
+			write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
+
+
+}	
