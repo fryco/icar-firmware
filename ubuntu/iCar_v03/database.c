@@ -908,10 +908,10 @@ int ask_instruction(struct icar_data *mycar, unsigned char *buf, unsigned char *
 	MYSQL_ROW sqlrow;
 	unsigned long sqlrow_cnt = 0 ;
 
-	 *ist = 0x55 ;//Upgrade firmware
+	// *ist = 0x55 ;//Upgrade firmware
 	// *ist = 0x75 ;//Update parameter
 
-	// *ist = 0 ;//No new instruction
+	 *ist = 0 ;//No new instruction
 
 	//input: HEAD+SEQ+PCB+LEN+CHK
 
