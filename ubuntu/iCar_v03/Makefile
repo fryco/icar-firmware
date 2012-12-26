@@ -1,4 +1,4 @@
-CFLAGS=-I. -I/usr/include/mysql
+CFLAGS=-I. -I/usr/include/mysql -L/usr/lib/mysql
 
 CC = gcc  
 

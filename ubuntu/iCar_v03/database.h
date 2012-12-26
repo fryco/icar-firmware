@@ -18,12 +18,9 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
-#define BUFSIZE 512
+#define BUFSIZE 2048
 //用2048 定义时
 //14:48:45 14:48, up 19:33, load avg: 0.04, 0.26, 0.54, free RAM: 156.1 MB, process cnt: 4057
-
-//用512 定义时：
-//14:57:09 14:57, up 19:42, load avg: 0.00, 0.06, 0.32, free RAM: 196.1 MB, process cnt: 3304
 
 //log message length, same as main.c in STM32 firmware
 #define MAX_LOG_LENGTH			64
