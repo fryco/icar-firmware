@@ -6,6 +6,37 @@
 
 extern unsigned int foreground;
 
+static unsigned int mypow( unsigned char n)
+{
+	unsigned int result ;
+
+	result = 1 ;
+	while ( n ) {
+		result = result*10;
+		n--;
+	}
+	return result;
+}
+
+static void conv_rev( unsigned char *p , unsigned int *fw_rev)
+{//$Rev: 9999 $
+	unsigned char i , j;
+
+	i = 0 , p = p + 6 ;
+	while ( *(p+i) != 0x20 ) {
+		i++ ;
+		if ( *(p+i) == 0x24 || i > 4 ) break ; //$
+	}
+
+	j = 0 ;
+	while ( i ) {
+		i-- ;
+		*fw_rev = (*(p+i)-0x30)*mypow(j) + *fw_rev;
+		j++;
+	}
+}
+
+/****************** Below for server respond client command *********/
 //0: ok, 1: disconnect immediately
 unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cmd,\
 				unsigned char *rec_buf, unsigned char *snd_buf )
@@ -123,12 +154,79 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 	}
 }
 
+/****************** Below for server send command to client *********/
 //0:ok, others: err
-unsigned char snd_cmd( struct rokko_data *rokko, unsigned char *sequence, unsigned char *snd_buf )
-{//send command to client
+unsigned char snd_cmd_upgrade( struct rokko_data *rokko, unsigned char *sequence, unsigned char *snd_buf )
+{//send command upgrade to client
 
+	int fd;
+	unsigned int  i, fw_size, fw_rev, fpos;
+	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
+	unsigned char *filename="./fw/stm32_v00/20121211.bin";
 	unsigned short var_short;
-			
+	
+	//Get the firmware file info
+	fd = open(filename, O_RDONLY, 0700);  
+	if (fd == -1)  {  
+		fprintf(stderr,"open file %s failed!\n%s\n", filename,strerror(errno));  
+		return 10;  
+	}  
+
+	fw_size = lseek(fd, 0, SEEK_END);  
+	if (fw_size == -1)  
+	{  
+		fprintf(stderr,"lseek failed!\n%s\n", strerror(errno));  
+		close(fd);  
+		return 20;  
+	}  
+
+	//check firmware size
+	if ( fw_size < MIN_FW_SIZE ) {//must > 40KB
+		fprintf(stderr,"Error, firmware size: %d Bytes < 40KB\r\n",fw_size);
+		close(fd);  
+		return 30;  
+	}
+
+	//check firmware size
+	if ( fw_size > MAX_FW_SIZE-1 ) {//must < 60KB
+		fprintf(stderr,"Error, firmware size: %d Bytes> 60KB\r\n",fw_size);
+		close(fd);  
+		return 30;  
+	}
+
+	//check firmware size
+	if ( fw_size > MAX_FW_SIZE-1 ) {//must < 60KB
+		fprintf(stderr,"Error, firmware size: %d Bytes> 60KB\r\n",fw_size);
+		close(fd);  
+		return 30;  
+	}
+
+	lseek( fd, -20L, SEEK_END );
+	fpos = read(fd, rev_info, 20);
+	if (fpos == -1)  
+	{  
+		fprintf(stderr,"File read failed!\n%s\n", strerror(errno));  
+		close(fd);  
+		return 40;  
+	}  
+
+	//replace zero with 0x20
+	for ( i = 0 ; i < fpos ; i++ ) {
+		if ( rev_info[i] == 0 ) {
+			rev_info[i] = 0x20 ;
+		}
+	}
+
+	rev_pos = strstr(rev_info,"$Rev: ");
+	if ( rev_pos == NULL ) { //no found
+		fprintf(stderr,"Can't find revision info!\n");
+		close(fd);  
+		return 4;  
+	}
+
+	fw_rev = 0 ;
+	conv_rev( rev_pos, &fw_rev);
+
 			bzero( snd_buf, BUFSIZE);
 			
 			snd_buf[0] = GSM_HEAD ;
@@ -141,20 +239,30 @@ unsigned char snd_cmd( struct rokko_data *rokko, unsigned char *sequence, unsign
 				*sequence = snd_buf[1]+1;//increase seq
 			}
 
-			snd_buf[2] = GSM_CMD_NEW ;
+			snd_buf[2] = GSM_CMD_UPGRADE ;
 			snd_buf[3] =  00;//len high
-			snd_buf[4] =  01;//len low
+			snd_buf[4] =  07;//len low
 
-			snd_buf[5] = GSM_CMD_UPGRADE ;
+			//00 表示后面跟的数据是硬件版本号(2B)、FW版本号(2B)、FW长度(2B)
+			snd_buf[5] =  00 ;
+
+			snd_buf[6] =  00 ; //HW rev
+			snd_buf[7] =  00 ;
 			
+			snd_buf[8] =  (fw_rev >> 8)&0xFF;//Rev high
+			snd_buf[9] =  (fw_rev)&0xFF;//Rev low
+
+			snd_buf[10]=  (fw_size >> 8)&0xFF;//Size high
+			snd_buf[11]=  (fw_size)&0xFF;//Size low
+
 			//Calc CRC16
 			var_short = crc16tablefast(snd_buf , ((snd_buf[3]<<8)|(snd_buf[4]))+5);
 			
-			snd_buf[6] = (var_short)>>8 ;
-			snd_buf[7] = (var_short)&0xFF ;
+			snd_buf[12] = (var_short)>>8 ;
+			snd_buf[13] = (var_short)&0xFF ;
 			
 			if ( foreground ) {
-				fprintf(stderr, "Ask new data: ");
+				fprintf(stderr, "Send CMD %c : ",snd_buf[2]);
 				for ( var_short = 0 ; var_short < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; var_short++ ) {
 					fprintf(stderr, "%02X ",snd_buf[var_short]);
 				}
@@ -163,5 +271,29 @@ unsigned char snd_cmd( struct rokko_data *rokko, unsigned char *sequence, unsign
 		
 			write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
 
+}
 
-}	
+//0:ok, others: err
+unsigned char snd_cmd( struct rokko_data *rokko, unsigned char *seq, unsigned char *send_buf )
+{//send command to client
+
+	unsigned char cmd = 0 ;			
+
+	//get CMD from DB first, TBD
+
+	cmd = GSM_CMD_UPGRADE ;
+	//handle the cmd
+	switch ( cmd ) {
+	
+		case GSM_CMD_UPGRADE: //0x55, 'U', Upgrade firmware
+			snd_cmd_upgrade( rokko, seq, send_buf ) ;
+			break;
+
+		default:
+			fprintf(stderr, "Unknow command: %c(0x%X)\r\n",cmd,cmd);
+			break;
+	}//end of handle the cmd
+	
+	return 0 ;
+}
+

@@ -20,5 +20,5 @@ unsigned char rec_cmd_login(struct rokko_data *, struct rokko_command *,\
 
 
 unsigned char snd_cmd( struct rokko_data *, unsigned char *, unsigned char * );
-
+unsigned char snd_cmd_upgrade( struct rokko_data *, unsigned char *, unsigned char * );
 #endif /* _COMMANDS_H */
