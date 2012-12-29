@@ -375,7 +375,7 @@ void period_check( FILE *fp)
 unsigned char sock_init( unsigned int port )
 {	
 	int flag=1, err, flag_len=sizeof(int);
-	struct timeval timeout = {3,0};
+	struct timeval timeout = {120,0};
 	
 	//Create sotcket
 	sock_server = socket(AF_INET, SOCK_STREAM, 0);
@@ -431,6 +431,7 @@ void daemon_server(struct rokko_data *rokko)
 	struct tm *tblock;
 
 	struct rokko_command cmd ;
+	struct SENT_QUEUE queue_sent[MAX_CMD_QUEUE];//last 2 queue for emergency event
 
 	unsigned char var_u8 ;
 	pid_t cloud_pid;
@@ -438,6 +439,12 @@ void daemon_server(struct rokko_data *rokko)
 
 	bzero( cmd.pro_sn, sizeof(cmd.pro_sn));
 	rokko->sn = cmd.pro_sn ;
+
+	/* Initialize the queue.	*/
+	for ( var_u8 = 0 ; var_u8 < MAX_CMD_QUEUE ; var_u8++) {
+		queue_sent[var_u8].send_timer= 0 ;//free queue if > 5*CMD_TIMEOUT
+		queue_sent[var_u8].send_pcb = 0 ;
+	}
 
 	if ( foreground ) {
 		fprintf(stderr, "%sFrom: %s:%d\n",\
@@ -488,6 +495,7 @@ void daemon_server(struct rokko_data *rokko)
 			for ( buf_index = 0 ; buf_index < size ; buf_index++ ) {
 				if ( recv_buf[buf_index] == GSM_HEAD ) { //found first HEAD : GSM_HEAD
 	
+					cmd.seq = recv_buf[buf_index+1];
 					cmd.pcb = recv_buf[buf_index+2];
 					cmd.len = recv_buf[buf_index+3] << 8 | recv_buf[buf_index+4];
 					recv_crc16 = ((recv_buf[buf_index+cmd.len+5])<<8)|(recv_buf[buf_index+cmd.len+6]);
@@ -501,36 +509,68 @@ void daemon_server(struct rokko_data *rokko)
 						for ( chk_count = 0 ; chk_count < cmd.len+7 ; chk_count++) {
 							fprintf(stderr, "%02X ",recv_buf[buf_index+chk_count]);
 						}
-						fprintf(stderr, "\r\nCMD: %c\tLen= %d\tRec CRC= 0x%04X\tCal CRC= 0x%04X\r\n",\
-								cmd.pcb,cmd.len,recv_crc16,cmd.crc16);
+						fprintf(stderr, "\r\nCMD: %c(0x%02X)\tLen= %d\tRec CRC= 0x%04X\tCal CRC= 0x%04X\r\n",\
+								cmd.pcb&0x7F,cmd.pcb,cmd.len,recv_crc16,cmd.crc16);
 						fprintf(stderr, "Check %s, line: %d\r\n",__FILE__, __LINE__);
 					}//End err package
-					else {//correct package
-						fprintf(stderr, "at %d CMD: %c Len:%d\r\n",buf_index,cmd.pcb,cmd.len);
+					else {//correct package						
+						if ( cmd.pcb < 0x80 ) {//处理客户端发来的命令
+
+							fprintf(stderr, "Rec CMD: %c(0x%02X) Len:%d at %d\r\n",\
+								cmd.pcb,cmd.pcb,cmd.len,buf_index);
+
+							//handle the input cmd from clien
+							switch (cmd.pcb) {
+		
+							//DE 6A 4C 00 1D 00 04 19 DA 44 45 4D 4F 44 41 33 30 42 
+							//32 00 00 00 0D 31 30 2E 31 31 31 2E 32 36 2E 36 75 5C
+							case GSM_CMD_LOGIN: //0x4C, 'L', Login to server
+								if ( rec_cmd_login( rokko,&cmd,\
+									&recv_buf[buf_index], send_buf ) == 1 ) {
+		
+									goto exit_process_conn_server;
+								}
+								buf_index = buf_index + cmd.len ;//update index
+								break;
+		
+							case GSM_CMD_UPGRADE://0x55, 'U', Upgrade firmware
+								rec_cmd_upgrade( rokko,&cmd,\
+									&recv_buf[buf_index], send_buf );
+								buf_index = buf_index + cmd.len ;//update index
+								break;
+
+							default:
+								fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
+								//cmd_unknow_cmd( mycar,&cmd,\
+									&recv_buf[buf_index], send_buf );
+		
+								cmd_err_cnt++;
+								break;
+							}//end of handle the input cmd
+						}
+						else {//处理客户端的响应
+
+							fprintf(stderr, "Rec respond: %c(0x%02X) Len:%d at %d\r\n",\
+								cmd.pcb&0x7F,cmd.pcb,cmd.len,buf_index);
+
+							switch (cmd.pcb&0x7F) {
+		
+							case GSM_CMD_UPGRADE: //0xD5 = 0x55 | 0x80
+
+								queue_free( queue_sent,&cmd ) ;
+
+								break;
+		
+							default:
+								fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
+								//cmd_unknow_cmd( mycar,&cmd,\
+									&recv_buf[buf_index], send_buf );
+		
+								cmd_err_cnt++;
+								break;
+							}//end of handle the input cmd
+						}
 						
-						//handle the input cmd
-						switch (cmd.pcb) {
-	
-						//DE 6A 4C 00 1D 00 04 19 DA 44 45 4D 4F 44 41 33 30 42 
-						//32 00 00 00 0D 31 30 2E 31 31 31 2E 32 36 2E 36 75 5C
-						case GSM_CMD_LOGIN: //0x4C, 'L', Login to server
-							if ( rec_cmd_login( rokko,&cmd,\
-								&recv_buf[buf_index], send_buf ) == 1 ) {
-	
-								goto exit_process_conn_server;
-							}
-							buf_index = buf_index + cmd.len ;//update index
-							break;
-	
-						default:
-							fprintf(stderr, "Unknow command: 0x%X\r\n",cmd.pcb);
-							//cmd_unknow_cmd( mycar,&cmd,\
-								&recv_buf[buf_index], send_buf );
-	
-							cmd_err_cnt++;
-							break;
-						}//end of handle the input cmd
-	
 						if ( cmd_err_cnt > 3 ) {
 							goto exit_process_conn_server;
 						}
@@ -552,7 +592,7 @@ void daemon_server(struct rokko_data *rokko)
 		
 		//Send CMD from server
 		if ( strlen(rokko->sn) == 10 ) {
-			snd_cmd( rokko, &send_seq, send_buf ) ;
+			snd_cmd( rokko, &send_seq, send_buf, queue_sent, MAX_CMD_QUEUE ) ;
 		}
 
 	}//End of while( 1 )
