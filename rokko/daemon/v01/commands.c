@@ -317,23 +317,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 			
 			snd_buf[11] = (chk_count)>>8 ;
 			snd_buf[12] = (chk_count)&0xFF ;
-
-/*
-			//Create new process (non-block) for cloud post
-			cloud_pid = fork();
-			if (cloud_pid == 0) { //In child process
-	
-				sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, firmware info&message=Current HW rev: %d,  FW rev: %d\r\n\
-						\r\nNew firmware rev: %d,  size: %d \r\n\r\nip: %s",\
-						(char *)inet_ntoa(rokko->client_addr.sin_addr),\
-						rokko->sn,rec_buf[6],rec_buf[7]<<8 | rec_buf[8],fw_rev,fw_size,\
-						(char *)inet_ntoa(rokko->client_addr.sin_addr));
-	
-				cloud_post( cloud_host, &post_buf, 80 );
-				cloud_post( log_host, &post_buf, 86 );
-				exit( 0 );
-			}*/
-		}/*
+		}//
 		else {//others : block seq
 			fprintf(stderr, "Ask Block %d, FW rev: %d  \t",\
 					rec_buf[5],rec_buf[6]<<8 | rec_buf[7]);
@@ -345,16 +329,17 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
 
-			snd_buf[5] =  rec_buf[5];//block seq
+			snd_buf[5] =  00;//status
+			snd_buf[6] =  rec_buf[5];//block seq
 
-			snd_buf[6] =  (fw_rev >> 8)&0xFF;//Rev high
-			snd_buf[7] =  (fw_rev)&0xFF;//Rev low
+			snd_buf[7] =  (fw_rev >> 8)&0xFF;//Rev high
+			snd_buf[8] =  (fw_rev)&0xFF;//Rev low
 
 			//Block data, Max data len is 1K!!!
 			//read fw according to block seq
 			lseek( fd, (rec_buf[5]-1)*1024, SEEK_SET );
-			fpos = read(fd, &snd_buf[8], 1*1024);
-			data_len = fpos + 3 ;//include blk seq, rev info
+			fpos = read(fd, &snd_buf[9], 1*1024);
+			data_len = fpos + 4 ;//include status, blk seq, rev info
 
 			fprintf(stderr, "Read: %d, BLK: %d\r\n",fpos,rec_buf[5]);
 
@@ -363,28 +348,16 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 				//snd_buf[8+chk_count]= chk_count+9 ;
 			//}
 
-			//data align 4
-			if ((data_len-3)%4) {
-				for ( chk_count = 0 ; chk_count < (4 - ((data_len-3)%4)) ; chk_count++) {
-					snd_buf[5+chk_count+data_len]= 0xFF ;
-					fprintf(stderr, "snd_buf[%d] = %X\r\n",\
-							5+chk_count+data_len,snd_buf[5+chk_count+data_len]);
-				}
-				data_len = chk_count+data_len;
-			}
+			//Calc FW CRC16
+			chk_count = 0xFFFF & (crc16tablefast(&snd_buf[9] , fpos));
 
-			//Calc CRC: C9 F3 D5 00 07 01 00 7D 00 01 FF FF 95
-			chk_count = crctablefast(&snd_buf[8],data_len-3);
-
-			snd_buf[data_len+5] = (chk_count >> 24) & 0xFF ;
-			snd_buf[data_len+6] = (chk_count >> 16) & 0xFF ;
-			snd_buf[data_len+7] = (chk_count >> 8) & 0xFF ;
-			snd_buf[data_len+8] = (chk_count) & 0xFF ;
+			snd_buf[data_len+5] = (chk_count >> 8) & 0xFF ;
+			snd_buf[data_len+6] = (chk_count) & 0xFF ;
 
 			//update len
 			snd_buf[3] = ((data_len+4) >> 8) & 0xFF;
 			snd_buf[4] = ((data_len+4) ) & 0xFF;
-
+/*
 			//Create new process (non-block) for cloud post
 			cloud_pid = fork();
 			if (cloud_pid == 0) { //In child process
@@ -398,8 +371,8 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 				cloud_post( cloud_host, &post_buf, 80 );
 				cloud_post( log_host, &post_buf, 86 );
 				exit( 0 );
-			}
-		}*/
+			}*/
+		}
 
 		//Calc chk
 		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
