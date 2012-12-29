@@ -42,6 +42,15 @@ struct rokko_command {
 	unsigned char pro_sn[10];//product serial number
 };
 
+//记录已发命令，如果收到响应，就清除记录
+//否则超时(CMD_TIMEOUT), 重发，详见config.h
+struct SENT_QUEUE {
+	unsigned int send_timer;//cancel CMD if time > 5*CMD_TIMEOUT
+	unsigned char confirm; 
+	unsigned char send_seq;
+	unsigned char send_pcb;
+};
+
 int main(int, char *[]);
 void bg(void);
 void scan_args(int, char *[]);

@@ -48,6 +48,12 @@
 #define NOTICER_ADDR		"cn0086@139.com"
 #define EMERGENCY_ADDR		"cn0086@139.com"
 
+//发送命令后，如果在timeout内无响应，重发
+//超过5*timeout后，清除此指令
+//对于 UPGRADE，则放宽处理
+#define CMD_TIMEOUT				5	//5秒
+#define MAX_CMD_QUEUE			30
+
 //For GSM <==> Server protocol, need to same as STM32 firmware define
 #define GSM_HEAD				0xDE
 #define GSM_CMD_LOGIN			0x4C //'L', Login
