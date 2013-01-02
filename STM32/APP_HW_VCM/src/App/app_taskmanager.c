@@ -207,7 +207,7 @@ void  app_task_manager (void *p_arg)
 	sem_obd_fifo = OSSemCreate(0);
 
 	//Suspend GSM task for develop CAN
-	os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
+	//os_err = OSTaskSuspend(APP_TASK_GSM_PRIO);
 
 #if	(OS_TASK_STAT_EN > 0)
 	OSStatInit();
@@ -226,11 +226,6 @@ void  app_task_manager (void *p_arg)
 		#ifdef WATCHDOG
 			IWDG_ReloadCounter();  
 		#endif
-
-		//C921550005000000005E841F
-		//for verify CRC16
-		prompt("CRC result is: %X\r\n",crc16tablefast(crc_src,10));
-
 
 		if ( my_icar.upgrade.new_fw_ready ) {
 			// new fw ready
