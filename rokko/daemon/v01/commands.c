@@ -202,10 +202,11 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 
 	int fd;
 	unsigned int i, chk_count , data_len, fpos, fw_size, fw_rev;
-	unsigned char *filename="./fw/stm32_v00/20121211.bin";
+	unsigned char *filename="./fw/stm32_v00/20130103.bin";
 	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
 	pid_t cloud_pid;
 	unsigned char post_buf[BUFSIZE];
+	unsigned char blk_cnt;
 
 	fprintf(stderr, "CMD is Upgrade fw...\n");
 
@@ -237,6 +238,15 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 		close(fd);  
 		return 30;  
 	}
+
+	if((fw_size%1024) > 0 ){
+		blk_cnt = (fw_size >> 10) + 1;
+	}
+	else{
+		blk_cnt = (fw_size >> 10);
+	}
+	//printf("Block count: %d\r\n",blk_cnt);
+
 
 	lseek( fd, -20L, SEEK_END );
 	fpos = read(fd, rev_info, 20);
@@ -322,58 +332,71 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 			fprintf(stderr, "Ask Block %d, FW rev: %d  \t",\
 					rec_buf[5],rec_buf[6]<<8 | rec_buf[7]);
 
-			//send respond : Block data
-			//C9 57 D5 00 xx yy FW_Rev(2 Bytes) + data + CRC
-			//xx: data len, yy: block seq, data: block data
-			snd_buf[0] = GSM_HEAD ;
-			snd_buf[1] = cmd->seq ;
-			snd_buf[2] = cmd->pcb | 0x80 ;
+			if ( rec_buf[5] > blk_cnt ) {//error
 
-			snd_buf[5] =  00;//status
-			snd_buf[6] =  rec_buf[5];//block seq
-
-			snd_buf[7] =  (fw_rev >> 8)&0xFF;//Rev high
-			snd_buf[8] =  (fw_rev)&0xFF;//Rev low
-
-			//Block data, Max data len is 1K!!!
-			//read fw according to block seq
-			lseek( fd, (rec_buf[5]-1)*1024, SEEK_SET );
-			fpos = read(fd, &snd_buf[9], 1*1024);
-			data_len = fpos + 4 ;//include status, blk seq, rev info
-
-			fprintf(stderr, "Read: %d, BLK: %d\r\n",fpos,rec_buf[5]);
-
-			//simu data, for test only
-			//for ( chk_count = 0 ; chk_count < (data_len-3); chk_count++) {
-				//snd_buf[8+chk_count]= chk_count+9 ;
-			//}
-
-			//Calc FW CRC16
-			chk_count = 0xFFFF & (crc16tablefast(&snd_buf[9] , fpos));
-
-			snd_buf[data_len+5] = (chk_count >> 8) & 0xFF ;
-			snd_buf[data_len+6] = (chk_count) & 0xFF ;
-
-			//update len
-			snd_buf[3] = ((data_len+4) >> 8) & 0xFF;
-			snd_buf[4] = ((data_len+4) ) & 0xFF;
-/*
-			//Create new process (non-block) for cloud post
-			cloud_pid = fork();
-			if (cloud_pid == 0) { //In child process
+				snd_buf[0] = GSM_HEAD ;
+				snd_buf[1] = cmd->seq ;
+				snd_buf[2] = cmd->pcb | 0x80 ;
 	
-				sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, Block %d&message=Sending block: %d,  data length: %d\r\n\
-						\r\nNew firmware rev: %d,  size: %d \r\n\r\nip: %s",\
-						(char *)inet_ntoa(rokko->client_addr.sin_addr),\
-						rokko->sn,rec_buf[5],rec_buf[5],data_len-3,fw_rev,fw_size,\
-						(char *)inet_ntoa(rokko->client_addr.sin_addr));
+				snd_buf[3] =  00;//len high
+				snd_buf[4] =  1;//len low
+				snd_buf[5] =  4;//status: no this block
+				
+			}
+			else {
+				//send respond : Block data
+				//C9 57 D5 00 xx yy FW_Rev(2 Bytes) + data + CRC
+				//xx: data len, yy: block seq, data: block data
+				snd_buf[0] = GSM_HEAD ;
+				snd_buf[1] = cmd->seq ;
+				snd_buf[2] = cmd->pcb | 0x80 ;
 	
-				cloud_post( cloud_host, &post_buf, 80 );
-				cloud_post( log_host, &post_buf, 86 );
-				exit( 0 );
-			}*/
+				snd_buf[5] =  00;//status
+				snd_buf[6] =  rec_buf[5];//block seq
+	
+				snd_buf[7] =  (fw_rev >> 8)&0xFF;//Rev high
+				snd_buf[8] =  (fw_rev)&0xFF;//Rev low
+	
+				//Block data, Max data len is 1K!!!
+				//read fw according to block seq
+				lseek( fd, (rec_buf[5]-1)*1024, SEEK_SET );
+				fpos = read(fd, &snd_buf[9], 1*1024);
+				data_len = fpos + 4 ;//include status, blk seq, rev info
+	
+				fprintf(stderr, "Read: %d, BLK: %d, DAT: ",fpos,rec_buf[5]);
+	
+				for ( chk_count = 0 ; chk_count < 8; chk_count++) {
+					fprintf(stderr, "%02X ",snd_buf[9+chk_count]);
+				}
+				fprintf(stderr, "...\r\n");
+				
+				//Calc FW CRC16
+				chk_count = 0xFFFF & (crc16tablefast(&snd_buf[9] , fpos));
+	
+				snd_buf[data_len+5] = (chk_count >> 8) & 0xFF ;
+				snd_buf[data_len+6] = (chk_count) & 0xFF ;
+	
+				fprintf(stderr, "BLK %d CRC16: %04X\r\n",rec_buf[5],chk_count&0xFFFF);
+				//update len: +2 for CRC16
+				snd_buf[3] = ((data_len+2) >> 8) & 0xFF;
+				snd_buf[4] = ((data_len+2) ) & 0xFF;
+	/*
+				//Create new process (non-block) for cloud post
+				cloud_pid = fork();
+				if (cloud_pid == 0) { //In child process
+		
+					sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, Block %d&message=Sending block: %d,  data length: %d\r\n\
+							\r\nNew firmware rev: %d,  size: %d \r\n\r\nip: %s",\
+							(char *)inet_ntoa(rokko->client_addr.sin_addr),\
+							rokko->sn,rec_buf[5],rec_buf[5],data_len-3,fw_rev,fw_size,\
+							(char *)inet_ntoa(rokko->client_addr.sin_addr));
+		
+					cloud_post( cloud_host, &post_buf, 80 );
+					cloud_post( log_host, &post_buf, 86 );
+					exit( 0 );
+				}*/
+			}
 		}
-
 		//Calc chk
 		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
 
@@ -383,7 +406,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 		snd_buf[data_len+5] = (chk_count)>>8 ;
 		snd_buf[data_len+6] = (chk_count)&0xFF ;
 
-		fprintf(stderr, "CRC16: %04X\n",chk_count);
+		fprintf(stderr, "data_len: %d, CRC16: %04X\n",data_len,chk_count);
 		
 		if ( foreground ) {
 			fprintf(stderr, "CMD %c ok, will return: ",cmd->pcb);
@@ -393,7 +416,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 				}
 			}
 			else {
-				for ( chk_count = data_len - 7 ; chk_count < data_len+7 ; chk_count++ ) {
+				for ( chk_count = 0 ; chk_count < 16 ; chk_count++ ) {
 					fprintf(stderr, "%02X ",snd_buf[chk_count]);
 				}
 			}
@@ -418,7 +441,7 @@ unsigned char snd_cmd_upgrade( struct rokko_data *rokko, unsigned char *sequence
 	int fd;
 	unsigned int  i, fw_size, fw_rev, fpos;
 	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
-	unsigned char *filename="./fw/stm32_v00/20121211.bin";
+	unsigned char *filename="./fw/stm32_v00/20130103.bin";
 	unsigned short var_short;
 	
 	//Get the firmware file info

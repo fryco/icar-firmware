@@ -516,8 +516,8 @@ void daemon_server(struct rokko_data *rokko)
 					else {//correct package						
 						if ( cmd.pcb < 0x80 ) {//处理客户端发来的命令
 
-							fprintf(stderr, "Rec CMD: %c(0x%02X) Len:%d at %d\r\n",\
-								cmd.pcb,cmd.pcb,cmd.len,buf_index);
+							fprintf(stderr, "Rec CMD: %c(0x%02X) SEQ:0x%02X Len:%d at %d\r\n",\
+								cmd.pcb,cmd.pcb,cmd.seq,cmd.len,buf_index);
 
 							//handle the input cmd from clien
 							switch (cmd.pcb) {
@@ -591,6 +591,7 @@ void daemon_server(struct rokko_data *rokko)
 		}
 		
 		//Send CMD from server
+		sleep(1);
 		if ( strlen(rokko->sn) == 10 ) {
 			snd_cmd( rokko, &send_seq, send_buf, queue_sent, MAX_CMD_QUEUE ) ;
 		}
