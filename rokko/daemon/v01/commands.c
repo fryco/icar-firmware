@@ -188,6 +188,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			return 0 ;
 		} //end check DB ok
 		else {//failure
+			fprintf(stderr, "No SN! %s:%d\r\n",__FILE__, __LINE__);
 			failure_cmd( rokko, snd_buf, cmd );
 			
 			return 1 ;
@@ -426,6 +427,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 		write(rokko->client_socket,snd_buf,data_len+7);
 	}
 	else { //no SN
+		fprintf(stderr, "No SN! %s:%d\r\n",__FILE__, __LINE__);	
 		failure_cmd( rokko, snd_buf, cmd );
 	}
 
