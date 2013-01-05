@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: svn://svn.cn0086.info/icar/internal/APP_HW_v00/src/App/crc16.h $ 
-  * @version $Rev: 10 $
-  * @author  $Author: cn0086.info $
-  * @date    $Date: 2012-12-14 02:25:56 +0800 (周五, 2012-12-14) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This is CRC16 algorithm
   ******************************************************************************
   */

@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://rokko-firmware.googlecode.com/svn/ubuntu/iCar_v03/commands.h $ 
-  * @version $Rev: 99 $
+  * @file    $URL$ 
+  * @version $Rev$
   * @author  $Author$
-  * @date    $Date: 2012-02-29 09:32:56 +0800 (Wed, 29 Feb 2012) $
+  * @date    $Date$
   * @brief   This file is for commands
   ******************************************************************************
   */ 
