@@ -1,5 +1,5 @@
-//$URL: https://rokko-firmware.googlecode.com/svn/ubuntu/iCar_v03/commands.c $ 
-//$Rev: 99 $, $Date: 2012-02-29 09:32:56 +0800 (Wed, 29 Feb 2012) $
+//$URL$ 
+//$Rev$, $Date$
 
 #include "config.h"
 #include "rokkod.h"
@@ -19,7 +19,7 @@ static unsigned int mypow( unsigned char n)
 }
 
 static void conv_rev( unsigned char *p , unsigned int *fw_rev)
-{//$Rev: 9999 $
+{//$Rev$
 	unsigned char i , j;
 
 	i = 0 , p = p + 6 ;
@@ -427,7 +427,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 		write(rokko->client_socket,snd_buf,data_len+7);
 	}
 	else { //no SN
-		fprintf(stderr, "No SN! %s:%d\r\n",__FILE__, __LINE__);	
+		fprintf(stderr, "SN len:%d No SN! %s:%d\r\n",strlen(rokko->sn),__FILE__, __LINE__);	
 		failure_cmd( rokko, snd_buf, cmd );
 	}
 
