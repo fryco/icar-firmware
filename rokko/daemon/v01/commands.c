@@ -427,7 +427,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 		write(rokko->client_socket,snd_buf,data_len+7);
 	}
 	else { //no SN
-		fprintf(stderr, "SN len:%d No SN! %s:%d\r\n",strlen(rokko->sn),__FILE__, __LINE__);	
+		fprintf(stderr, "SN:%s, len:%d No SN! %s:%d\r\n",rokko->sn,strlen(rokko->sn),__FILE__, __LINE__);		
 		failure_cmd( rokko, snd_buf, cmd );
 	}
 

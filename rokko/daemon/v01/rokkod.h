@@ -39,7 +39,7 @@ struct rokko_command {
 	unsigned int len;//length;
 	unsigned char *inf;//Information Field
 	unsigned short crc16;//crc16 result
-	unsigned char pro_sn[10];//product serial number
+	unsigned char pro_sn[20];//product serial number
 };
 
 //记录已发命令，如果收到响应，就清除记录
