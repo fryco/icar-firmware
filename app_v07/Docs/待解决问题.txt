@@ -1,6 +1,0 @@
-.LOG
-6:20 PM 8/6/2012
-
-const unsigned char *apn_list[][4] 占用RAM空间，想办法解决
-
-
