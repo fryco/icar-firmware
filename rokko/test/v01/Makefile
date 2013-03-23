@@ -6,8 +6,8 @@ ODIR=.
 
 LIBS=-lm
 
-DEPS =  
-OBJ = tcp_client.o
+DEPS = misc.h crc16.h
+OBJ = tcp_client.o misc.o crc16.o
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
