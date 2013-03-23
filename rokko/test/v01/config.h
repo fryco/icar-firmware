@@ -31,14 +31,18 @@
 
 
 #define	EMAIL				128
-#define BUFSIZE 			1024*2
+#define BUFSIZE 			256
 
 #define CMD_CNT				0
-#define PROCESS_CNT			1000
+
+#define GSM_HEAD				0xDE
+#define GSM_CMD_ERROR			0x45 //'E', upload error log to server
+//Out: DE 01 45 00 06 00 00 00 08 30 00 81 79
+//In : DE 01 C5 00 02 00 04 08 4D
+#define GSM_CMD_LOGIN			0x4C //'L', Login
+//Out: DE 00 4C 00 1E 00 00 08 B6 44 45 4D 4F 43 34 33 45 45 39 00 00 00 DE 31 30 2E 38 31 2E 32 33 37 2E 39 36 FF E8
+//In : DE 00 CC 00 11 00 50 EB D4 FC 06 6B FF 48 56 48 67 49 87 10 12 37 B8 C4
 
 #define	LOG_DIR				"/tmp/"
-
-#define	SERVER_ADDR			"172.30.0.32"
-#define	SERVER_PORT			23
 
 #endif /* _CONFIG_H */
