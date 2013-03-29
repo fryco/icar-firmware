@@ -193,7 +193,7 @@ int single_connect( unsigned int simu_id ) {
 	unsigned int var_int, run_cnt=0 ;
 	struct sockaddr_in remote_addr;	//服务器端网络地址结构体
 	unsigned char buf[BUFSIZE];  //数据传送的缓冲区
-	struct timeval timeout = {3,0};//3 mins
+	struct timeval timeout = {3*60,0};//3 mins
 
 	bzero(&remote_addr, sizeof(remote_addr));
 
@@ -218,7 +218,7 @@ int single_connect( unsigned int simu_id ) {
 
 	if ( debug_flag ) fprintf(stderr,"connected to server: %s:%d\n\n",dest,server_port);
 	
-	len = read(client_sockfd, buf, BUFSIZE); 
+/*	len = read(client_sockfd, buf, BUFSIZE); 
 	if ( len <= 0 ) {
 		fprintf(stderr,"Rec timeout: %d @ %d in PID %d\n",len,__LINE__, getpid());
 	}
@@ -226,7 +226,7 @@ int single_connect( unsigned int simu_id ) {
 		buf[len]='\0';
 		if ( debug_flag ) fprintf(stderr,"%s",buf); //打印服务器端信息
 	}
-	
+*/	
 	{
 		fprintf(stderr,"Run @ %d\n",__LINE__);
 		while ( 1 ) {
