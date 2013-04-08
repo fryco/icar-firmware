@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: svn://svn.cn0086.info/icar/firmware/BL_HW_v01/src/App/drv_flash.h $ 
-  * @version $Rev: 79 $
-  * @author  $Author: cn0086.info $
-  * @date    $Date: 2013-01-14 22:30:53 +0800 (周一, 2013-01-14) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This is for STM32 internal flash
   ******************************************************************************
   */ 

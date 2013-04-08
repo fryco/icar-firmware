@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: svn://svn.cn0086.info/icar/firmware/APP_HW_v01/src/App/drv_iwdg.h $ 
-  * @version $Rev: 73 $
-  * @author  $Author: cn0086.info $
-  * @date    $Date: 2013-01-14 22:25:20 +0800 (周一, 2013-01-14) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file is for independent watchdog define in STM32
   ******************************************************************************
   */

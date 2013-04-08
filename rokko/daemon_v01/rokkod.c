@@ -3,8 +3,8 @@
  *
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $URL: svn://svn.cn0086.info/icar/internal/rokko/rokkod.c $
- *      $Rev: 113 $, $Date: 2013-03-29 21:57:10 +0800 (Fri, 29 Mar 2013) $
+ *      $URL$
+ *      $Rev$, $Date$
  */
 //http://myswirl.blog.163.com/blog/static/513186422010102495152843/
 //http://bbs.csdn.net/topics/390165941

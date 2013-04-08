@@ -3,8 +3,8 @@
  *
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $URL: svn://svn.cn0086.info/icar/firmware/APP_HW_v01/src/App/config.h $
- *      $Rev: 102 $, $Date: 2013-02-16 17:55:12 +0800 (周六, 2013-02-16) $
+ *      $URL$
+ *      $Rev$, $Date$
  */
 
 #ifndef _CONFIG_H 

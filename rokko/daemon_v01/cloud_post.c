@@ -1,5 +1,5 @@
-//$URL: https://icar-firmware.googlecode.com/svn/ubuntu/iCar_v03/cloud_post.c $ 
-//$Rev: 302 $, $Date: 2012-12-11 13:31:08 +0800 (Tue, 11 Dec 2012) $
+//$URL$ 
+//$Rev$, $Date$
 
 #include "config.h"
 #include "cloud_post.h"

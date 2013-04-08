@@ -4,7 +4,7 @@
 
 #define WATCHDOG	//enable independent watchdog
 
-unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev: 102 $";//Don't modify this line
+unsigned char BUILD_REV[] __attribute__ ((section ("FW_REV"))) ="$Rev$";//Don't modify this line
 
 static	OS_STK		app_task_gsm_stk[APP_TASK_GSM_STK_SIZE];
 static	OS_STK		app_task_obd_stk[APP_TASK_OBD_STK_SIZE];
@@ -496,7 +496,7 @@ unsigned int pow( unsigned char n)
 }
 
 static void conv_rev( unsigned char *p )
-{//$Rev: 102 $
+{//$Rev$
 	unsigned char i , j;
 
 	my_icar.fw_rev = 0 ;
@@ -1835,8 +1835,8 @@ void console_cmd( unsigned char cmd, unsigned char *flag, unsigned char *flash_i
 
 	case 'v' ://show revision
 		show_sys_info( );
-		prompt("$URL: svn://svn.cn0086.info/icar/firmware/APP_HW_v01/src/App/app_taskmanager.c $\r\n");
-		prompt("$Id: app_taskmanager.c 102 2013-02-16 09:55:12Z cn0086.info $\r\n");
+		prompt("$URL$\r\n");
+		prompt("$Id$\r\n");
 		break;
 
 	case 'W' ://send a warn msg for verify this function
