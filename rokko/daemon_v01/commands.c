@@ -1,7 +1,7 @@
 //TBD: 主动发命令，记录每个连接时间、发送、接收字节数;
 
-//$URL: svn://svn.cn0086.info/icar/internal/rokko/commands.c $ 
-//$Rev: 113 $, $Date: 2013-03-29 21:57:10 +0800 (Fri, 29 Mar 2013) $
+//$URL$ 
+//$Rev$, $Date$
 //fprintf(stderr, "rokko: %X\tbuf: %X\t%s:%d\n",rokko,rec_buf,__FILE__,__LINE__);
 
 #include "config.h"
@@ -32,7 +32,7 @@ static unsigned int mypow( unsigned char n)
 }
 
 static void conv_rev( unsigned char *p , unsigned int *fw_rev)
-{//$Rev: 113 $
+{//$Rev$
 	unsigned char i , j;
 
 	i = 0 , p = p + 6 ;

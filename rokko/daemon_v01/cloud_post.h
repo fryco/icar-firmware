@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/ubuntu/iCar_v03/cloud_post.h $ 
-  * @version $Rev: 302 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2012-12-11 13:31:08 +0800 (Tue, 11 Dec 2012) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file is for cloud_post
   ******************************************************************************
   */ 

@@ -3,8 +3,8 @@
  *
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $URL: svn://svn.cn0086.info/icar/internal/rokko/log.h $
- *      $Rev: 82 $, $Date: 2013-01-17 02:07:03 +0800 (Thu, 17 Jan 2013) $
+ *      $URL$
+ *      $Rev$, $Date$
  */
 
 #ifndef _LOG_H 

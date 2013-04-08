@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: svn://svn.cn0086.info/icar/firmware/APP_HW_v01/src/App/main.h $ 
-  * @version $Rev: 102 $
-  * @author  $Author: cn0086.info $
-  * @date    $Date: 2013-02-16 17:55:12 +0800 (周六, 2013-02-16) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file contains all necessary *.h and global define.
   ******************************************************************************
   */ 

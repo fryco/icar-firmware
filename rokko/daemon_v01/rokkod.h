@@ -3,8 +3,8 @@
  *
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $URL: svn://svn.cn0086.info/icar/internal/rokko/rokkod.h $
- *      $Rev: 111 $, $Date: 2013-03-04 09:53:14 +0800 (Mon, 04 Mar 2013) $
+ *      $URL$
+ *      $Rev$, $Date$
  */
 
 #ifndef _ROKKOD_H 

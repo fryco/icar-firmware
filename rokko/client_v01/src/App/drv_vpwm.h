@@ -1,9 +1,9 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: svn://svn.cn0086.info/icar/firmware/APP_HW_v01/src/App/drv_vpwm.h $ 
-  * @version $Rev: 73 $
-  * @author  $Author: cn0086.info $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
   * @date    $Date: 2012-05-08 12:16:04 +0800 
   * @brief   This file is for VPW,PWM converter define in STM32
   ******************************************************************************

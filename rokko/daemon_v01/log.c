@@ -3,8 +3,8 @@
  *
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $URL: svn://svn.cn0086.info/icar/internal/rokko/log.c $
- *      $Rev: 113 $, $Date: 2013-03-29 21:57:10 +0800 (Fri, 29 Mar 2013) $
+ *      $URL$
+ *      $Rev$, $Date$
  */
 
 #include "config.h"

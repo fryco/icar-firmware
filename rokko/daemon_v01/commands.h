@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: svn://svn.cn0086.info/icar/internal/rokko/commands.h $ 
-  * @version $Rev: 38 $
-  * @author  $Author: cn0086.info $
-  * @date    $Date: 2013-01-06 09:43:04 +0800 (Sun, 06 Jan 2013) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file is for commands
   ******************************************************************************
   */ 
