@@ -3,8 +3,8 @@
  *
  *      This is NOT a freeware, use is subject to license terms
  *
- *      $URL: https://icar-firmware.googlecode.com/svn/rokko/daemon/v00/config.h $
- *      $Rev: 285 $, $Date: 2012-11-06 08:46:19 +0800 (Tue, 06 Nov 2012) $
+ *      $URL$
+ *      $Rev$, $Date$
  */
 
 #ifndef _CONFIG_H 
