@@ -6,9 +6,7 @@ void scan_args(int, char *[]);
 int single_connect( unsigned int ) ;
 
 unsigned char *dest="127.0.0.1", debug_flag = 0;
-unsigned int server_port=23, max_client = 1 ;
-unsigned int process_cnt = 0 , rokko_time ;
-unsigned long long err_cnt = 0 ;
+unsigned int server_port=23, rokko_time ;
 	
 //return 0: failure, others: buffer length
 int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned int buf_len, unsigned char seq)
@@ -172,9 +170,7 @@ void print_help(char *argv[])
 {
 	fprintf(stderr, "%s\n", console_RELEASE);
 	fprintf(stderr, "usage: %s [OPTION]...\n", argv[0]);
-	fprintf(stderr, "commandline options override settings from configuration file\n\n");
 	fprintf(stderr, "  -?             this help\n");
-	fprintf(stderr, "  -c             Max. Client\n");
 	fprintf(stderr, "  -d             Debug\n");
 	fprintf(stderr, "  -s             Server\n");
 	fprintf(stderr, "  -p             Port, default is 23\n\n");
@@ -185,20 +181,13 @@ void scan_args(int argc, char *argv[])
 {
 	int index;
 
-	while((index = getopt(argc, argv, "c:dhs:p:")) != EOF)
+	while((index = getopt(argc, argv, "dhs:p:")) != EOF)
 	{
 		switch(index)
 		{
 			case '?':
 			case 'h':
 				print_help(argv);
-				break;
-			case 'c': //max client
-				max_client = a2port(optarg);
-				if (max_client <= 0) {
-					fprintf(stderr, "Bad process_cnt number, must: 1 ~ 3000\n");
-					exit(1);
-				}
 				break;
 
 			case 'd': //debug
@@ -227,23 +216,33 @@ int	main(int argc, char	*argv[])
 {
 	unsigned char ch;
 	unsigned int usecs=10000, console_time;
-	void child_exit(int);
-	//unsigned int var_int = 0 ;
-	unsigned long long chk_cnt = 0 ;
-	time_t last_time = 0;
 
-	console_time = time(NULL);
+	time_t last_time;
+
+	rokko_time = time(NULL);	
+	last_time = time(NULL);
+	
+	/* Scan arguments. */
+	scan_args(argc, argv);
+
+	fprintf(stderr,"Connect to %s:%d ... ",dest,server_port);
+	if ( single_connect( 88 ) ) {//error
+		fprintf(stderr,"failure! check %s:%d\n",__FILE__,__LINE__);
+		exit(1);
+	}
+	else fprintf(stderr,"ok\n");
 	
 	while ( 1 ) {
 		if(kbhit()) {
-			console_time = time(NULL);
+			last_time = time(NULL);
 			ch = getchar();
 			
 			switch( ch ) {
 				case '?':
 				case 'h':
 				case 'H':
-					fprintf(stderr, "%s\n", console_RELEASE );				
+					fprintf(stderr, "%s", console_RELEASE );
+					fprintf(stderr, "Support CMD: H,L\n\n", console_RELEASE );
 					break;
 					
 				default:
@@ -252,54 +251,16 @@ int	main(int argc, char	*argv[])
 			}
 		}
 		
-		if ( (time(NULL) - console_time) > 3 ) {//update every 3 seconds
-			console_time = time(NULL);
+		if ( (time(NULL) - last_time) > 3 ) {//update every 3 seconds
+			last_time = time(NULL);
 			
 			fprintf(stderr,"Press key\n");			
 		}
 		usleep(usecs);		
 	}
-	
-	
-	/* Scan arguments. */
-	scan_args(argc, argv);
-
-	fprintf(stderr,"Max. client: %d\n",max_client);
-	fprintf(stderr,"Server %s:%d\n",dest,server_port);
-	//printf("Parent: %d\n",getpid());
-	signal(SIGCHLD, child_exit);
-
-	while ( 1 ) {
-		while ( process_cnt < max_client ) {
-			
-			switch(fork())
-			{
-				case 0:
-					if ( debug_flag ) fprintf(stderr,"In child: %d\n",getpid());
-					if ( single_connect( process_cnt+1 ) ) {
-						if ( debug_flag ) fprintf(stderr, "Test failure!\n");
-						exit(1);
-					}
-					exit(0);
-				case -1:
-					perror("fork failed"); exit(1);
-				default:
-					process_cnt++;
-					chk_cnt++;
-					break;
-			}
-		}
-
-		if ( time(NULL) - last_time > 5 ) {
-			printf("Test %lld\tpass:%lld\tfailure:%lld\n",chk_cnt,chk_cnt-err_cnt,err_cnt);
-			last_time = time(NULL);
-		}
-		else{
-			sleep( 1 ) ;		
-		}
-	}
 }
 
+//Return 0: ok, others err
 int single_connect( unsigned int simu_id ) {
 				
 	unsigned char seq=0;
@@ -332,23 +293,14 @@ int single_connect( unsigned int simu_id ) {
 
 	if ( debug_flag ) fprintf(stderr,"connected to server: %s:%d\n\n",dest,server_port);
 	
-/*	len = read(client_sockfd, buf, BUFSIZE); 
-	if ( len <= 0 ) {
-		fprintf(stderr,"Rec timeout: %d @ %d in PID %d\n",len,__LINE__, getpid());
-	}
-	else {
-		buf[len]='\0';
-		if ( debug_flag ) fprintf(stderr,"%s",buf); //打印服务器端信息
-	}
-*/	
 	{
 		//fprintf(stderr,"Run @ %d\n",__LINE__);
-		while ( 1 ) {
+		{
 			//prepare login cmd, use pid as SN
 			len = format_cmd(GSM_CMD_LOGIN, getpid(), buf, BUFSIZE, seq);
 			seq++; if ( seq >= 0x80 ) seq=0;
 			if ( len ) { //prepare cmd ok
-				fprintf(stderr,"ID:%s => %d\n",&buf[9],run_cnt);
+				//fprintf(stderr,"ID:%s => %d\n",&buf[9],run_cnt);
 				run_cnt++;
 
 				write(client_sockfd,buf,len);
@@ -403,10 +355,6 @@ int single_connect( unsigned int simu_id ) {
 
 				}
 			}
-
-			if ( debug_flag ) fprintf(stderr,"\n\n");
-			
-			sleep(1);
 		}
 	}
 
@@ -415,20 +363,4 @@ int single_connect( unsigned int simu_id ) {
 	close(client_sockfd);//关闭套接字
 
 	return 0;
-}
-
-void child_exit(int num)
-{
-	//Received SIGCHLD signal
-	int status;
-
-	int pid = waitpid(-1, &status, WNOHANG);
-	if (WIFEXITED(status)) {
-		if ( debug_flag ) fprintf(stderr,"Child %d exit with code %d\n", pid, WEXITSTATUS(status));
-		if ( WEXITSTATUS(status) ) {
-			err_cnt++;
-		}
-	}
-	
-	if ( process_cnt > 0 ) process_cnt--;
 }
