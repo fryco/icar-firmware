@@ -1,6 +1,6 @@
 #include "config.h"
 
-#define console_RELEASE "\nRokko console $Rev: 351 $, "__DATE__" "__TIME__"\n"
+#define console_RELEASE "\nRokko console $Rev$, "__DATE__" "__TIME__"\n"
 
 void scan_args(int, char *[]);
 int single_connect( unsigned int ) ;
