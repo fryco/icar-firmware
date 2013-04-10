@@ -35,7 +35,7 @@
 #define	EMAIL				128
 #define BUFSIZE 			1024*2		//2KB
 
-#define	LOG_DIR				"/tmp/"
+#define	LOG_DIR				"./"
 
 #define BACKLOG 5        //Maximum queue of pending connections
 
@@ -58,6 +58,7 @@
 
 //For GSM <==> Server protocol, need to same as STM32 firmware define
 #define GSM_HEAD				0xDE
+#define GSM_CMD_CONSOLE			0x43 //'C', Console command
 #define GSM_CMD_ERROR			0x45 //'E', Upload err log
 #define GSM_CMD_LOGIN			0x4C //'L', Login
 #define GSM_CMD_RECORD			0x52 //'R', record gsm/adc data

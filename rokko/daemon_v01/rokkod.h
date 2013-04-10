@@ -75,6 +75,6 @@ void print_help(char *[]);
 void print_version(void);
 void period_check( struct rokko_data *, unsigned int);
 unsigned char sock_init( unsigned int );
-unsigned char daemon_server(struct rokko_data *, unsigned char *, unsigned short);
+unsigned char daemon_server(struct rokko_data *, unsigned char *, unsigned short, struct rokko_data *, unsigned int);
 
 #endif /* _ROKKOD_H */
