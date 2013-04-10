@@ -13,9 +13,9 @@
 #include "config.h"
 #include "rokkod.h"
 
-#define rokkod_RELEASE "\nRokko daemon v00, built by Jack at " __DATE__" "__TIME__ "\n"
+#define rokkod_RELEASE "\nRokko daemon $Rev$, "__DATE__" "__TIME__"\n"
 
-#define  MAXCLIENT 			3000
+#define  MAXCLIENT 			5000
 #define  MAX_IDLECONNCTIME 	10
 
 
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 	void child_exit(int);
 	unsigned int i=0, maxsock, conn_amount = 0;//current active connection
 
-	int ret, new_fd;
+	int read_size, new_fd;
 	fd_set fdsr; //文件描述符集的定义
 	struct rokko_data rokko[MAXCLIENT] ;
 	
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 						}
 
 						write(rokko[i].client_socket,"Idle too long, bye.\n",25);
-						//save transmit count TBD
+						//save transmit count and disconnect reason, TBD
 						
 						close(rokko[i].client_socket);
 						FD_CLR(rokko[i].client_socket, &fdsr);
@@ -221,20 +221,20 @@ int main(int argc, char *argv[])
 
 		tv.tv_sec = 60;
 		tv.tv_usec = 0;
-		ret = select(maxsock + 1, &fdsr, NULL, NULL,&tv); 
+		read_size = select(maxsock + 1, &fdsr, NULL, NULL,&tv); 
 
-		if (ret < 0) { //failure
+		if (read_size < 0) { //failure
 			snprintf(msg,sizeof(msg),"Exit: %s. %s:%d\n",strerror(errno),__FILE__,__LINE__);
 			log_save(msg, FORCE_SAVE_FILE );
 			if ( foreground ) fprintf(stderr,"%s",msg);
 		    exit(1);
 		}
 		else {
-			if (ret == 0) { //=0 timeout
+			if (read_size == 0) { //=0 timeout
 				//fprintf(stderr, "Timeout select\n");
 				continue;
 			}
-			//else ret > 0 is normal return
+			//else read_size > 0 is normal return
 		}
 
 		//gettimeofday(&run_tv,NULL);
@@ -244,8 +244,8 @@ int main(int argc, char *argv[])
 		for (i = 0; i < MAXCLIENT; i++) {//this loop will consume lots of time
 			if (FD_ISSET(rokko[i].client_socket, &fdsr)) {
 				bzero( msg, sizeof(msg));
-				ret = read(rokko[i].client_socket, msg, BUFSIZE );
-				if (ret <= 0 || ret > BUFSIZE) {//Client close or err
+				read_size = read(rokko[i].client_socket, msg, BUFSIZE );
+				if (read_size <= 0 || read_size > BUFSIZE) {//Client close or err
 
 					if ( foreground ) {
 						fprintf(stderr,"R[%d], %s, %s close@ %d.\n", i,\
@@ -275,6 +275,7 @@ int main(int argc, char *argv[])
 						exit( 0 );
 					}
 
+					//save transmit count and disconnect reason, TBD
 					close(rokko[i].client_socket);
 					FD_CLR(rokko[i].client_socket, &fdsr);
 					
@@ -282,7 +283,8 @@ int main(int argc, char *argv[])
 					conn_amount--;
 				}
 				else { //client sent data to server
-					if ( daemon_server(&rokko[i],msg,ret) || rokko[i].cmd_err_cnt > 3 ) { //failure, close
+					if ( daemon_server(&rokko[i],msg,read_size, rokko, conn_amount) \
+							|| rokko[i].cmd_err_cnt > 3 ) { //failure, close
 
 						if ( foreground ) {
 							fprintf(stderr,"Rokko[%d], %s, %s close@ %d.\n", i,\
@@ -312,6 +314,7 @@ int main(int argc, char *argv[])
 							exit( 0 );
 						}
 
+						//save transmit count and disconnect reason, TBD
 						close(rokko[i].client_socket);
 						FD_CLR(rokko[i].client_socket, &fdsr);
 						
@@ -367,13 +370,13 @@ int main(int argc, char *argv[])
 
 				//update connection amounts
 				conn_amount++;
-
+/*
 				if ( foreground ) {
 					fprintf(stderr, "New Rokko[%d] %s:%d\n", i,\
 						(char *)inet_ntoa(rokko[i].client_addr.sin_addr), \
 						ntohs(rokko[i].client_addr.sin_port));
 				}
-
+*/
 				//post to cloud
 				if (fork() == 0) { //In child process
 					unsigned char post_buf[BUFSIZE+1], host_info[BUFSIZE+1], logtime[EMAIL+1];
@@ -709,7 +712,8 @@ unsigned char sock_init( unsigned int port )
 	return 0;
 }
 
-unsigned char daemon_server(struct rokko_data *rokko, unsigned char *recv_buf, unsigned short size)
+unsigned char daemon_server(struct rokko_data *rokko, unsigned char *recv_buf, unsigned short size,\
+							struct rokko_data *rokko_all, unsigned int conn_amount)
 {
 	unsigned char var_u8;
 	unsigned char send_buf[BUFSIZE+1];
@@ -756,11 +760,17 @@ unsigned char daemon_server(struct rokko_data *rokko, unsigned char *recv_buf, u
 				
 				if ( cmd.pcb < 0x80 ) {//处理客户端发来的命令
 
-					fprintf(stderr, "Rec CMD: %c(0x%02X) SEQ:0x%02X Len:%d at %d\r\n",\
+					//fprintf(stderr, "Rec CMD: %c(0x%02X) SEQ:0x%02X Len:%d at %d\r\n",\
 						cmd.pcb,cmd.pcb,cmd.seq,cmd.len,buf_index);
 
 					//handle the input cmd from clien
 					switch (cmd.pcb) {
+
+					case GSM_CMD_CONSOLE: //0x43,'C' console command
+						rec_cmd_console( rokko,&cmd,\
+							recv_buf+buf_index, send_buf, rokko_all, conn_amount );
+						buf_index = buf_index + cmd.len ;//update index
+						break;
 
 					case GSM_CMD_ERROR: //0x45,'E' Error, upload error log
 						rec_cmd_errlog( rokko,&cmd,\

@@ -115,6 +115,100 @@ unsigned char queue_free(struct SENT_QUEUE *queue, struct rokko_command * cmd)
 }
 
 /****************** Below for server respond client command *********/
+int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
+				unsigned char *rec_buf, unsigned char *snd_buf, \
+				struct rokko_data *rokko_all, unsigned int conn_amount )
+{//case GSM_CMD_CONSOLE: //0x43,'C' Console command
+
+	pid_t cloud_pid;
+	unsigned char post_buf[BUFSIZE];
+	unsigned short crc16, data_len;
+	//DE SEQ 43 LEN DATA CHK
+
+	if ( strlen(rokko->pro_sn) == 10 ) {
+		{ //ok
+
+			data_len = ((rec_buf[3])<<8) | rec_buf[4];
+			if ( data_len > 32 ) data_len = 32 ; //prevent error
+				
+			if ( foreground ) {
+				fprintf(stderr, "Console CMD is: %c, SN: ",rec_buf[5]);
+				for ( crc16 = 0 ; crc16 < 10 ; crc16++ ) {
+					fprintf(stderr, "%02X ",rec_buf[crc16+6]);
+				}
+				fprintf(stderr, "From: %s\n",rokko->pro_sn);
+			}
+
+
+			bzero( snd_buf, BUFSIZE);
+			snd_buf[0] = GSM_HEAD ;
+			snd_buf[1] = cmd->seq ;
+			snd_buf[2] = cmd->pcb | 0x80 ;
+			snd_buf[3] =  00;//len high
+			snd_buf[4] =  02;//len low
+			snd_buf[5] =  00;//return status:0£º³É¹¦
+			snd_buf[6] =  00;//ok
+
+			data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
+	
+			//Calc CRC16
+			crc16 = 0xFFFF & (crc16tablefast(snd_buf , data_len+5));
+	
+			snd_buf[data_len+5] = (crc16)>>8 ;
+			snd_buf[data_len+6] = (crc16)&0xFF ;
+	
+			if ( foreground ) {
+				fprintf(stderr, "CMD: %c ok, reply: ",cmd->pcb);
+				for ( crc16 = 0 ; crc16 < data_len+7 ; crc16++ ) {
+					fprintf(stderr, "%02X ",snd_buf[crc16]);
+				}
+				fprintf(stderr, "to %s\n",rokko->pro_sn);
+			}
+		
+			write(rokko->client_socket,snd_buf,data_len+7);
+			//save transmit count
+			rokko->tx_cnt += data_len+7 ;
+			
+			return 0 ;
+/*
+			//Create new process (non-block) for cloud post
+			cloud_pid = fork();
+			if (cloud_pid == 0) { //In child process
+				fprintf(stderr, "In child:%d for cloud post\n",getpid());
+
+				cloud_post( cloud_host, &post_buf, 80 );
+				cloud_post( log_host, &post_buf, 86 );
+				exit( 0 );
+			}
+			else {//In parent process
+				//fprintf(stderr, "In parent:%d and return\n",getpid());
+				return 0 ;
+			}*/
+		}
+	}//end of strlen(rokko->pro_sn) == 10
+	else { //no SN
+
+		fprintf(stderr, "SN:%s, len:%d No SN! %s:%d\r\n",rokko->pro_sn,strlen(rokko->pro_sn),__FILE__, __LINE__);
+		failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
+			
+		return 1 ;
+/*
+		//Create new process (non-block) for cloud post
+		cloud_pid = fork();
+		if (cloud_pid == 0) { //In child process
+
+			sprintf(post_buf,"ip=%s&fid=41&subject=Need SN&message=Client ip: %s",\
+					(char *)inet_ntoa(rokko->client_addr.sin_addr),\
+					(char *)inet_ntoa(rokko->client_addr.sin_addr));
+
+			cloud_post( cloud_host, &post_buf, 80 );
+			cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}*/
+	}
+	return 0 ;
+}
+
 int rec_cmd_errlog( struct rokko_data *rokko, struct rokko_command * cmd,\
 				unsigned char *rec_buf, unsigned char *snd_buf )
 {//case GSM_CMD_ERROR: //0x45,'E' Error, upload error log
@@ -271,7 +365,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			unsigned char up_buf[EMAIL];
 	
 			ticks2time(ostime, up_buf, sizeof(up_buf));
-			fprintf(stderr, "%s Up: %s",rokko->pro_sn,up_buf); 
+			//fprintf(stderr, "%s Up: %s",rokko->pro_sn,up_buf); 
 
 			bzero( snd_buf, BUFSIZE);
 			snd_buf[0] = GSM_HEAD ;
@@ -306,8 +400,8 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			
 			snd_buf[22] = (crc16)>>8 ;
 			snd_buf[23] = (crc16)&0xFF ;
-/*
-			if ( foreground ) {
+
+/*			if ( foreground ) {
 				fprintf(stderr, "CMD is Login, reply: ");
 				for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
@@ -335,7 +429,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 		unsigned char up_buf[EMAIL];
 
 		ticks2time(ostime, up_buf, sizeof(up_buf));
-		fprintf(stderr, "%s Up: %s",rokko->pro_sn,up_buf); 
+		//fprintf(stderr, "%s Up: %s",rokko->pro_sn,up_buf); 
 /*
 		if ( foreground ) {
 			fprintf(stderr, "SN: %s\t",rokko->pro_sn);
@@ -379,7 +473,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			
 			snd_buf[22] = (crc16)>>8 ;
 			snd_buf[23] = (crc16)&0xFF ;
-/*
+
 			if ( foreground ) {
 				fprintf(stderr, "CMD is Login, reply: ");
 				for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
@@ -387,7 +481,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 				}
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
-*/
+
 			write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
 			//save transmit count
 			rokko->tx_cnt += ((snd_buf[3]<<8)|(snd_buf[4]))+7 ;

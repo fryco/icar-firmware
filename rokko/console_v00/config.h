@@ -33,11 +33,14 @@
 
 
 #define	EMAIL				128
-#define BUFSIZE 			256
+#define BUFSIZE 			1024*2		//2KB
 
 #define CMD_CNT				0
 
 #define GSM_HEAD				0xDE
+#define GSM_CMD_CONSOLE			0x43 //'C', Console command
+//--> 
+
 #define GSM_CMD_ERROR			0x45 //'E', upload error log to server
 //Out: DE 01 45 00 06 00 00 00 08 30 00 81 79
 //In : DE 01 C5 00 02 00 04 08 4D
