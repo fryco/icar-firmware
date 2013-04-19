@@ -49,6 +49,26 @@ static void conv_rev( unsigned char *p , unsigned int *fw_rev)
 	}
 }
 
+//check send buf
+void check_sndbuf( unsigned char *snd_buf )
+{
+	char log_str[EMAIL+1];
+	
+	//buf[0] = GSM_HEAD
+	//buf[1] = SEQ
+	//buf[2] = CMD
+	//buf[3] = len_h
+	//buf[4] = len_l
+	
+	if ( (snd_buf[0] != GSM_HEAD) || ((snd_buf[3]<<8)|(snd_buf[4])) > 1200 ) {
+		snprintf(log_str,sizeof(log_str),"!!!ERR!!! %02X,%02X,%02X @ %s:%d\n",\
+				snd_buf[2],snd_buf[3],snd_buf[4],__FILE__,__LINE__);
+		log_save(log_str, FORCE_SAVE_FILE );
+		if ( foreground ) fprintf(stderr,"%s",log_str);
+		exit(1);
+	}
+	return ;
+}
 //send failure to client
 unsigned char failure_cmd( struct rokko_data *rokko, unsigned char *snd_buf, \
 						struct rokko_command *cmd, unsigned char err_code )
@@ -80,6 +100,7 @@ unsigned char failure_cmd( struct rokko_data *rokko, unsigned char *snd_buf, \
 		fprintf(stderr, "to %s\n",rokko->pro_sn);
 	}
 
+	check_sndbuf( snd_buf );
 	write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
 	//save transmit count
 	rokko->tx_cnt += ((snd_buf[3]<<8)|(snd_buf[4]))+7;
@@ -138,8 +159,17 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 				}
 				fprintf(stderr, "From: %s\n",rokko->pro_sn);
 			}
-
-
+/*
+			switch ( rec_buf[5] ) {
+		
+			case GSM_CMD_LOGIN :
+				break;
+		
+			default:
+				fprintf(stderr,"Unknow CMD! @%d\n",__LINE__);
+				break;
+			}
+*/			
 			bzero( snd_buf, BUFSIZE);
 			snd_buf[0] = GSM_HEAD ;
 			snd_buf[1] = cmd->seq ;
@@ -165,6 +195,7 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
 		
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,data_len+7);
 			//save transmit count
 			rokko->tx_cnt += data_len+7 ;
@@ -281,6 +312,7 @@ int rec_cmd_errlog( struct rokko_data *rokko, struct rokko_command * cmd,\
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
 		
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,data_len+7);
 			//save transmit count
 			rokko->tx_cnt += data_len+7 ;
@@ -409,6 +441,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
 */		
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
 			//save transmit count
 			rokko->tx_cnt += ((snd_buf[3]<<8)|(snd_buf[4]))+7 ;
@@ -482,6 +515,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
 
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
 			//save transmit count
 			rokko->tx_cnt += ((snd_buf[3]<<8)|(snd_buf[4]))+7 ;
@@ -594,6 +628,7 @@ int rec_cmd_record( struct rokko_data *rokko, struct rokko_command * cmd,\
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
 		
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,data_len+7);
 			//save transmit count
 			rokko->tx_cnt += data_len+7 ;
@@ -840,6 +875,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			} 
 	
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,data_len+7);
 			//save transmit count
 			rokko->tx_cnt += data_len+7 ;
@@ -907,6 +943,7 @@ int rec_cmd_warn( struct rokko_data *rokko, struct rokko_command * cmd,\
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
 		
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,data_len+7);
 			//save transmit count
 			rokko->tx_cnt += data_len+7 ;
@@ -981,6 +1018,7 @@ unsigned char snd_cmd_record( struct rokko_data *rokko, unsigned char *sequence,
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
 		
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,data_len+7);
 			//save transmit count
 			rokko->tx_cnt += data_len+7 ;
@@ -1100,6 +1138,7 @@ unsigned char snd_cmd_upgrade( struct rokko_data *rokko, unsigned char *sequence
 				fprintf(stderr, "to %s\n",rokko->pro_sn);
 			}
 
+			check_sndbuf( snd_buf );
 			write(rokko->client_socket,snd_buf,data_len+7);
 			//save transmit count
 			rokko->tx_cnt += data_len+7 ;
