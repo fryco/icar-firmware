@@ -9,17 +9,11 @@
 
 #ifndef _CONFIG_H 
 #define _CONFIG_H
-
-#include <stdio.h>
-#include <stdlib.h>
+/*
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
 #include <dirent.h>
-#include <errno.h>
-#include <utmp.h>
-#include <termios.h>
-#include <fcntl.h>
 
 #include <time.h>
 #include <sys/param.h>
@@ -30,6 +24,27 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <errno.h>
+#include <utmp.h>
+#include <time.h>
+#include <termios.h>
+#include <fcntl.h>
+
+#include <netdb.h>
+
+#include <sys/param.h>
+#include <sys/sysinfo.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <netinet/in.h>
 
 
 #define	EMAIL				128
@@ -61,6 +76,6 @@
 #define REC_IDX_GSM					90 //for GSM signal
 
 
-#define	LOG_DIR				"/tmp/"
+#define NOTICER_ADDR		"13828431106@139.com"
 
 #endif /* _CONFIG_H */

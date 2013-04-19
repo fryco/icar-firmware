@@ -35,7 +35,7 @@
 #define	EMAIL				128
 #define BUFSIZE 			1024*2		//2KB
 
-#define	LOG_DIR				"./"
+#define	LOG_DIR				"/root/"
 
 #define BACKLOG 5        //Maximum queue of pending connections
 
@@ -65,6 +65,7 @@
 #define GSM_CMD_UPGRADE			0x55 //'U', Upgrade firmware
 #define GSM_CMD_WARN			0x57 //'W', warn msg, report to server
 
+//For Console 
 //For firmware upgrade
 //#define MAX_FW_SIZE				61450 //60*1024+10
 #define MAX_FW_SIZE				102400 //100*1024

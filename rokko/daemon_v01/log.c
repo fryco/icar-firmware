@@ -108,7 +108,7 @@ unsigned char log_save( char *msg , unsigned char force_save)
 {
 	unsigned int var_u32;
 	unsigned char ret;
-	char logtime[EMAIL+1];	
+	char logtime[EMAIL+1];
 	time_t t;
 	struct tm *tmp;
 	

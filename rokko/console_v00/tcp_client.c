@@ -177,6 +177,21 @@ int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 	}	
 }
 
+void send_notice( char * mail_body) {
+
+	char mail_subject[BUFSIZE+1], err_buf[BUFSIZE+1];
+	//time_t ticks=time(NULL);
+
+	bzero( mail_subject, sizeof(mail_subject));
+	bzero( err_buf, sizeof(err_buf));
+	
+	snprintf(mail_subject,sizeof(mail_subject),"%s:%d down!\r\n",dest,server_port);
+	
+	smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_subject, mail_body, err_buf);
+	
+	return ;
+}
+
 int kbhit(void)
 {
 	struct termios oldt, newt;
@@ -256,14 +271,17 @@ int	main(int argc, char	*argv[])
 	unsigned char buf[BUFSIZE];  //数据传送的缓冲区
 	unsigned short var_short, len;
 	unsigned int usecs=10000;
+	char mail_body[BUFSIZE*2];
 	time_t last_time, server_time;
-	
+
 	int	client_sockfd;
 	struct sockaddr_in remote_addr;
 	struct timeval timeout = {1*60,0};//1 mins	
 
 	console_time = time(NULL);
 	last_time = time(NULL);
+
+	bzero( mail_body, sizeof(mail_body));
 	
 	/* Scan arguments. */
 	scan_args(argc, argv);
@@ -397,6 +415,7 @@ int	main(int argc, char	*argv[])
 		
 		if ( (time(NULL) - last_time) > 3 ) {//update every 3 seconds
 			last_time = time(NULL);
+			fprintf(stderr,"==> %s\n",(char *)ctime(&last_time));
 			
 					//len = format_cmd(GSM_CMD_CONSOLE, "CONSOLE_01", buf, BUFSIZE, seq);
 					len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, BUFSIZE, seq);
@@ -418,7 +437,11 @@ int	main(int argc, char	*argv[])
 						len = read(client_sockfd, buf, BUFSIZE);
 							
 						if ( len <= 0 ) {
-							fprintf(stderr,"Rec timeout or disconnect: %d @ %d Exit!\n",len,__LINE__);
+							snprintf(mail_body,sizeof(mail_body),"Read sock return: %d\r\n%s\r\n",\
+									len, (char *)ctime(&last_time));							
+							send_notice( mail_body );
+							fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
+							
 							exit(1);
 						}
 						else {
@@ -426,7 +449,10 @@ int	main(int argc, char	*argv[])
 						}
 					}
 					else {
-						fprintf(stderr,"Can't parpare CMD @ %d Exit!\n",__LINE__);
+						snprintf(mail_body,sizeof(mail_body),"Can't parpare CMD @ %d\r\n%s\r\n",\
+								__LINE__,(char *)ctime(&last_time));							
+						send_notice( mail_body );
+						fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
 						exit(1);
 					}
 

@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
 	struct rokko_data rokko[MAXCLIENT] ;
 	
 	struct timeval tv, run_tv;
-	time_t ticks=time(NULL);
+	time_t ticks=time(NULL), loop_timer;
 	char msg[BUFSIZE+1];
 		
 	struct sockaddr_in client_addr;
@@ -143,8 +143,20 @@ int main(int argc, char *argv[])
 		sleep(1);
 	}
 
+	loop_timer = time(NULL) ;
+	
 	while (1)
 	{
+		//Monitor the loop time, if too long, need check
+		if ((time(NULL)) - loop_timer > 1) {
+			bzero( msg, sizeof(msg));
+			snprintf(msg,sizeof(msg),"loop_time: %d too long@ %d\n",(time(NULL)) - loop_timer,__LINE__);
+			log_save(msg, FORCE_SAVE_FILE );
+			if ( foreground ) fprintf(stderr,"%s",msg);			
+		}
+		
+		loop_timer = time(NULL) ;
+		
 		//gettimeofday(&run_tv,NULL);
 		//fprintf(stderr,"\n%02d.%d -> %d\n",(int)(run_tv.tv_sec)&0xFF,(int)run_tv.tv_usec,__LINE__);
 		
@@ -399,7 +411,12 @@ int main(int argc, char *argv[])
 					exit( 0 );
 				}
 					
-				if (new_fd > maxsock) maxsock = new_fd;
+				if (new_fd > maxsock) {
+					maxsock = new_fd;
+					snprintf(msg,sizeof(msg),"Maxsock: %d\n",maxsock);
+					log_save(msg, 0 );
+					if ( foreground ) fprintf(stderr,"%s",msg);
+				}
 			}
 			else {
 				snprintf(msg,sizeof(msg),"Over Max client! Close %s\n",\
@@ -740,6 +757,15 @@ unsigned char daemon_server(struct rokko_data *rokko, unsigned char *recv_buf, u
 			cmd.seq = *(recv_buf+buf_index+1);
 			cmd.pcb = *(recv_buf+buf_index+2);
 			cmd.len = *(recv_buf+buf_index+3) << 8 | *(recv_buf+buf_index+4);
+			//if ( cmd.len > 1200 ) {
+			if ( cmd.len > size ) {
+				snprintf(send_buf,sizeof(send_buf),"!!!ERR!!! %02X,%02X,%d,%d @ %s:%d\n",\
+						*(recv_buf+buf_index+0),cmd.pcb,cmd.len,size,__FILE__,__LINE__);
+				log_save(send_buf, FORCE_SAVE_FILE );
+				if ( foreground ) fprintf(stderr,"%s",send_buf);
+			//	exit(1);
+				cmd.len = 0 ;
+			}
 			var_u16 = ((*(recv_buf+buf_index+cmd.len+5))<<8)|(*(recv_buf+buf_index+cmd.len+6));
 
 			//calc the CRC :
