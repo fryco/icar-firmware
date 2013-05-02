@@ -5,7 +5,7 @@
   * @version $Rev$
   * @author  $Author$
   * @date    $Date$
-  * @brief   This file is for commands
+  * @brief   This file is for console
   ******************************************************************************
   */ 
 
