@@ -10,14 +10,17 @@
 //http://bbs.csdn.net/topics/390165941
 //Rev: 59 ==> 单线程实现多连接
 //http://blog.csdn.net/guowake/article/details/6615728
+//http://blog.csdn.net/ljx0305/article/details/4065058
+//http://www.cppblog.com/ifeng/archive/2011/09/29/157141.html
+
+//zc zC zo zO zj zk set nonumber
+
 #include "config.h"
 #include "rokkod.h"
 
 #define rokkod_RELEASE "\nRokko daemon $Rev$, "__DATE__" "__TIME__"\n"
 
 #define  MAXCLIENT 			5000
-#define  MAX_IDLECONNCTIME 	10
-
 
 //for default parameters
 static unsigned int mail_timer, db_timer;
@@ -133,7 +136,7 @@ int main(int argc, char *argv[])
 
 	/* Main loop, accept TCP socket connect */
 	maxsock = sock_server;
-	unsigned int idle_timer = time(NULL) ;
+	//unsigned int idle_timer = time(NULL) ;
 
 	unsigned char up_buf[EMAIL];
 	while ( 0 ) {
@@ -179,57 +182,48 @@ int main(int argc, char *argv[])
 			if (rokko[i].client_socket != 0) {//exist connection
 
 				FD_SET(rokko[i].client_socket, &fdsr);
-				
-				//if (conn_amount && ((time(NULL)) - idle_timer > CMD_TIMEOUT*2)) {//5*2=10 seconds
-				if (((time(NULL)) - idle_timer > CMD_TIMEOUT )) {//5*2=10 seconds
-					rokko[i].active_time--;//original value is MAX_IDLECONNCTIME = 10
-/*					
+
+				if (((time(NULL)) - rokko[i].idle_timer > CMD_TIMEOUT*6 )) {//5*6=30 seconds
 					if ( foreground ) {
-						fprintf(stderr, "R[%d], %s reduce Act: %d\n",i,\
-							(char *)inet_ntoa(rokko[i].client_addr.sin_addr),rokko[i].active_time);
+						fprintf(stderr, "R[%d] %s idle too long, close.\n",\
+							i,(char *)inet_ntoa(rokko[i].client_addr.sin_addr));
 					}
-*/						
-					if(rokko[i].active_time <= 1) {
-						if ( foreground ) {
-							fprintf(stderr, "R[%d] %s idle too long, close.\n",\
-								i,(char *)inet_ntoa(rokko[i].client_addr.sin_addr));
-						}
 
-						//post to cloud
-						if (fork() == 0) { //In child process
-							unsigned char post_buf[BUFSIZE+1], host_info[BUFSIZE+1], logtime[EMAIL+1];
-							struct timeval log_tv;
-			
-							bzero( post_buf, sizeof(post_buf));bzero( host_info, sizeof(host_info));
-							get_sysinfo( host_info, BUFSIZE) ;
 
-							bzero(logtime, sizeof(logtime));
-							gettimeofday(&log_tv,NULL);
-							strftime(logtime,EMAIL,"%Y-%m-%d %T",(const void *)localtime(&log_tv.tv_sec));
+					//post to cloud
+					if (fork() == 0) { //In child process
+						unsigned char post_buf[BUFSIZE+1], host_info[BUFSIZE+1], logtime[EMAIL+1];
+						struct timeval log_tv;
+		
+						bzero( post_buf, sizeof(post_buf));bzero( host_info, sizeof(host_info));
+						get_sysinfo( host_info, BUFSIZE) ;
+
+						bzero(logtime, sizeof(logtime));
+						gettimeofday(&log_tv,NULL);
+						strftime(logtime,EMAIL,"%Y-%m-%d %T",(const void *)localtime(&log_tv.tv_sec));
 	
-							sprintf(post_buf,"ip=%s&fid=43&subject=%s, %s:%d @ [%d] idle too long, force disconnect!&message=%s\r\n%s\r\nTotal iCar: %d",\
-									"127.0.0.1", host_name,\
-									(char *)inet_ntoa(rokko[i].client_addr.sin_addr),\
-									ntohs(rokko[i].client_addr.sin_port), i,\
-									logtime, host_info, conn_amount-1);
-					
-							cloud_post( CLOUD_HOST, &post_buf, 80 );
-							exit( 0 );
-						}
-
-						write(rokko[i].client_socket,"Idle too long, bye.\n",25);
-						//save transmit count and disconnect reason, TBD
-						
-						close(rokko[i].client_socket);
-						FD_CLR(rokko[i].client_socket, &fdsr);
-						
-						bzero( &rokko[i], sizeof(rokko[i]));
-						conn_amount--;
+						sprintf(post_buf,"ip=%s&fid=43&subject=%s, %s:%d @ [%d] idle too long, force disconnect!&message=%s\r\n%s\r\nTotal iCar: %d",\
+								"127.0.0.1", host_name,\
+								(char *)inet_ntoa(rokko[i].client_addr.sin_addr),\
+								ntohs(rokko[i].client_addr.sin_port), i,\
+								logtime, host_info, conn_amount-1);
+				
+						cloud_post( CLOUD_HOST, &post_buf, 80 );
+						exit( 0 );
 					}
+
+					write(rokko[i].client_socket,"Idle too long, bye.\n",25);
+					//save transmit count and disconnect reason, TBD
+						
+					close(rokko[i].client_socket);
+					FD_CLR(rokko[i].client_socket, &fdsr);
+						
+					bzero( &rokko[i], sizeof(rokko[i]));
+					if ( conn_amount ) conn_amount--;
 				}
 			}
 		}
-		idle_timer = time(NULL) ;
+		//idle_timer = time(NULL) ;
 
 		tv.tv_sec = 60;
 		tv.tv_usec = 0;
@@ -292,7 +286,7 @@ int main(int argc, char *argv[])
 					FD_CLR(rokko[i].client_socket, &fdsr);
 					
 					bzero( &rokko[i], sizeof(rokko[i]));
-					conn_amount--;
+					if ( conn_amount ) conn_amount--;
 				}
 				else { //client sent data to server
 					if ( daemon_server(&rokko[i],msg,read_size, rokko, conn_amount) \
@@ -331,10 +325,10 @@ int main(int argc, char *argv[])
 						FD_CLR(rokko[i].client_socket, &fdsr);
 						
 						bzero( &rokko[i], sizeof(rokko[i]));
-						conn_amount--;
+						if ( conn_amount ) conn_amount--;
 					}
 					else {
-						rokko[i].active_time = MAX_IDLECONNCTIME; //reset idle timer
+						rokko[i].idle_timer = time(NULL); //reset idle timer
 						/*
 						if ( foreground ) {
 							fprintf(stderr,"R[%d] %s RST Act @ %d.\n", i,\
@@ -368,7 +362,7 @@ int main(int argc, char *argv[])
 						bzero( &rokko[i], sizeof(rokko[i]));
 						rokko[i].client_socket = new_fd;
 						memcpy(&rokko[i].client_addr,&client_addr,sizeof(client_addr));
-						rokko[i].active_time = MAX_IDLECONNCTIME;
+						rokko[i].idle_timer = time(NULL);
 						/*
 						if ( foreground ) {
 							fprintf(stderr,"R[%d] %s RST Act @ %d.\n", i,\
@@ -618,7 +612,7 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 					sprintf(client_buf,"%2d:%02d:%02d\t", uphours, upminutes,seconds);
 					strcat(mail_body, client_buf);
 					
-					sprintf(client_buf,"Act: %d\n", rokko[var_u32].active_time);
+					sprintf(client_buf,"Idle: %ld\n", time(NULL)-(rokko[var_u32].idle_timer));
 					strcat(mail_body, client_buf);
 				}
 				else {
@@ -626,14 +620,21 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 				}
 			}
 		}
+		strcat(mail_body, "\r\n");
 	}
 
 	//fprintf(stderr,"%d\n",__LINE__);
 	
 	log_save( mail_body ) ;
 	
+	conn_amount = MAXCLIENT+1;
 	bzero( mail_subject, sizeof(mail_subject));
-	snprintf(mail_subject,BUFSIZE,"%s Total connection: %d\r\n",host_name,conn_amount);
+	if ( conn_amount > MAXCLIENT ) { //err
+		snprintf(mail_subject,BUFSIZE,"%s con err: conn_amount= %d, but Max. is %d\r\n",host_name,conn_amount, MAXCLIENT);
+	}
+	else {
+		snprintf(mail_subject,BUFSIZE,"%s Total connection: %d\r\n",host_name,conn_amount);
+	}
 
 	log_save( mail_subject ) ; //mail_subject will be sent later, don't modify it.
 		

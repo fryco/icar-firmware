@@ -12,7 +12,7 @@ MYSQL_LIB = -l mysqlclient
 LIBS=-lm
 
 DEPS = rokkod.h commands.h misc.h log.h smtp.h cloud_post.h crc16.h
-OBJ = rokkod.o commands.o misc.o log.o smtp.o cloud_post.o crc16.o
+OBJ = rokkod.o commands.c misc.o log.c smtp.c cloud_post.o crc16.o
 
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
