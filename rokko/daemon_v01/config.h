@@ -32,8 +32,10 @@
 
 #include <mysql.h>
 
+#define  MAXCLIENT 			5000
+
 #define	EMAIL				128
-#define BUFSIZE 			1024*2		//2KB
+#define BUFSIZE 			2048		//2KB
 
 #define	LOG_DIR				"/root/"
 
@@ -65,18 +67,24 @@
 #define GSM_CMD_UPGRADE			0x55 //'U', Upgrade firmware
 #define GSM_CMD_WARN			0x57 //'W', warn msg, report to server
 
-//For Console 
+//For Console command
+#define CONSOLE_CMD_NONE		0	 //no cmd
+#define CONSOLE_CMD_LIST_ALL	0x4C //'L', List all
+#define CONSOLE_CMD_LIST_SPE	0x6C //'l', List special
+
 //For firmware upgrade
 //#define MAX_FW_SIZE				61450 //60*1024+10
 #define MAX_FW_SIZE				102400 //100*1024
 #define MIN_FW_SIZE				40960 //40*1024
 
-//For return error define
+//For return error define, server ==> client
 #define ERR_RETURN_NO_LOGIN		1	//01: login failure
 #define ERR_RETURN_SRV_BUSY		2	//02: server busy
 #define ERR_RETURN_CRC_ERR		3	//03: CRC error
 #define ERR_RETURN_FW_LATEST	4	//04: latest firmware, no need upgrade
 #define ERR_RETURN_HW_ERR		5	//05: hardware no support
+#define ERR_RETURN_CONSOLE_CMD	6	//执行console命令时出错
+#define ERR_UNKNOW				0xFF//未知错误
 
 //For post cloud
 //Need to define below Forum id in cloud server

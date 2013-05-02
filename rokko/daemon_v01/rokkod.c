@@ -20,8 +20,6 @@
 
 #define rokkod_RELEASE "\nRokko daemon $Rev$, "__DATE__" "__TIME__"\n"
 
-#define  MAXCLIENT 			5000
-
 //for default parameters
 static unsigned int mail_timer, db_timer;
 unsigned int  listen_port=23, daemon_time;//record daemon run time
@@ -160,6 +158,14 @@ int main(int argc, char *argv[])
 		
 		loop_timer = time(NULL) ;
 		
+		if ( conn_amount > MAXCLIENT ) { //err
+			bzero( msg, sizeof(msg));
+			snprintf(msg,sizeof(msg),"ERR! conn_amount= %d, but Max. is %d\n%s:%d\n",\
+					conn_amount, MAXCLIENT,__FILE__,__LINE__);
+			log_save(msg, FORCE_SAVE_FILE );
+			if ( foreground ) fprintf(stderr,"%s",msg);			
+		}
+
 		//gettimeofday(&run_tv,NULL);
 		//fprintf(stderr,"\n%02d.%d -> %d\n",(int)(run_tv.tv_sec)&0xFF,(int)run_tv.tv_usec,__LINE__);
 		
@@ -562,7 +568,7 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 	
 	if ( conn_amount ) {
 		strcat(mail_body, "iCar detail:\r\n");
-		for (var_u32 = 0; var_u32 < MAXCLIENT; var_u32++) { //将存在的套接字加入描述符集
+		for (var_u32 = 0; var_u32 < MAXCLIENT; var_u32++) {
 			//if ((rokko[var_u32].client_socket != 0) && (strlen(rokko[var_u32].pro_sn) == 10)) {//exist connection
 			if ((rokko[var_u32].client_socket != 0)) {//exist connection
 				con_cnt++;
@@ -627,7 +633,6 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 	
 	log_save( mail_body ) ;
 	
-	conn_amount = MAXCLIENT+1;
 	bzero( mail_subject, sizeof(mail_subject));
 	if ( conn_amount > MAXCLIENT ) { //err
 		snprintf(mail_subject,BUFSIZE,"%s con err: conn_amount= %d, but Max. is %d\r\n",host_name,conn_amount, MAXCLIENT);

@@ -9,7 +9,7 @@ unsigned int server_port=23, console_time ;
 	
 //return 0: failure, others: buffer length
 int format_cmd( unsigned char cmd, unsigned char *serial_number, \
-				unsigned char *buf, unsigned int buf_len, unsigned char seq)
+				unsigned char *buf, unsigned int buf_len, unsigned char seq, unsigned char console_cmd)
 {
 	unsigned int OSTime ;
 	unsigned short crc16 ;
@@ -134,40 +134,39 @@ int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 		//break;
 
 	case GSM_CMD_CONSOLE :
-		//simulat OSTime, 4 bytes
-		buf[5] = 'L'  ;//list
 		
-		if ( serial_number == NULL ) {
-			buf[6] = 0xFF ; //SN_1
-			buf[7] = 0xFF ; //SN_2
-			buf[8] = 0xFF ; //SN_3
-			buf[9] = 0xFF ; //SN_4
-			buf[10]= 0xFF ; //SN_5
-			buf[11]= 0xFF ; //SN_6
-			buf[12]= 0xFF ; //SN_7
-			buf[13]= 0xFF ; //SN_8
-			buf[14]= 0xFF ; //SN_9
-			buf[15]= 0xFF ; //SN_10
-			//if ( debug_flag ) fprintf(stderr,"Prepare Console CMD, SN:%X...%X\n",buf[6],buf[15]);
-		}
-		else {		
-			snprintf(&buf[6],11,"%s",serial_number);
-			//if ( debug_flag ) fprintf(stderr,"Prepare Console CMD, SN:%s\n",serial_number);
-		}
+		switch ( console_cmd ) {
 		
-			
-		
-		//update data length
-		buf[3]   = 0 ;//length high
-		buf[4]   = 11 ;//length low
+			case CONSOLE_CMD_LIST_ALL : //list all active client
+				buf[5] = 'L'  ;//list all
+				//update data length
+				buf[3]   = 0 ;//length high
+				buf[4]   = 1 ;//length low
+				break;
+				
+			case CONSOLE_CMD_LIST_SPE : //list special active client
+				buf[5] = 'l'  ;//list special
+				snprintf(&buf[6],11,"%s",serial_number);
+				//if ( debug_flag ) fprintf(stderr,"Prepare Console CMD, SN:%s\n",serial_number);
 
+				//update data length
+				buf[3]   = 0 ;//length high
+				buf[4]   = 11 ;//length low
+				break;
+				
+			default:
+				fprintf(stderr,"Unknow CMD! @%d\n",__LINE__);
+				return 0 ;
+				break;
+		}
+		
 		//Calc CRC16
 		crc16 = crc16tablefast(buf , ((buf[3]<<8)|(buf[4]))+5);
 
-		buf[16] = (crc16)>>8 ;
-		buf[17] = (crc16)&0xFF ;
+		buf[((buf[3]<<8)|(buf[4]))+5] = (crc16)>>8 ;
+		buf[((buf[3]<<8)|(buf[4]))+6] = (crc16)&0xFF ;
 
-		return 18;//buffer length
+		return (((buf[3]<<8)|(buf[4]))+7);//buffer length
 		//break;
 
 	default:
@@ -310,7 +309,7 @@ int	main(int argc, char	*argv[])
 
 	//Login to daemon
 	//prepare login cmd, use "CONSOLE_01" as SN, SN len must = 10 Bytes
-	len = format_cmd(GSM_CMD_LOGIN, "CONSOLE_01", buf, BUFSIZE, seq);
+	len = format_cmd(GSM_CMD_LOGIN, "CONSOLE_01", buf, BUFSIZE, seq, CONSOLE_CMD_NONE);
 	seq++; if ( seq >= 0x80 ) seq=0;
 	if ( len ) { //prepare cmd ok
 
@@ -371,11 +370,44 @@ int	main(int argc, char	*argv[])
 					//break;
 					
 				case 'l':
-				case 'L':
-					fprintf(stderr, "List device\n");
+					fprintf(stderr, "List special device\n");
 
-					len = format_cmd(GSM_CMD_CONSOLE, "CONSOLE_01", buf, BUFSIZE, seq);
-					//len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, BUFSIZE, seq);
+					len = format_cmd(GSM_CMD_CONSOLE, "CONSOLE_01", buf, BUFSIZE, seq, CONSOLE_CMD_LIST_SPE);
+					seq++; if ( seq >= 0x80 ) seq=0;
+
+					if ( len ) { //prepare cmd ok
+
+						if ( debug_flag ) {
+							fprintf(stderr,"--> ");
+							for ( var_short = 0 ; var_short < len ; var_short++ ) {
+								fprintf(stderr,"%02X ",buf[var_short]);
+							}
+							fprintf(stderr,"\nCMD: %c(0x%02X), Send %d Bytes\n",buf[2],buf[2],buf[4]+6);
+						}
+
+						write(client_sockfd,buf,len);
+				
+						bzero(buf, sizeof(buf));
+						len = read(client_sockfd, buf, BUFSIZE);
+							
+						if ( len <= 0 ) {
+							fprintf(stderr,"Rec timeout or disconnect: %d @ %d Exit!\n",len,__LINE__);
+							exit(1);
+						}
+						else {
+							fprintf(stderr,"Rec : %d @ %d\n",len,__LINE__);
+						}
+					}
+					else {
+						fprintf(stderr,"Can't parpare CMD @ %d Exit!\n",__LINE__);
+						exit(1);
+					}
+					break;
+					
+				case 'L':
+					fprintf(stderr, "List all device\n");
+
+					len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, BUFSIZE, seq, CONSOLE_CMD_LIST_ALL);
 					seq++; if ( seq >= 0x80 ) seq=0;
 
 					if ( len ) { //prepare cmd ok
@@ -417,8 +449,7 @@ int	main(int argc, char	*argv[])
 			last_time = time(NULL);
 			fprintf(stderr,"==> %s\n",(char *)ctime(&last_time));
 			
-					//len = format_cmd(GSM_CMD_CONSOLE, "CONSOLE_01", buf, BUFSIZE, seq);
-					len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, BUFSIZE, seq);
+					len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, BUFSIZE, seq, CONSOLE_CMD_LIST_ALL);
 					seq++; if ( seq >= 0x80 ) seq=0;
 
 					if ( len ) { //prepare cmd ok

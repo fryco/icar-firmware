@@ -146,7 +146,11 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 	unsigned short crc16, data_len;
 	//DE SEQ 43 LEN DATA CHK
 
-	if ( strlen(rokko->pro_sn) == 10 ) {
+	//Console special mark: HW rev
+	//buf[19] =  0xFA  ;//hw revision, 1 byte
+	//buf[20] =  0xFA  ;//reverse
+
+	if ( (strlen(rokko->pro_sn) == 10) && rokko->hw_rev == 0xFAFA ) {
 		{ //ok
 
 			data_len = ((rec_buf[3])<<8) | rec_buf[4];
@@ -157,26 +161,41 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 				for ( crc16 = 0 ; crc16 < 10 ; crc16++ ) {
 					fprintf(stderr, "%02X ",rec_buf[crc16+6]);
 				}
-				fprintf(stderr, "From: %s\n",rokko->pro_sn);
+				fprintf(stderr, "From: %s, hw_rev:%X\n",rokko->pro_sn,rokko->hw_rev);
 			}
-/*
+
 			switch ( rec_buf[5] ) {
 		
-			case GSM_CMD_LOGIN :
-				break;
+			case CONSOLE_CMD_LIST_ALL : //list all or special active client
+				if ( console_list_all( rokko,&cmd,\
+							rec_buf, snd_buf, rokko_all, conn_amount )) {//err
+					break; //send err to console in below
+				}
+				else { //ok
+					return 0 ;
+				}
 		
+			case CONSOLE_CMD_LIST_SPE : //list special active client
+				if ( console_list_spe( rokko,&cmd,\
+							rec_buf, snd_buf, rokko_all, conn_amount )) {//err
+					break; //send err to console in below
+				}
+				else { //ok
+					return 0 ;
+				}
+
 			default:
 				fprintf(stderr,"Unknow CMD! @%d\n",__LINE__);
 				break;
 			}
-*/			
-			bzero( snd_buf, BUFSIZE);
+
+			bzero( snd_buf, BUFSIZE); //send failure to console
 			snd_buf[0] = GSM_HEAD ;
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
 			snd_buf[3] =  00;//len high
 			snd_buf[4] =  02;//len low
-			snd_buf[5] =  00;//return status:0£º³É¹¦
+			snd_buf[5] =  ERR_RETURN_CONSOLE_CMD ;
 			snd_buf[6] =  00;//ok
 
 			data_len = ((snd_buf[3])<<8) | snd_buf[4] ;

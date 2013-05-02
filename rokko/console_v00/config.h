@@ -66,6 +66,11 @@
 //Out: DE 04 52 00 08 51 1F 4C 4E 00 0C 30 1A A5 1C
 //In : DE 04 D2 00 02 00 00 68 46
 
+//For Console command
+#define CONSOLE_CMD_NONE		0	 //no cmd
+#define CONSOLE_CMD_LIST_ALL	0x4C //'L', List all
+#define CONSOLE_CMD_LIST_SPE	0x6C //'l', List special
+
 //record index define
 #define REC_IDX_ADC1				10 //for ADC1
 #define REC_IDX_ADC2				20 //for ADC2
