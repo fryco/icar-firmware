@@ -49,6 +49,56 @@ static void conv_rev( unsigned char *p , unsigned int *fw_rev)
 	}
 }
 
+//return 0: ok, others: err
+int convert_sn(struct rokko_data *rokko, unsigned char *sn_buf, unsigned char buf_len)
+{
+	unsigned char var_u8;
+	//sn_buf(IMEI): 123456789012345 ==> 0x01 0x23 0x45 ... 0x45
+	if ( buf_len != PRODUCT_SN_LEN ) {
+		if ( foreground ) {
+			fprintf(stderr, "Product SN len: %d ERR! %s:%d\n",buf_len,__FILE__,__LINE__);
+		}
+		return 1;
+	}
+	
+	for ( var_u8 = 0 ; var_u8 < PRODUCT_SN_LEN ; var_u8++ ) {
+		rokko->sn_short[var_u8] = sn_buf[var_u8] ;
+		//fprintf(stderr, " %02X",rokko->sn_short[var_u8]);
+	}
+
+	rokko->sn_long[0] = (sn_buf[0]&0x0F)+0x30 ;
+	//fprintf(stderr, "\n %02X\n",rokko->sn_long[0]);
+	
+	for ( var_u8 = 1 ; var_u8 < PRODUCT_SN_LEN ; var_u8++ ) {
+		rokko->sn_long[(var_u8-1)*2+1]  = (((sn_buf[var_u8])>>4)&0x0F)+0x30 ;
+		rokko->sn_long[(var_u8-1)*2+2]= (((sn_buf[var_u8]))&0x0F)+0x30 ;
+	}
+	rokko->sn_long[15] = 0x0;
+
+/*
+	for ( var_u8 = 0 ; var_u8 < 15 ; var_u8++ ) {
+		fprintf(stderr, " %02X",rokko->sn_long[var_u8]);
+	}
+*/	
+	if ( foreground ) {
+		fprintf(stderr, "Product SN: %s\n",rokko->sn_long);
+	}
+
+	return 0;
+}
+
+/*if match return 1 , else return 0*/
+static unsigned char cmpmem(unsigned char *buffer, unsigned char *cmpbuf,unsigned char count)
+{
+	unsigned char equal;    
+
+	equal = 0 ;
+
+	while((count--) && (equal =(*buffer++ == *cmpbuf++)));  
+
+	return equal;  
+}
+
 //check send buf
 void check_sndbuf( unsigned char *snd_buf )
 {
@@ -97,7 +147,7 @@ unsigned char failure_cmd( struct rokko_data *rokko, unsigned char *snd_buf, \
 		for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
 			fprintf(stderr, "%02X ",snd_buf[crc16]);
 		}
-		fprintf(stderr, "to %s\n",rokko->pro_sn);
+		fprintf(stderr, "to %s\n",rokko->sn_long);
 	}
 
 	check_sndbuf( snd_buf );
@@ -150,24 +200,21 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 	//buf[19] =  0xFA  ;//hw revision, 1 byte
 	//buf[20] =  0xFA  ;//reverse
 
-	if ( (strlen(rokko->pro_sn) == 10) && rokko->hw_rev == 0xFAFA ) {
+	if ( rokko->login_cnt && rokko->hw_rev == 0xFAFA ) {
 		{ //ok
 
 			data_len = ((rec_buf[3])<<8) | rec_buf[4];
 			if ( data_len > 32 ) data_len = 32 ; //prevent error
 				
 			if ( foreground ) {
-				fprintf(stderr, "Console CMD is: %c, SN: ",rec_buf[5]);
-				for ( crc16 = 0 ; crc16 < 10 ; crc16++ ) {
-					fprintf(stderr, "%02X ",rec_buf[crc16+6]);
-				}
-				fprintf(stderr, "From: %s, hw_rev:%X\n",rokko->pro_sn,rokko->hw_rev);
+				fprintf(stderr, "Console CMD is: %c, from: %s, hw_rev:%X\n",\
+						rec_buf[5],rokko->sn_long,rokko->hw_rev);
 			}
 
 			switch ( rec_buf[5] ) {
 		
 			case CONSOLE_CMD_LIST_ALL : //list all or special active client
-				if ( console_list_all( rokko,&cmd,\
+				if ( console_list_all( rokko, cmd,\
 							rec_buf, snd_buf, rokko_all, conn_amount )) {//err
 					break; //send err to console in below
 				}
@@ -176,7 +223,12 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 				}
 		
 			case CONSOLE_CMD_LIST_SPE : //list special active client
-				if ( console_list_spe( rokko,&cmd,\
+				fprintf(stderr, "Dest SN: ");
+				for ( crc16 = 0 ; crc16 < PRODUCT_SN_LEN ; crc16++ ) {
+					fprintf(stderr, "%02X ",rec_buf[crc16+6]);
+				}
+				fprintf(stderr, "\n");
+				if ( console_list_spe( rokko, cmd,\
 							rec_buf, snd_buf, rokko_all, conn_amount )) {//err
 					break; //send err to console in below
 				}
@@ -207,11 +259,11 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 			snd_buf[data_len+6] = (crc16)&0xFF ;
 	
 			if ( foreground ) {
-				fprintf(stderr, "CMD: %c ok, reply: ",cmd->pcb);
+				fprintf(stderr, "CMD: %c(0x%02X), reply: ",cmd->pcb,cmd->pcb);
 				for ( crc16 = 0 ; crc16 < data_len+7 ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
 				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
+				fprintf(stderr, "to %s\n",rokko->sn_long);
 			}
 		
 			check_sndbuf( snd_buf );
@@ -235,10 +287,10 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 				return 0 ;
 			}*/
 		}
-	}//end of strlen(rokko->pro_sn) == 10
-	else { //no SN
+	}//end of rokko->login_cnt
+	else { //no login
 
-		fprintf(stderr, "SN:%s, len:%d No SN! %s:%d\r\n",rokko->pro_sn,strlen(rokko->pro_sn),__FILE__, __LINE__);
+		fprintf(stderr, "SN: %s No login! %s:%d\r\n",rokko->sn_long,__FILE__, __LINE__);
 		failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
 			
 		return 1 ;
@@ -303,7 +355,7 @@ int rec_cmd_errlog( struct rokko_data *rokko, struct rokko_command * cmd,\
 	}//end (i & 0xF000)
 
 
-	if ( strlen(rokko->pro_sn) == 10 ) {
+	if ( rokko->login_cnt ) {
 		{ //ok
 
 			bzero( snd_buf, BUFSIZE);
@@ -328,7 +380,7 @@ int rec_cmd_errlog( struct rokko_data *rokko, struct rokko_command * cmd,\
 				for ( crc16 = 0 ; crc16 < data_len+7 ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
 				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
+				fprintf(stderr, "to %s\n",rokko->sn_long);
 			}
 		
 			check_sndbuf( snd_buf );
@@ -352,10 +404,10 @@ int rec_cmd_errlog( struct rokko_data *rokko, struct rokko_command * cmd,\
 				return 0 ;
 			}*/
 		}
-	}//end of strlen(rokko->pro_sn) == 10
+	}//end of rokko->login_cnt
 	else { //no SN
 
-		fprintf(stderr, "SN:%s, len:%d No SN! %s:%d\r\n",rokko->pro_sn,strlen(rokko->pro_sn),__FILE__, __LINE__);
+		fprintf(stderr, "SN: %s No login! %s:%d\r\n",rokko->sn_long,__FILE__, __LINE__);
 		failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
 			
 		return 1 ;
@@ -394,83 +446,107 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 	//00 00 00 0D //HW, FW revision
 	//31 30 2E 31 31 31 2E 32 36 2E 36 75 5C //IP + CRC16
 
-	if ( strlen(rokko->pro_sn) == 10 ) {
+	if ( rokko->login_cnt ) {//login before
+		if ( cmpmem(rokko->sn_short,&rec_buf[9],PRODUCT_SN_LEN)) {//same
+			
+			rokko->login_cnt++;
+			
+			if ( rokko->login_cnt > 0x80 ) { //need to stop always login
+				rokko->login_cnt = 0;
 	
-		if ( strncmp(rokko->pro_sn,&rec_buf[9], 10) ) {
-			//no same
-			unsigned char fake_sn[12];
+				bzero( snd_buf, BUFSIZE);
+				snprintf(snd_buf,BUFSIZE,"SN:%s from %s login too many! %s:%d\r\n",rokko->sn_long,\
+						(char *)inet_ntoa(rokko->client_addr.sin_addr),__FILE__, __LINE__);
+				log_err(snd_buf);
+				if ( foreground ) {
+					fprintf(stderr, "%s", snd_buf);
+				}
+	
+				failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_LOGIN_CNT );
+				
+				return 1 ;
+			}
+			else {
+				ostime = rec_buf[5] << 24 | rec_buf[6] << 16 | rec_buf[7] << 8 | rec_buf[8];
+	
+				unsigned char up_buf[EMAIL];
+		
+				ticks2time(ostime, up_buf, sizeof(up_buf));
+				//fprintf(stderr, "%s Up: %s",rokko->sn_long,up_buf); 
+	
+				bzero( snd_buf, BUFSIZE);
+				snd_buf[0] = GSM_HEAD ;
+				snd_buf[1] = cmd->seq ;
+				snd_buf[2] = cmd->pcb | 0x80 ;
+				snd_buf[3] =  00;//len high
+				snd_buf[4] =  17;//len low
+				snd_buf[5] =  00;//return status:0：成功
+				snd_buf[6] =  (time(NULL) >> 24)&0xFF;//time high
+				snd_buf[7] =  (time(NULL) >> 16)&0xFF;//time high
+				snd_buf[8] =  (time(NULL) >> 8)&0xFF;//time low
+				snd_buf[9] =  (time(NULL) >> 00)&0xFF;//time low
+			
+				//MCU ID：12 B, from DB, for verify server
+				snd_buf[10] = 0x06 ;
+				snd_buf[11] = 0x6B ;
+				snd_buf[12] = 0xFF ;
+				snd_buf[13] = 0x48 ;
+						
+				snd_buf[14] = 0x56 ;
+				snd_buf[15] = 0x48 ;
+				snd_buf[16] = 0x67 ;
+				snd_buf[17] = 0x49 ;
+			
+				snd_buf[18] = 0x87 ;
+				snd_buf[19] = 0x10 ;
+				snd_buf[20] = 0x12 ;
+				snd_buf[21] = 0x37 ;
+			
+				//Calc CRC16
+				crc16 = crc16tablefast(snd_buf , ((snd_buf[3]<<8)|(snd_buf[4]))+5);
+				
+				snd_buf[22] = (crc16)>>8 ;
+				snd_buf[23] = (crc16)&0xFF ;
+	
+	/*			if ( foreground ) {
+					fprintf(stderr, "CMD is Login, reply: ");
+					for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
+						fprintf(stderr, "%02X ",snd_buf[crc16]);
+					}
+					fprintf(stderr, "to %s\n",rokko->sn_long);
+				}
+	*/		
+				check_sndbuf( snd_buf );
+				write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
+				//save transmit count
+				rokko->tx_cnt += ((snd_buf[3]<<8)|(snd_buf[4]))+7 ;
+				
+				return 0 ;
+			}
+		}
+		else { //no same
+			unsigned char fake_sn[15], var_u8;
+			
+			rokko->login_cnt = 0;
 			
 			bzero( fake_sn, sizeof(fake_sn));
-			strncpy(fake_sn, &rec_buf[9], 10);
+			fake_sn[0] = (rec_buf[9]&0x0F)+0x30 ;
+			for ( var_u8 = 1 ; var_u8 < 15 ; var_u8=var_u8+2 ) {
+				fake_sn[var_u8]  = (((rec_buf[var_u8+9])>>8)&0x0F)+0x30 ;
+				fake_sn[var_u8+1]= (((rec_buf[var_u8+9]))&0x0F)+0x30 ;
+			}
+			fake_sn[15] = 0x0;
 
 			bzero( snd_buf, BUFSIZE);
-			snprintf(snd_buf,BUFSIZE,"Fake SN: %s => %s, login failure. IP:%s\n",rokko->pro_sn,fake_sn,\
+			snprintf(snd_buf,BUFSIZE,"Fake SN: %s => %s, login failure. IP:%s\n",rokko->sn_long,fake_sn,\
 						(char *)inet_ntoa(rokko->client_addr.sin_addr));
 			log_err(snd_buf);
 			
 			return 1 ;//close immediately
 		}
-		else {
-			ostime = rec_buf[5] << 24 | rec_buf[6] << 16 | rec_buf[7] << 8 | rec_buf[8];
-
-			unsigned char up_buf[EMAIL];
-	
-			ticks2time(ostime, up_buf, sizeof(up_buf));
-			//fprintf(stderr, "%s Up: %s",rokko->pro_sn,up_buf); 
-
-			bzero( snd_buf, BUFSIZE);
-			snd_buf[0] = GSM_HEAD ;
-			snd_buf[1] = cmd->seq ;
-			snd_buf[2] = cmd->pcb | 0x80 ;
-			snd_buf[3] =  00;//len high
-			snd_buf[4] =  17;//len low
-			snd_buf[5] =  00;//return status:0：成功
-			snd_buf[6] =  (time(NULL) >> 24)&0xFF;//time high
-			snd_buf[7] =  (time(NULL) >> 16)&0xFF;//time high
-			snd_buf[8] =  (time(NULL) >> 8)&0xFF;//time low
-			snd_buf[9] =  (time(NULL) >> 00)&0xFF;//time low
-		
-			//MCU ID：12 B, from DB, for verify server
-			snd_buf[10] = 0x06 ;
-			snd_buf[11] = 0x6B ;
-			snd_buf[12] = 0xFF ;
-			snd_buf[13] = 0x48 ;
-					
-			snd_buf[14] = 0x56 ;
-			snd_buf[15] = 0x48 ;
-			snd_buf[16] = 0x67 ;
-			snd_buf[17] = 0x49 ;
-		
-			snd_buf[18] = 0x87 ;
-			snd_buf[19] = 0x10 ;
-			snd_buf[20] = 0x12 ;
-			snd_buf[21] = 0x37 ;
-		
-			//Calc CRC16
-			crc16 = crc16tablefast(snd_buf , ((snd_buf[3]<<8)|(snd_buf[4]))+5);
-			
-			snd_buf[22] = (crc16)>>8 ;
-			snd_buf[23] = (crc16)&0xFF ;
-
-/*			if ( foreground ) {
-				fprintf(stderr, "CMD is Login, reply: ");
-				for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
-					fprintf(stderr, "%02X ",snd_buf[crc16]);
-				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
-			}
-*/		
-			check_sndbuf( snd_buf );
-			write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
-			//save transmit count
-			rokko->tx_cnt += ((snd_buf[3]<<8)|(snd_buf[4]))+7 ;
-			
-			return 0 ;
-		}
 	}
 	else {	//check product SN from DB
-		strncpy(rokko->pro_sn, &rec_buf[9], 10);
-		rokko->pro_sn[10] = 0x0;
+		convert_sn(rokko, &rec_buf[9], 8);
 
 		//HW/FW revision
 		rokko->hw_rev = rec_buf[19]<<8|rec_buf[20];//HW rev
@@ -481,17 +557,19 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 		unsigned char up_buf[EMAIL];
 
 		ticks2time(ostime, up_buf, sizeof(up_buf));
-		//fprintf(stderr, "%s Up: %s",rokko->pro_sn,up_buf); 
+		//fprintf(stderr, "%s Up: %s",rokko->sn_long,up_buf); 
 /*
 		if ( foreground ) {
-			fprintf(stderr, "SN: %s\t",rokko->pro_sn);
-			fprintf(stderr, "rokko->pro_sn: %s\tHW:%d\tFW:%d\r\n",\
-							rokko->pro_sn,rokko->hw_rev,rokko->fw_rev);
+			fprintf(stderr, "SN: %s\t",rokko->sn_long);
+			fprintf(stderr, "rokko->sn_long: %s\tHW:%d\tFW:%d\r\n",\
+							rokko->sn_long,rokko->hw_rev,rokko->fw_rev);
 			fprintf(stderr, "%s",up_buf);
 		}
 */				
 		if ( 1 ) {//if check DB ok, TBD
 			//send successful respond 
+			rokko->login_cnt++;
+
 			bzero( snd_buf, BUFSIZE);
 			snd_buf[0] = GSM_HEAD ;
 			snd_buf[1] = cmd->seq ;
@@ -527,11 +605,11 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			snd_buf[23] = (crc16)&0xFF ;
 
 			if ( foreground ) {
-				fprintf(stderr, "CMD is Login, reply: ");
+				fprintf(stderr, "CMD: %c(0x%02X), reply: ",cmd->pcb,cmd->pcb);
 				for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
 				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
+				fprintf(stderr, "to %s\n",rokko->sn_long);
 			}
 
 			check_sndbuf( snd_buf );
@@ -541,7 +619,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 	
 			//save to log file
 			bzero( snd_buf, BUFSIZE);
-			snprintf(snd_buf,BUFSIZE,"SN: %s login. IP:%s\n",rokko->pro_sn,\
+			snprintf(snd_buf,BUFSIZE,"SN: %s login. IP:%s\n",rokko->sn_long,\
 						(char *)inet_ntoa(rokko->client_addr.sin_addr));
 			log_save(snd_buf,0);
 
@@ -555,7 +633,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 				bzero( post_buf, BUFSIZE);		
 				snprintf(post_buf,BUFSIZE,"ip=%s&fid=40&subject=%s, HW:%d FW:%d from %s&message=uptime(H:M:S): %d:%02d:%02d\r\n\
 				\r\nLAN ip:%s\r\n\r\nip: %s",\
-				(char *)inet_ntoa(rokko->client_addr.sin_addr),mycar->pro_sn,rokko->hw_rev,rokko->fw_rev,\
+				(char *)inet_ntoa(rokko->client_addr.sin_addr),mycar->sn_long,rokko->hw_rev,rokko->fw_rev,\
 				ostime/360000,((ostime/100)%3600)/60,((ostime/100)%3600)%60,\
 				gsm_ip,(char *)inet_ntoa(mycar->client_addr.sin_addr));
 
@@ -567,14 +645,16 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			return 0 ;
 		} //end check DB ok
 		else {//failure
-			if ( foreground ) {
-				fprintf(stderr, "SN:%s, len:%d No SN! %s:%d\r\n",rokko->pro_sn,strlen(rokko->pro_sn),__FILE__, __LINE__);
-			}
+			rokko->login_cnt = 0;
 
 			bzero( snd_buf, BUFSIZE);
-			snprintf(snd_buf,BUFSIZE,"SN: %s err, no this SN in DB, login failure. IP:%s\n",rokko->pro_sn,\
-						(char *)inet_ntoa(rokko->client_addr.sin_addr));
+			snprintf(snd_buf,BUFSIZE,"SN: %s from %s ERR, no this SN in DB! %s:%d\n",rokko->sn_long,\
+						(char *)inet_ntoa(rokko->client_addr.sin_addr),__FILE__, __LINE__);
 			log_err(snd_buf);
+			
+			if ( foreground ) {
+				fprintf(stderr, "%s", snd_buf);
+			}
 
 			failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
 			
@@ -603,7 +683,7 @@ int rec_cmd_record( struct rokko_data *rokko, struct rokko_command * cmd,\
 		fprintf(stderr, "CMD is Record vehicle parameters ...\n");
 	}
 	
-	if ( strlen(rokko->pro_sn) == 10 ) {
+	if ( rokko->login_cnt ) {
 
 			//show the record detail
 			data_len = ((rec_buf[3])<<8) | rec_buf[4];
@@ -644,7 +724,7 @@ int rec_cmd_record( struct rokko_data *rokko, struct rokko_command * cmd,\
 				for ( crc16 = 0 ; crc16 < data_len+7 ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
 				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
+				fprintf(stderr, "to %s\n",rokko->sn_long);
 			}
 		
 			check_sndbuf( snd_buf );
@@ -654,9 +734,9 @@ int rec_cmd_record( struct rokko_data *rokko, struct rokko_command * cmd,\
 			
 			return 0 ;
 
-	}//end of strlen(rokko->pro_sn) == 10
+	}//end of rokko->login_cnt
 	else { //need upload sn first
-		fprintf(stderr, "SN:%s, len:%d No SN! %s:%d\r\n",rokko->pro_sn,strlen(rokko->pro_sn),__FILE__, __LINE__);
+		fprintf(stderr, "SN: %s No login! %s:%d\r\n",rokko->sn_long,__FILE__, __LINE__);
 		failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
 			
 		return 1 ;
@@ -746,10 +826,10 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 	    fprintf(stderr,"File: %s size is:%d Rev:%d\n", filename,fw_size,fw_rev);
 	}
 
-	if ( strlen(rokko->pro_sn) == 10 ) {
+	if ( rokko->login_cnt ) {
 		if ( rokko->fw_rev <  fw_rev ){//need upgrade
-			fprintf(stderr, "SN: %s\t",rokko->pro_sn);
-			fprintf(stderr, "rokko->pro_sn: %s\r\n",rokko->pro_sn);
+			fprintf(stderr, "SN: %s\t",rokko->sn_long);
+			fprintf(stderr, "rokko->sn_long: %s\r\n",rokko->sn_long);
 	
 			//if buf[5] > 0xF0, error report from STM32 for upgrade flash
 			//TBD
@@ -859,7 +939,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 						sprintf(post_buf,"ip=%s&fid=42&subject=%s => Upgrade, Block %d&message=Sending block: %d,  data length: %d\r\n\
 								\r\nNew firmware rev: %d,  size: %d \r\n\r\nip: %s",\
 								(char *)inet_ntoa(rokko->client_addr.sin_addr),\
-								rokko->pro_sn,rec_buf[5],rec_buf[5],data_len-3,fw_rev,fw_size,\
+								rokko->sn_long,rec_buf[5],rec_buf[5],data_len-3,fw_rev,fw_size,\
 								(char *)inet_ntoa(rokko->client_addr.sin_addr));
 			
 						cloud_post( cloud_host, &post_buf, 80 );
@@ -891,7 +971,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 						fprintf(stderr, "%02X ",snd_buf[crc16]);
 					}
 				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
+				fprintf(stderr, "to %s\n",rokko->sn_long);
 			} 
 	
 			check_sndbuf( snd_buf );
@@ -905,7 +985,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 		}
 	}
 	else { //no SN
-		fprintf(stderr, "SN:%s, len:%d No SN! %s:%d\r\n",rokko->pro_sn,strlen(rokko->pro_sn),__FILE__, __LINE__);
+		fprintf(stderr, "SN: %s No login! %s:%d\r\n",rokko->sn_long,__FILE__, __LINE__);
 		failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
 	}
 
@@ -926,7 +1006,7 @@ int rec_cmd_warn( struct rokko_data *rokko, struct rokko_command * cmd,\
 	//DE 03 57 00 05 01 01 0A 20 01 54 96
 	fprintf(stderr, "CMD is warn msg report...\n");
 
-	if ( strlen(rokko->pro_sn) == 10 ) {
+	if ( rokko->login_cnt ) {
 /*
 		//record this command
 		if ( record_command(rokko,rec_buf,"NO_ERR",8)) {
@@ -959,7 +1039,7 @@ int rec_cmd_warn( struct rokko_data *rokko, struct rokko_command * cmd,\
 				for ( crc16 = 0 ; crc16 < data_len+7 ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
 				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
+				fprintf(stderr, "to %s\n",rokko->sn_long);
 			}
 		
 			check_sndbuf( snd_buf );
@@ -977,7 +1057,7 @@ int rec_cmd_warn( struct rokko_data *rokko, struct rokko_command * cmd,\
 
 			sprintf(post_buf,"ip=%s&fid=41&subject=%s => Warn MSG @ %02d&message=CMD: %s\r\n\r\nip: %s",\
 					(char *)inet_ntoa(rokko->client_addr.sin_addr),\
-					rokko->pro_sn,rec_buf[9],snd_buf,\
+					rokko->sn_long,rec_buf[9],snd_buf,\
 					(char *)inet_ntoa(rokko->client_addr.sin_addr));
 
 			cloud_post( cloud_host, &post_buf, 80 );
@@ -987,7 +1067,7 @@ int rec_cmd_warn( struct rokko_data *rokko, struct rokko_command * cmd,\
 		return 0; */
 	}
 	else { //need upload sn first
-		fprintf(stderr, "SN:%s, len:%d No SN! %s:%d\r\n",rokko->pro_sn,strlen(rokko->pro_sn),__FILE__, __LINE__);
+		fprintf(stderr, "SN: %s No login! %s:%d\r\n",rokko->sn_long,__FILE__, __LINE__);
 		failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
 			
 		return 1 ;
@@ -1034,7 +1114,7 @@ unsigned char snd_cmd_record( struct rokko_data *rokko, unsigned char *sequence,
 				for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
 				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
+				fprintf(stderr, "to %s\n",rokko->sn_long);
 			}
 		
 			check_sndbuf( snd_buf );
@@ -1154,7 +1234,7 @@ unsigned char snd_cmd_upgrade( struct rokko_data *rokko, unsigned char *sequence
 				for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
 				}
-				fprintf(stderr, "to %s\n",rokko->pro_sn);
+				fprintf(stderr, "to %s\n",rokko->sn_long);
 			}
 
 			check_sndbuf( snd_buf );

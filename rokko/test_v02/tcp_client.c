@@ -15,6 +15,7 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 {
 	unsigned int OSTime ;
 	unsigned short crc16 ;
+	unsigned char sn_buf[PRODUCT_SN_LEN*2], var_u8;
 	
 	OSTime = time(NULL) - rokko_time;
 	bzero(buf, buf_len);
@@ -37,7 +38,13 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 		buf[8] =  OSTime&0xFF  ;//OSTime low
 		//fprintf(stderr,"OSTime=%X %X\t",buf[7],buf[8]);
 		//Product serial number
-		snprintf(&buf[9],11,"simu%06d",id);
+		snprintf(sn_buf,sizeof(sn_buf),"9977553311%05d",id);
+		//fprintf(stderr,"SN:%s\n",sn_buf);
+		
+		buf[9] = (sn_buf[0]-0x30)&0x0F ;
+		for ( var_u8 = 0 ; var_u8 < PRODUCT_SN_LEN-1 ; var_u8++ ) {
+			buf[var_u8+10] = ((sn_buf[var_u8*2+1]-0x30)<<4)&0xF0 | (sn_buf[var_u8*2+2]-0x30)&0x0F;
+		}
 
 		//Product HW rev, FW rev
 		buf[19] =  0  ;//hw revision, 1 byte
@@ -292,7 +299,7 @@ int single_connect( unsigned int simu_id ) {
 			len = format_cmd(GSM_CMD_LOGIN, getpid(), buf, BUFSIZE, seq);
 			seq++; if ( seq >= 0x80 ) seq=0;
 			if ( len ) { //prepare cmd ok
-				fprintf(stderr,"ID:%s => %d\n",&buf[9],run_cnt);
+				fprintf(stderr,"ID:%05d => %d\n",getpid(),run_cnt);
 				run_cnt++;
 
 				write(client_sockfd,buf,len);

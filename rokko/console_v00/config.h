@@ -46,9 +46,10 @@
 #include <sys/wait.h>
 #include <netinet/in.h>
 
+#define PRODUCT_SN_LEN		8		//IMEI: 123456789012345 ==> 0x01 0x23 0x45 ... 0x45
 
 #define	EMAIL				128
-#define BUFSIZE 			1024*2		//2KB
+#define BUFSIZE 			2048	//2KB
 
 #define CMD_CNT				0
 

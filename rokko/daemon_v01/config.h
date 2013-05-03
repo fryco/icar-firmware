@@ -32,10 +32,11 @@
 
 #include <mysql.h>
 
-#define  MAXCLIENT 			5000
+#define	MAXCLIENT 			5000
+#define PRODUCT_SN_LEN		8		//IMEI: 123456789012345 ==> 0x01 0x23 0x45 ... 0x45
 
 #define	EMAIL				128
-#define BUFSIZE 			2048		//2KB
+#define BUFSIZE 			2048	//2KB
 
 #define	LOG_DIR				"/root/"
 
@@ -84,6 +85,7 @@
 #define ERR_RETURN_FW_LATEST	4	//04: latest firmware, no need upgrade
 #define ERR_RETURN_HW_ERR		5	//05: hardware no support
 #define ERR_RETURN_CONSOLE_CMD	6	//执行console命令时出错
+#define ERR_RETURN_LOGIN_CNT	7	//login count too many
 #define ERR_UNKNOW				0xFF//未知错误
 
 //For post cloud

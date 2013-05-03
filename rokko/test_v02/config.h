@@ -29,6 +29,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#define PRODUCT_SN_LEN		8		//IMEI: 123456789012345 ==> 0x01 0x23 0x45 ... 0x45
 
 #define	EMAIL				128
 #define BUFSIZE 			256
