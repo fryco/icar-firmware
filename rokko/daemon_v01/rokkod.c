@@ -9,6 +9,7 @@
 //http://myswirl.blog.163.com/blog/static/513186422010102495152843/
 //http://bbs.csdn.net/topics/390165941
 //Rev: 59 ==> 单线程实现多连接
+//Rev: 358 SN, 10-->8
 //http://blog.csdn.net/guowake/article/details/6615728
 //http://blog.csdn.net/ljx0305/article/details/4065058
 //http://www.cppblog.com/ifeng/archive/2011/09/29/157141.html
@@ -148,14 +149,14 @@ int main(int argc, char *argv[])
 	
 	while (1)
 	{
-		//Monitor the loop time, if too long, need check
+/*		//Monitor the loop time, if too long, need check
 		if ((time(NULL)) - loop_timer > 1) {
 			bzero( msg, sizeof(msg));
 			snprintf(msg,sizeof(msg),"loop_time: %d too long@ %d\n",(time(NULL)) - loop_timer,__LINE__);
 			log_save(msg, FORCE_SAVE_FILE );
 			if ( foreground ) fprintf(stderr,"%s",msg);			
 		}
-		
+*/		
 		loop_timer = time(NULL) ;
 		
 		if ( conn_amount > MAXCLIENT ) { //err
@@ -262,7 +263,7 @@ int main(int argc, char *argv[])
 					if ( foreground ) {
 						fprintf(stderr,"R[%d], %s, %s close@ %d.\n", i,\
 							(char *)inet_ntoa(rokko[i].client_addr.sin_addr),\
-							rokko[i].pro_sn,__LINE__);
+							rokko[i].sn_long,__LINE__);
 					}
 
 					//post to cloud
@@ -301,7 +302,7 @@ int main(int argc, char *argv[])
 						if ( foreground ) {
 							fprintf(stderr,"Rokko[%d], %s, %s close@ %d.\n", i,\
 								(char *)inet_ntoa(rokko[i].client_addr.sin_addr),\
-								rokko[i].pro_sn,__LINE__);
+								rokko[i].sn_long,__LINE__);
 						}
 
 						//post to cloud
@@ -569,8 +570,8 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 	if ( conn_amount ) {
 		strcat(mail_body, "iCar detail:\r\n");
 		for (var_u32 = 0; var_u32 < MAXCLIENT; var_u32++) {
-			//if ((rokko[var_u32].client_socket != 0) && (strlen(rokko[var_u32].pro_sn) == 10)) {//exist connection
-			if ((rokko[var_u32].client_socket != 0)) {//exist connection
+			//if ((rokko[var_u32].client_socket != 0) && (strlen(rokko[var_u32].sn_long) == 10)) {//exist connection
+			if ((rokko[var_u32].client_socket != 0) && rokko[var_u32].login_cnt ) {//exist connection and login
 				con_cnt++;
 				
 				if ( conn_amount > 20 ) {//only list 20, prevent buffer overflow
@@ -592,11 +593,11 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 					//rokko[var_u32].tx_cnt = client rx cnt
 					if ( rokko[var_u32].rx_cnt < 9999 ) {
 						snprintf(client_buf,EMAIL,"%02d, R[%02d] %s\tTX:%d B\tRX:%d B\tup",\
-							con_cnt,var_u32,rokko[var_u32].pro_sn,rokko[var_u32].rx_cnt,rokko[var_u32].tx_cnt);
+							con_cnt,var_u32,rokko[var_u32].sn_long,rokko[var_u32].rx_cnt,rokko[var_u32].tx_cnt);
 					}
 					else {
 						snprintf(client_buf,EMAIL,"%02d, R[%02d] %s\tTX:%d.%03d KB\tRX:%d.%03d KB\tup",\
-							con_cnt,var_u32,rokko[var_u32].pro_sn,\
+							con_cnt,var_u32,rokko[var_u32].sn_long,\
 							rokko[var_u32].rx_cnt>>10,rokko[var_u32].rx_cnt%1024,\
 							rokko[var_u32].tx_cnt>>10,rokko[var_u32].tx_cnt%1024);
 					}

@@ -47,9 +47,12 @@ struct rokko_data { //as minimum as possible
 	//unsigned char active_time; //close socket if timeout
 	unsigned char cmd_err_cnt;//command error count
 	
-	unsigned char pro_sn[12];//product serial number, Max. char(10)
+	unsigned char sn_short[PRODUCT_SN_LEN];//product serial number, IMEI(15),1234=>0x12 0x34
+	unsigned char sn_long[16];//product serial number, IMEI(15),1234=>0x31 0x32 0x33 0x34
+	//unsigned char pro_sn[10];//will use 8 bytes
 	unsigned short hw_rev;
 	unsigned short fw_rev;
+	unsigned char login_cnt;//login count, preven always login
 	unsigned int rx_cnt;//receive total bytes
 	unsigned int tx_cnt;//transmit total bytes
 	unsigned int con_time;//connect time

@@ -13,6 +13,7 @@ int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 {
 	unsigned int OSTime ;
 	unsigned short crc16 ;
+	unsigned char var_u8;
 	
 	OSTime = time(NULL) - console_time;
 	bzero(buf, buf_len);
@@ -26,7 +27,7 @@ int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 	switch ( cmd ) {
 
 	case GSM_CMD_LOGIN :
-		//if ( debug_flag ) fprintf(stderr,"Prepare Login CMD, SN:%s\n",serial_number);
+		//product serial number, IMEI(15),1234=>0x12 0x34
 
 		//simulat OSTime, 4 bytes
 		buf[5] = (OSTime>>24)&0xFF  ;//OSTime high
@@ -36,7 +37,9 @@ int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 		//fprintf(stderr,"OSTime=%X %X\t",buf[7],buf[8]);
 		//fprintf(stderr,"OSTime=%X\n",OSTime);
 		//Product serial number
-		snprintf(&buf[9],11,"%s",serial_number);
+		for ( var_u8 = 0 ; var_u8 < PRODUCT_SN_LEN ; var_u8++ ) {
+			buf[var_u8+9] = serial_number[var_u8] ;
+		}
 
 		//Product HW rev, FW rev
 		buf[19] =  0xFA  ;//hw revision, 1 byte
@@ -146,8 +149,10 @@ int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 				
 			case CONSOLE_CMD_LIST_SPE : //list special active client
 				buf[5] = 'l'  ;//list special
-				snprintf(&buf[6],11,"%s",serial_number);
-				//if ( debug_flag ) fprintf(stderr,"Prepare Console CMD, SN:%s\n",serial_number);
+				//Product serial number
+				for ( var_u8 = 0 ; var_u8 < PRODUCT_SN_LEN ; var_u8++ ) {
+					buf[var_u8+6] = serial_number[var_u8] ;
+				}
 
 				//update data length
 				buf[3]   = 0 ;//length high
@@ -268,6 +273,11 @@ int	main(int argc, char	*argv[])
 {
 	unsigned char ch, seq=0;
 	unsigned char buf[BUFSIZE];  //数据传送的缓冲区
+	//for IMEI: 123456789012345
+	unsigned char console_sn[]={0x01, 0x23, 0x45, 0x67, 0x89, 0x01, 0x23, 0x45};
+
+	unsigned char dest_sn[]={0x00, 0x98, 0x76, 0x54, 0x32, 0x10, 0x12, 0x34};
+	
 	unsigned short var_short, len;
 	unsigned int usecs=10000;
 	char mail_body[BUFSIZE*2];
@@ -309,7 +319,7 @@ int	main(int argc, char	*argv[])
 
 	//Login to daemon
 	//prepare login cmd, use "CONSOLE_01" as SN, SN len must = 10 Bytes
-	len = format_cmd(GSM_CMD_LOGIN, "CONSOLE_01", buf, BUFSIZE, seq, CONSOLE_CMD_NONE);
+	len = format_cmd(GSM_CMD_LOGIN, console_sn, buf, BUFSIZE, seq, CONSOLE_CMD_NONE);
 	seq++; if ( seq >= 0x80 ) seq=0;
 	if ( len ) { //prepare cmd ok
 
@@ -372,7 +382,7 @@ int	main(int argc, char	*argv[])
 				case 'l':
 					fprintf(stderr, "List special device\n");
 
-					len = format_cmd(GSM_CMD_CONSOLE, "CONSOLE_01", buf, BUFSIZE, seq, CONSOLE_CMD_LIST_SPE);
+					len = format_cmd(GSM_CMD_CONSOLE, dest_sn, buf, BUFSIZE, seq, CONSOLE_CMD_LIST_SPE);
 					seq++; if ( seq >= 0x80 ) seq=0;
 
 					if ( len ) { //prepare cmd ok
