@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
 	while ( 0 ) {
 		i++;
 		ticks2time(i, up_buf, sizeof(up_buf));
-		fprintf(stderr, "i=%d\t %s",i,up_buf); 
+		fprintf(stderr, "i=%u\t %s",i,up_buf); 
 		sleep(1);
 	}
 
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 /*		//Monitor the loop time, if too long, need check
 		if ((time(NULL)) - loop_timer > 1) {
 			bzero( msg, sizeof(msg));
-			snprintf(msg,sizeof(msg),"loop_time: %d too long@ %d\n",(time(NULL)) - loop_timer,__LINE__);
+			snprintf(msg,sizeof(msg),"loop_time: %u too long@ %u\n",(time(NULL)) - loop_timer,__LINE__);
 			log_save(msg, FORCE_SAVE_FILE );
 			if ( foreground ) fprintf(stderr,"%s",msg);			
 		}
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
 		
 		if ( conn_amount > MAXCLIENT ) { //err
 			bzero( msg, sizeof(msg));
-			snprintf(msg,sizeof(msg),"ERR! conn_amount= %d, but Max. is %d\n%s:%d\n",\
+			snprintf(msg,sizeof(msg),"ERR! conn_amount= %u, but Max. is %u\n%s:%d\n",\
 					conn_amount, MAXCLIENT,__FILE__,__LINE__);
 			log_save(msg, FORCE_SAVE_FILE );
 			if ( foreground ) fprintf(stderr,"%s",msg);			
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
 		//period check
 		//if ((time(NULL)) - db_timer > PERIOD_CHECK_DB-1) {
 		if ((time(NULL)) - db_timer > 3) {
-			fprintf(stderr,"Con: %d\n",conn_amount);
+			fprintf(stderr,"Con: %u\n",conn_amount);
 			period_check( rokko, conn_amount);
 			db_timer = time(NULL);
 		}
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
 						gettimeofday(&log_tv,NULL);
 						strftime(logtime,EMAIL,"%Y-%m-%d %T",(const void *)localtime(&log_tv.tv_sec));
 	
-						sprintf(post_buf,"ip=%s&fid=43&subject=%s, %s:%d @ [%d] idle too long, force disconnect!&message=%s\r\n%s\r\nTotal iCar: %d",\
+						sprintf(post_buf,"ip=%s&fid=43&subject=%s, %s:%d @ [%d] idle too long, force disconnect!&message=%s\r\n%s\r\nTotal iCar: %u",\
 								"127.0.0.1", host_name,\
 								(char *)inet_ntoa(rokko[i].client_addr.sin_addr),\
 								ntohs(rokko[i].client_addr.sin_port), i,\
@@ -402,7 +402,7 @@ int main(int argc, char *argv[])
 					gettimeofday(&log_tv,NULL);
 					strftime(logtime,EMAIL,"%Y-%m-%d %T",(const void *)localtime(&log_tv.tv_sec));
 
-					sprintf(post_buf,"ip=%s&fid=43&subject=%s, %s:%d @ [%d] connect, %s&message=%s\r\nTotal iCar: %d",\
+					sprintf(post_buf,"ip=%s&fid=43&subject=%s, %s:%d @ [%d] connect, %s&message=%s\r\nTotal iCar: %u",\
 							"127.0.0.1", host_name,\
 							(char *)inet_ntoa(rokko[i].client_addr.sin_addr),\
 							ntohs(rokko[i].client_addr.sin_port), i,\
@@ -636,10 +636,10 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 	
 	bzero( mail_subject, sizeof(mail_subject));
 	if ( conn_amount > MAXCLIENT ) { //err
-		snprintf(mail_subject,BUFSIZE,"%s con err: conn_amount= %d, but Max. is %d\r\n",host_name,conn_amount, MAXCLIENT);
+		snprintf(mail_subject,BUFSIZE,"%s con err: conn_amount= %u, but Max. is %d\r\n",host_name,conn_amount, MAXCLIENT);
 	}
 	else {
-		snprintf(mail_subject,BUFSIZE,"%s Total connection: %d\r\n",host_name,conn_amount);
+		snprintf(mail_subject,BUFSIZE,"%s Total connection: %u\r\n",host_name,conn_amount);
 	}
 
 	log_save( mail_subject ) ; //mail_subject will be sent later, don't modify it.
@@ -653,7 +653,7 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 		gettimeofday(&log_tv,NULL);
 		strftime(logtime,EMAIL,"%Y-%m-%d %T",(const void *)localtime(&log_tv.tv_sec));
 		
-		sprintf(post_buf,"ip=%s&fid=43&subject=%s, Total: %d, %s&message=%s\r\n%s",\
+		sprintf(post_buf,"ip=%s&fid=43&subject=%s, Total: %u, %s&message=%s\r\n%s",\
 				"127.0.0.1",\
 				host_name,conn_amount,logtime,\
 				mail_body,mail_subject);
