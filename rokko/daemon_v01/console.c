@@ -1,5 +1,5 @@
-//$URL: https://icar-firmware.googlecode.com/svn/rokko/daemon_v01/commands.c $ 
-//$Rev: 355 $, $Date: 2013-04-10 18:43:02 +0800 (Wed, 10 Apr 2013) $
+//$URL$ 
+//$Rev$, $Date$
 //fprintf(stderr, "rokko: %X\tbuf: %X\t%s:%d\n",rokko,rec_buf,__FILE__,__LINE__);
 
 #include "config.h"
