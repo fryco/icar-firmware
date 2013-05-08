@@ -1,3 +1,5 @@
+//TBD 键盘输入SN处理
+//l SN 命令
 #include "config.h"
 
 #define console_RELEASE "\nRokko console $Rev$, "__DATE__" "__TIME__"\n"
@@ -7,6 +9,43 @@ void scan_args(int, char *[]);
 unsigned char *dest="127.0.0.1", debug_flag = 0;
 unsigned int server_port=23, console_time ;
 	
+void decode_list_all(unsigned char *buf, unsigned int buf_len)
+{
+	unsigned short sn_cnt, sn_total;
+
+	sn_total = buf[6]<<8 | buf[7] ;
+	
+	if ( sn_total*8 > buf_len ) {//err
+		fprintf(stderr,"Buf err! %s:%d\n",__FILE__,__LINE__);
+		return ;
+	}
+	
+	fprintf(stderr,"Total %d SN\n",sn_total);
+	for ( sn_cnt = 0 ; sn_cnt < sn_total ; sn_cnt++ ) {
+		fprintf(stderr, RED "%03d:" NONE " %01X%02X %02X%02X %02X%02X %02X%02X\t  ",sn_cnt+1,\
+							buf[sn_cnt*8+8],buf[sn_cnt*8+9],\
+							buf[sn_cnt*8+10],buf[sn_cnt*8+11],\
+							buf[sn_cnt*8+12],buf[sn_cnt*8+13],\
+							buf[sn_cnt*8+14],buf[sn_cnt*8+15]);
+		//if ( !((sn_cnt+1) % 3) ) fprintf(stderr,BLUE "SN:"NONE"%d\n",sn_cnt+1);
+		if ( !((sn_cnt+1) % 3) ) fprintf(stderr,"\n");
+	}
+	fprintf(stderr,"\n");
+	return ;
+}
+
+void decode_list_spe(unsigned char *buf, unsigned int buf_len)
+{	
+	time_t login_time;
+	
+	login_time = *(unsigned int *)&buf[18];
+	
+	fprintf(stderr,"HW rev %X, FW rev %X\n",*(unsigned short *)&buf[6],*(unsigned short *)&buf[8]);
+	fprintf(stderr,"TX %X B, RX %X B\n",*(unsigned short *)&buf[10],*(unsigned int *)&buf[14]);
+	fprintf(stderr,"Login time: %s\n",(char *)ctime(&login_time));	
+	return ;
+}
+
 //return 0: failure, others: buffer length
 int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 				unsigned char *buf, unsigned int buf_len, unsigned char seq, unsigned char console_cmd)
@@ -183,7 +222,7 @@ int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 
 void send_notice( char * mail_body) {
 
-	char mail_subject[BUFSIZE+1], err_buf[BUFSIZE+1];
+	char mail_subject[EMAIL], err_buf[EMAIL];
 	//time_t ticks=time(NULL);
 
 	bzero( mail_subject, sizeof(mail_subject));
@@ -272,15 +311,15 @@ void scan_args(int argc, char *argv[])
 int	main(int argc, char	*argv[])
 {
 	unsigned char ch, seq=0;
-	unsigned char buf[BUFSIZE];  //数据传送的缓冲区
+	unsigned char buf[(MAXCLIENT*PRODUCT_SN_LEN)+20];  //数据传送的缓冲区
 	//for IMEI: 123456789012345
 	unsigned char console_sn[]={0x01, 0x23, 0x45, 0x67, 0x89, 0x01, 0x23, 0x45};
-
-	unsigned char dest_sn[]={0x00, 0x98, 0x76, 0x54, 0x32, 0x10, 0x12, 0x34};
-	
+	unsigned char dest_sn[]={0x01, 0x23, 0x45, 0x67, 0x89, 0x01, 0x23, 0x45};
+	//unsigned char dest_sn[]={0x00, 0x98, 0x76, 0x54, 0x32, 0x10, 0x12, 0x34};
+	unsigned char input_sn[PRODUCT_SN_LEN*2], var_u8;
 	unsigned short var_short, len;
 	unsigned int usecs=10000;
-	char mail_body[BUFSIZE*2];
+	char mail_body[EMAIL*2];
 	time_t last_time, server_time;
 
 	int	client_sockfd;
@@ -291,7 +330,7 @@ int	main(int argc, char	*argv[])
 	last_time = time(NULL);
 
 	bzero( mail_body, sizeof(mail_body));
-	
+
 	/* Scan arguments. */
 	scan_args(argc, argv);
 	fprintf(stderr,"Connect to %s:%d ... ",dest,server_port);
@@ -319,7 +358,7 @@ int	main(int argc, char	*argv[])
 
 	//Login to daemon
 	//prepare login cmd, use "CONSOLE_01" as SN, SN len must = 10 Bytes
-	len = format_cmd(GSM_CMD_LOGIN, console_sn, buf, BUFSIZE, seq, CONSOLE_CMD_NONE);
+	len = format_cmd(GSM_CMD_LOGIN, console_sn, buf, sizeof(buf), seq, CONSOLE_CMD_NONE);
 	seq++; if ( seq >= 0x80 ) seq=0;
 	if ( len ) { //prepare cmd ok
 
@@ -333,22 +372,21 @@ int	main(int argc, char	*argv[])
 		write(client_sockfd,buf,len);
 		
 		bzero(buf, sizeof(buf));
-		len = read(client_sockfd, buf, BUFSIZE);
+		len = read(client_sockfd, buf, sizeof(buf));
 			
 		if ( len <= 0 ) {
 			fprintf(stderr,"Rec timeout: %d @ %d in PID %d\n",len,__LINE__, getpid());
 			fprintf(stderr,"Exit!\n");
 			exit(1);
 		}
-		else {
-			if ( len < 20 ) {//Login CMD return TIME+MCU_ID, 24 Bytes
-				fprintf(stderr,"Rec error: %d @ %d Exit!\n",len,__LINE__);
-				exit(1);
-			}
-			else {//normal return
-				server_time = buf[6]<<24 | buf[7]<<16 | buf[8]<<8 | buf[9];
-				fprintf(stderr,"Login succeed, server time: %s\n",(char *)ctime(&server_time));
-			}
+		
+		if ( buf[5] != 0 ) { //login err
+			fprintf(stderr,"Login err: %d @ %d\n",buf[5],__LINE__);
+			exit(1);
+		}
+		else {//normal return
+			server_time = buf[6]<<24 | buf[7]<<16 | buf[8]<<8 | buf[9];
+			fprintf(stderr,"Login succeed, server time: %s\n",(char *)ctime(&server_time));
 		}
 	}
 	else {
@@ -380,9 +418,32 @@ int	main(int argc, char	*argv[])
 					//break;
 					
 				case 'l':
-					fprintf(stderr, "List special device\n");
+					fprintf(stderr, "List special device, please input SN: ");
+					bzero( input_sn, sizeof(input_sn));
+					var_short = scanf("%15s",input_sn);
+					if ( strlen(input_sn) == 15 ) {//len is ok						
+						for ( var_short = 0; var_short < 15; var_short++ ) {
+							if ( (input_sn[var_short] > 0x39) || (input_sn[var_short] < 0x30)) {
+								fprintf(stderr,"Illegal %c(0x%02X), use default SN\n",\
+										input_sn[var_short],input_sn[var_short]);								
+								break ;
+							}
+							else input_sn[var_short] = input_sn[var_short] - 0x30;
+						}
+	                    if ( var_short == 15 ) {//all char ok
+							dest_sn[0] = input_sn[0];
+							for ( var_u8 = 1; var_u8 < PRODUCT_SN_LEN; var_u8++ ) {
+								dest_sn[var_u8] = (input_sn[((var_u8-1)*2+1)]<<4) | input_sn[((var_u8-1)*2+2)];
+								//fprintf(stderr, "%02X ", dest_sn[var_u8]);
+							 }	                    	
+	                    }
+					}
+					else {//err SN
+						fprintf(stderr,"Input SN: %s ERR! len:%d, Must 15 digitals, use default SN\n",\
+								input_sn,strlen(input_sn));
+					}
 
-					len = format_cmd(GSM_CMD_CONSOLE, dest_sn, buf, BUFSIZE, seq, CONSOLE_CMD_LIST_SPE);
+					len = format_cmd(GSM_CMD_CONSOLE, dest_sn, buf, sizeof(buf), seq, CONSOLE_CMD_LIST_SPE);
 					seq++; if ( seq >= 0x80 ) seq=0;
 
 					if ( len ) { //prepare cmd ok
@@ -398,15 +459,25 @@ int	main(int argc, char	*argv[])
 						write(client_sockfd,buf,len);
 				
 						bzero(buf, sizeof(buf));
-						len = read(client_sockfd, buf, BUFSIZE);
+						len = read(client_sockfd, buf, sizeof(buf));
 							
 						if ( len <= 0 ) {
 							fprintf(stderr,"Rec timeout or disconnect: %d @ %d Exit!\n",len,__LINE__);
 							exit(1);
 						}
-						else {
-							fprintf(stderr,"Rec : %d @ %d\n",len,__LINE__);
+
+						if ( buf[5] != 0 ) { //return err
+							fprintf(stderr,"Return err: %d @ %d\n",buf[5],__LINE__);
+							exit(1);
 						}
+
+						fprintf(stderr,"SN: ");
+						fprintf(stderr,"%1X",dest_sn[0]);
+						for ( var_short = 1 ; var_short < PRODUCT_SN_LEN ; var_short++ ) {
+							fprintf(stderr,"%02X",dest_sn[var_short]);
+						}
+						fprintf(stderr," detail:\n");
+						decode_list_spe(buf, len);
 					}
 					else {
 						fprintf(stderr,"Can't parpare CMD @ %d Exit!\n",__LINE__);
@@ -417,7 +488,7 @@ int	main(int argc, char	*argv[])
 				case 'L':
 					fprintf(stderr, "List all device\n");
 
-					len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, BUFSIZE, seq, CONSOLE_CMD_LIST_ALL);
+					len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, sizeof(buf), seq, CONSOLE_CMD_LIST_ALL);
 					seq++; if ( seq >= 0x80 ) seq=0;
 
 					if ( len ) { //prepare cmd ok
@@ -433,15 +504,20 @@ int	main(int argc, char	*argv[])
 						write(client_sockfd,buf,len);
 				
 						bzero(buf, sizeof(buf));
-						len = read(client_sockfd, buf, BUFSIZE);
+						len = read(client_sockfd, buf, sizeof(buf));
 							
 						if ( len <= 0 ) {
 							fprintf(stderr,"Rec timeout or disconnect: %d @ %d Exit!\n",len,__LINE__);
 							exit(1);
 						}
-						else {
-							fprintf(stderr,"Rec : %d @ %d\n",len,__LINE__);
+
+						if ( buf[5] != 0 ) { //return err
+							fprintf(stderr,"Return err: %d @ %d\n",buf[5],__LINE__);
+							exit(1);
 						}
+
+						fprintf(stderr,"Rec : %d @ %d\n",len,__LINE__);
+						decode_list_all(buf, len);
 					}
 					else {
 						fprintf(stderr,"Can't parpare CMD @ %d Exit!\n",__LINE__);
@@ -459,102 +535,59 @@ int	main(int argc, char	*argv[])
 			last_time = time(NULL);
 			fprintf(stderr,"==> %s\n",(char *)ctime(&last_time));
 			
-					len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, BUFSIZE, seq, CONSOLE_CMD_LIST_ALL);
-					seq++; if ( seq >= 0x80 ) seq=0;
+			len = format_cmd(GSM_CMD_CONSOLE, NULL, buf, sizeof(buf), seq, CONSOLE_CMD_LIST_ALL);
+			seq++; if ( seq >= 0x80 ) seq=0;
 
-					if ( len ) { //prepare cmd ok
+			if ( len ) { //prepare cmd ok
 
-						if ( debug_flag ) {
-							fprintf(stderr,"--> ");
-							for ( var_short = 0 ; var_short < len ; var_short++ ) {
-								fprintf(stderr,"%02X ",buf[var_short]);
-							}
-							fprintf(stderr,"\nCMD: %c(0x%02X), Send %d Bytes\n",buf[2],buf[2],buf[4]+6);
-						}
-
-						write(client_sockfd,buf,len);
-				
-						bzero(buf, sizeof(buf));
-						len = read(client_sockfd, buf, BUFSIZE);
-							
-						if ( len <= 0 ) {
-							snprintf(mail_body,sizeof(mail_body),"Read sock return: %d\r\n%s\r\n",\
-									len, (char *)ctime(&last_time));							
-							send_notice( mail_body );
-							fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
-							
-							exit(1);
-						}
-						else {
-							fprintf(stderr,"Rec : %d @ %d\n",len,__LINE__);
-						}
+				if ( debug_flag ) {
+					fprintf(stderr,"--> ");
+					for ( var_short = 0 ; var_short < len ; var_short++ ) {
+						fprintf(stderr,"%02X ",buf[var_short]);
 					}
-					else {
-						snprintf(mail_body,sizeof(mail_body),"Can't parpare CMD @ %d\r\n%s\r\n",\
-								__LINE__,(char *)ctime(&last_time));							
-						send_notice( mail_body );
-						fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
-						exit(1);
-					}
+					fprintf(stderr,"\nCMD: %c(0x%02X), Send %d Bytes\n",buf[2],buf[2],buf[4]+6);
+				}
 
+				write(client_sockfd,buf,len);
+		
+				bzero(buf, sizeof(buf));
+				len = read(client_sockfd, buf, sizeof(buf));
+					
+				if ( len <= 0 ) {
+					bzero(mail_body, sizeof(mail_body));
+					snprintf(mail_body,sizeof(mail_body),"Read sock return: %d\r\n%s\r\n",\
+							len, (char *)ctime(&last_time));							
+					send_notice( mail_body );
+					fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
+					
+					exit(1);
+				}
+
+				if ( buf[5] != 0 ) { //return err
+					bzero(mail_body, sizeof(mail_body));
+					for ( var_short = 0 ; var_short < 8 ; var_short++ ) {
+						snprintf(&mail_body[var_short*3],4,"%02X ",buf[var_short]);
+					}
+					snprintf(&mail_body[var_short*3],sizeof(mail_body)-var_short*3,\
+							"\nCMD return err: %d at %s\r\n",\
+							buf[5], (char *)ctime(&last_time));	
+					send_notice( mail_body );
+					fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
+					//exit(1);
+				}
+				else {
+					fprintf(stderr,"Rec : %d @ %d\n",len,__LINE__);
+					decode_list_all(buf, len);
+				}
+			}
+			else {
+				snprintf(mail_body,sizeof(mail_body),"Can't parpare CMD @ %d\r\n%s\r\n",\
+						__LINE__,(char *)ctime(&last_time));							
+				send_notice( mail_body );
+				fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
+				exit(1);
+			}
 		}
 		usleep(usecs);		
 	}
 }
-
-/*//Return 0: ok, others err
-int single_connect( unsigned int simu_id ) {
-				
-	{
-		//fprintf(stderr,"Run @ %d\n",__LINE__);
-		{
-			else {
-				if ( debug_flag ) fprintf(stderr,"<-- %d Bytes:",len);
-
-				if ( len < 20 ) {//Login CMD return TIME+MCU_ID, 24 Bytes
-					printf("<-- %d Bytes:",len);
-					for ( var_int = 0 ; var_int < len ; var_int++ ) {
-						printf(" %02X",buf[var_int]);
-					}
-					printf("\nError and exit @ %d\n",__LINE__);
-					
-					return 1 ;
-				}
-				else {//normal return, send err log msg
-					//DE 01 45 00 06 00 00 00 08 30 00 81 79, time+reason
-					len = format_cmd(GSM_CMD_ERROR, 0, buf, BUFSIZE, seq);
-					seq++; if ( seq >= 0x80 ) seq=0;
-					
-					if ( len ) { //prepare cmd ok		
-						write(client_sockfd,buf,len);
-						if ( debug_flag ) fprintf(stderr,"--> Err log: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
-					}
-					bzero(buf, sizeof(buf));
-					len = read(client_sockfd, buf, BUFSIZE);
-					//DE 01 C5 00 02 00 04 08 4D
-					if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n",buf[2]&0x7F,len);
-						
-					//Send Record: vehicle parameters
-					//DE 04 52 00 08 51 1F 4C 4E 00 0C 30 1A A5 1C
-					len = format_cmd(GSM_CMD_RECORD, 0, buf, BUFSIZE, seq);
-					seq++; if ( seq >= 0x80 ) seq=0;
-
-					if ( len ) { //prepare cmd ok		
-						write(client_sockfd,buf,len);
-						if ( debug_flag ) fprintf(stderr,"--> Record: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
-					}
-					bzero(buf, sizeof(buf));
-					len = read(client_sockfd, buf, BUFSIZE);
-					//DE 04 D2 00 02 00 00 68 46
-					if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n",buf[2]&0x7F,len);
-
-				}
-			}
-		}
-	}
-
-	//sleep(1);
-
-	return 0;
-}
-*/

@@ -79,6 +79,7 @@
 #define MIN_FW_SIZE				40960 //40*1024
 
 //For return error define, server ==> client
+#define ERR_RETURN_NONE			0	//00: No err
 #define ERR_RETURN_NO_LOGIN		1	//01: login failure
 #define ERR_RETURN_SRV_BUSY		2	//02: server busy
 #define ERR_RETURN_CRC_ERR		3	//03: CRC error
@@ -86,6 +87,7 @@
 #define ERR_RETURN_HW_ERR		5	//05: hardware no support
 #define ERR_RETURN_CONSOLE_CMD	6	//执行console命令时出错
 #define ERR_RETURN_LOGIN_CNT	7	//login count too many
+#define ERR_RETURN_NO_SN		8	//No serial number
 #define ERR_UNKNOW				0xFF//未知错误
 
 //For post cloud

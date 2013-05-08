@@ -88,7 +88,7 @@ int convert_sn(struct rokko_data *rokko, unsigned char *sn_buf, unsigned char bu
 }
 
 /*if match return 1 , else return 0*/
-static unsigned char cmpmem(unsigned char *buffer, unsigned char *cmpbuf,unsigned char count)
+unsigned char cmpmem(unsigned char *buffer, unsigned char *cmpbuf,unsigned char count)
 {
 	unsigned char equal;    
 
@@ -103,14 +103,15 @@ static unsigned char cmpmem(unsigned char *buffer, unsigned char *cmpbuf,unsigne
 void check_sndbuf( unsigned char *snd_buf )
 {
 	char log_str[EMAIL+1];
-	
+
 	//buf[0] = GSM_HEAD
 	//buf[1] = SEQ
 	//buf[2] = CMD
 	//buf[3] = len_h
 	//buf[4] = len_l
 	
-	if ( (snd_buf[0] != GSM_HEAD) || ((snd_buf[3]<<8)|(snd_buf[4])) > 1200 ) {
+	if ( (snd_buf[0] != GSM_HEAD) || (((snd_buf[3]&0x7F)<<8)|(snd_buf[4])) > 1400 ) {
+		//buf[2]:cmd->pcb, buf[3]:len_high, buf[4]:len_low
 		snprintf(log_str,sizeof(log_str),"!!!ERR!!! %02X,%02X,%02X @ %s:%d\n",\
 				snd_buf[2],snd_buf[3],snd_buf[4],__FILE__,__LINE__);
 		log_save(log_str, FORCE_SAVE_FILE );
@@ -207,7 +208,7 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 			if ( data_len > 32 ) data_len = 32 ; //prevent error
 				
 			if ( foreground ) {
-				fprintf(stderr, "Console CMD is: %c, from: %s, hw_rev:%X\n",\
+				fprintf(stderr, "\nConsole CMD is: %c, from: %s, hw_rev:%X\n",\
 						rec_buf[5],rokko->sn_long,rokko->hw_rev);
 			}
 
@@ -223,11 +224,13 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 				}
 		
 			case CONSOLE_CMD_LIST_SPE : //list special active client
-				fprintf(stderr, "Dest SN: ");
-				for ( crc16 = 0 ; crc16 < PRODUCT_SN_LEN ; crc16++ ) {
-					fprintf(stderr, "%02X ",rec_buf[crc16+6]);
+				if ( foreground ) {
+					fprintf(stderr, "Dest SN: ");
+					for ( crc16 = 0 ; crc16 < PRODUCT_SN_LEN ; crc16++ ) {
+						fprintf(stderr, "%02X ",rec_buf[crc16+6]);
+					}
+					fprintf(stderr, "\n");
 				}
-				fprintf(stderr, "\n");
 				if ( console_list_spe( rokko, cmd,\
 							rec_buf, snd_buf, rokko_all, conn_amount )) {//err
 					break; //send err to console in below
@@ -246,9 +249,8 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
 			snd_buf[3] =  00;//len high
-			snd_buf[4] =  02;//len low
+			snd_buf[4] =  01;//len low
 			snd_buf[5] =  ERR_RETURN_CONSOLE_CMD ;
-			snd_buf[6] =  00;//ok
 
 			data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
 	
@@ -480,7 +482,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 				snd_buf[2] = cmd->pcb | 0x80 ;
 				snd_buf[3] =  00;//len high
 				snd_buf[4] =  17;//len low
-				snd_buf[5] =  00;//return status:0：成功
+				snd_buf[5] =  ERR_RETURN_NONE;//return status:0：成功
 				snd_buf[6] =  (time(NULL) >> 24)&0xFF;//time high
 				snd_buf[7] =  (time(NULL) >> 16)&0xFF;//time high
 				snd_buf[8] =  (time(NULL) >> 8)&0xFF;//time low

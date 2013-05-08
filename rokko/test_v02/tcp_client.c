@@ -47,10 +47,10 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 		}
 
 		//Product HW rev, FW rev
-		buf[19] =  0  ;//hw revision, 1 byte
-		buf[20] =  0  ;//reverse
-		buf[21] =  0  ;//FW rev. high
-		buf[22] =  38  ;//FW rev. low
+		buf[19] =  0x12  ;//hw revision, 1 byte
+		buf[20] =  0x34  ;//reverse
+		buf[21] =  0x56  ;//FW rev. high
+		buf[22] =  0x78  ;//FW rev. low
 
 		//Local IP
 		snprintf(&buf[23],10,"127.0.0.1");
@@ -283,82 +283,71 @@ int single_connect( unsigned int simu_id ) {
 
 	if ( debug_flag ) fprintf(stderr,"connected to server: %s:%d\n\n",dest,server_port);
 	
-/*	len = read(client_sockfd, buf, BUFSIZE); 
+	//prepare login cmd, use pid as SN
+	len = format_cmd(GSM_CMD_LOGIN, getpid(), buf, BUFSIZE, seq);
+	seq++; if ( seq >= 0x80 ) seq=0;
+	if ( len ) { //prepare cmd ok
+		fprintf(stderr,"ID:%05d => %d\n",getpid(),run_cnt);
+		run_cnt++;
+
+		write(client_sockfd,buf,len);
+		if ( debug_flag ) fprintf(stderr,"--> Login CMD: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
+	}
+	bzero(buf, sizeof(buf));
+	len = read(client_sockfd, buf, BUFSIZE);
+	
 	if ( len <= 0 ) {
 		fprintf(stderr,"Rec timeout: %d @ %d in PID %d\n",len,__LINE__, getpid());
+		return 1 ;
 	}
-	else {
-		buf[len]='\0';
-		if ( debug_flag ) fprintf(stderr,"%s",buf); //打印服务器端信息
-	}
-*/	
-	{
-		//fprintf(stderr,"Run @ %d\n",__LINE__);
-		while ( 1 ) {
-			//prepare login cmd, use pid as SN
-			len = format_cmd(GSM_CMD_LOGIN, getpid(), buf, BUFSIZE, seq);
-			seq++; if ( seq >= 0x80 ) seq=0;
-			if ( len ) { //prepare cmd ok
-				fprintf(stderr,"ID:%05d => %d\n",getpid(),run_cnt);
-				run_cnt++;
 
-				write(client_sockfd,buf,len);
-				if ( debug_flag ) fprintf(stderr,"--> Login CMD: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
-			}
-			bzero(buf, sizeof(buf));
-			len = read(client_sockfd, buf, BUFSIZE);
-			
-			if ( len <= 0 ) {
-				fprintf(stderr,"Rec timeout: %d @ %d in PID %d\n",len,__LINE__, getpid());
-				return 1 ;
-			}
-			else {
-				if ( debug_flag ) fprintf(stderr,"<-- %d Bytes:",len);
+	if ( buf[5] != 0 ) { //login err
+		fprintf(stderr,"Login err: %d @ %d\n",buf[5],__LINE__);
+		return 1 ;
+	}		
 
-				if ( len < 20 ) {//Login CMD return TIME+MCU_ID, 24 Bytes
-					printf("<-- %d Bytes:",len);
-					for ( var_int = 0 ; var_int < len ; var_int++ ) {
-						printf(" %02X",buf[var_int]);
-					}
-					printf("\nError and exit @ %d\n",__LINE__);
-					
-					return 1 ;
-				}
-				else {//normal return, send err log msg
-					//DE 01 45 00 06 00 00 00 08 30 00 81 79, time+reason
-					len = format_cmd(GSM_CMD_ERROR, 0, buf, BUFSIZE, seq);
-					seq++; if ( seq >= 0x80 ) seq=0;
-					
-					if ( len ) { //prepare cmd ok		
-						write(client_sockfd,buf,len);
-						if ( debug_flag ) fprintf(stderr,"--> Err log: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
-					}
-					bzero(buf, sizeof(buf));
-					len = read(client_sockfd, buf, BUFSIZE);
-					//DE 01 C5 00 02 00 04 08 4D
-					if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n",buf[2]&0x7F,len);
-						
-					//Send Record: vehicle parameters
-					//DE 04 52 00 08 51 1F 4C 4E 00 0C 30 1A A5 1C
-					len = format_cmd(GSM_CMD_RECORD, 0, buf, BUFSIZE, seq);
-					seq++; if ( seq >= 0x80 ) seq=0;
+	//while( 1 ) sleep(1);
 
-					if ( len ) { //prepare cmd ok		
-						write(client_sockfd,buf,len);
-						if ( debug_flag ) fprintf(stderr,"--> Record: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
-					}
-					bzero(buf, sizeof(buf));
-					len = read(client_sockfd, buf, BUFSIZE);
-					//DE 04 D2 00 02 00 00 68 46
-					if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n",buf[2]&0x7F,len);
+	while ( 1 ) {//login ok
+		if ( debug_flag ) fprintf(stderr,"<-- %d Bytes:",len);
 
-				}
-			}
-
-			if ( debug_flag ) fprintf(stderr,"\n\n");
-			
-			sleep(1);
+		//normal return, send err log msg
+		//DE 01 45 00 06 00 00 00 08 30 00 81 79, time+reason
+		len = format_cmd(GSM_CMD_ERROR, 0, buf, BUFSIZE, seq);
+		seq++; if ( seq >= 0x80 ) seq=0;
+		
+		if ( len ) { //prepare cmd ok		
+			write(client_sockfd,buf,len);
+			if ( debug_flag ) fprintf(stderr,"--> Err log: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
 		}
+		bzero(buf, sizeof(buf));
+		len = read(client_sockfd, buf, BUFSIZE);
+		//DE 01 C5 00 02 00 04 08 4D
+		if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n",buf[2]&0x7F,len);
+		if ( buf[5] != 0 ) { //err
+			fprintf(stderr,"Return err: %d @ %d\n",buf[5],__LINE__);
+			return 1 ;
+		}		
+			
+		//Send Record: vehicle parameters
+		//DE 04 52 00 08 51 1F 4C 4E 00 0C 30 1A A5 1C
+		len = format_cmd(GSM_CMD_RECORD, 0, buf, BUFSIZE, seq);
+		seq++; if ( seq >= 0x80 ) seq=0;
+
+		if ( len ) { //prepare cmd ok		
+			write(client_sockfd,buf,len);
+			if ( debug_flag ) fprintf(stderr,"--> Record: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
+		}
+		bzero(buf, sizeof(buf));
+		len = read(client_sockfd, buf, BUFSIZE);
+		//DE 04 D2 00 02 00 00 68 46
+		if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n\n",buf[2]&0x7F,len);
+		if ( buf[5] != 0 ) { //err
+			fprintf(stderr,"Return err: %d @ %d\n",buf[5],__LINE__);
+			return 1 ;
+		}		
+		
+		sleep(1);
 	}
 
 	//sleep(1);
