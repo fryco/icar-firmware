@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/rokko/daemon_v01/commands.h $ 
-  * @version $Rev: 351 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2013-04-08 11:58:33 +0800 (Mon, 08 Apr 2013) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file is for console
   ******************************************************************************
   */ 
