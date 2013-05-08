@@ -46,16 +46,33 @@
 #include <sys/wait.h>
 #include <netinet/in.h>
 
+#define NONE				"\033[m"  
+#define RED					"\033[0;32;31m"  
+#define LIGHT_RED			"\033[1;31m"  
+#define GREEN				"\033[0;32;32m"  
+#define LIGHT_GREEN			"\033[1;32m"  
+#define BLUE				"\033[0;32;34m"  
+#define LIGHT_BLUE			"\033[1;34m"  
+#define DARY_GRAY			"\033[1;30m"  
+#define CYAN				"\033[0;36m"  
+#define LIGHT_CYAN			"\033[1;36m"  
+#define PURPLE				"\033[0;35m"  
+#define LIGHT_PURPLE		"\033[1;35m"  
+#define BROWN				"\033[0;33m"  
+#define YELLOW				"\033[1;33m"  
+#define LIGHT_GRAY			"\033[0;37m"  
+#define WHITE				"\033[1;37m"  
+
+
 #define PRODUCT_SN_LEN		8		//IMEI: 123456789012345 ==> 0x01 0x23 0x45 ... 0x45
+#define	MAXCLIENT 			5000
 
-#define	EMAIL				128
-#define BUFSIZE 			2048	//2KB
+#define	EMAIL				512
 
-#define CMD_CNT				0
+#define MAX_DISPLAY			100
 
 #define GSM_HEAD				0xDE
 #define GSM_CMD_CONSOLE			0x43 //'C', Console command
-//--> 
 
 #define GSM_CMD_ERROR			0x45 //'E', upload error log to server
 //Out: DE 01 45 00 06 00 00 00 08 30 00 81 79
@@ -70,6 +87,11 @@
 //For Console command
 #define CONSOLE_CMD_NONE		0	 //no cmd
 #define CONSOLE_CMD_LIST_ALL	0x4C //'L', List all
+//Out: DE 0A 43 00 01 4C 2D 80
+//In : DE 06 C3 85 52 00 AA 09 97 75 53 31 10 30 18 09 97 75 53 31 10 30 23 09 97 75 53 31 10 30 
+//     中间省略n行… (0xAA = 170 ), 
+//     97 75 53 31 10 39 51 09 97 75 53 31 10 39 55 09 97 75 53 31 10 39 56 09 97 75 53 31 10 39 
+//     61 09 97 75 53 31 10 39 63 09 97 75 53 31 10 39 70 06 66
 #define CONSOLE_CMD_LIST_SPE	0x6C //'l', List special
 
 //record index define

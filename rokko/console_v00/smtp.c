@@ -20,7 +20,7 @@ unsigned char smtp_send(char *smtp_server,
 						unsigned int smtp_port, char *mail_to, 
 						char *mail_subject, char *mail_body, char *err_str)
 {
-	char recv_buf[BUFSIZE*20], send_buf[BUFSIZE*20];
+	char recv_buf[EMAIL*20], send_buf[EMAIL*20];
 	char retry = 0;
 
 	ssize_t size = 0;
@@ -103,7 +103,7 @@ unsigned char smtp_send(char *smtp_server,
 		close(sockfd);
 
 		printf("Authentication failed! check %s:%d\n",__FILE__,__LINE__);
-		bzero( err_str, BUFSIZE);
+		bzero( err_str, EMAIL);
 		strcat(err_str, recv_buf);
 		//strcat(err_str, "Err code: 40, %s:%d\r\n",__FILE__,__LINE__);
 		strcat(err_str, "Err code: 40\r\n");
@@ -126,7 +126,7 @@ unsigned char smtp_send(char *smtp_server,
 		close(sockfd); 
 
 		printf("No 250! check %s:%d\n",__FILE__,__LINE__);
-		bzero( err_str, BUFSIZE);
+		bzero( err_str, EMAIL);
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 45\r\n");
 		return 45 ;
@@ -149,7 +149,7 @@ unsigned char smtp_send(char *smtp_server,
 		close(sockfd);
 
 		printf("Invalid mail address! check %s:%d\n",__FILE__,__LINE__);
-		bzero( err_str, BUFSIZE);
+		bzero( err_str, EMAIL);
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 50\r\n");
 		return 50 ;
@@ -160,7 +160,7 @@ unsigned char smtp_send(char *smtp_server,
 		close(sockfd); 
 
 		printf("No 250! check %s:%d\n",__FILE__,__LINE__);
-		bzero( err_str, BUFSIZE);
+		bzero( err_str, EMAIL);
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 55\r\n");
 		return 55 ;
@@ -224,7 +224,7 @@ unsigned char smtp_send(char *smtp_server,
 
 	if ( strstr(recv_buf,"250") == NULL ) { //no found
 		printf("Err rec! check %s:%d\n",__FILE__,__LINE__);
-		bzero( err_str, BUFSIZE);
+		bzero( err_str, EMAIL);
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 60\r\n");
 
@@ -243,7 +243,7 @@ unsigned char smtp_send(char *smtp_server,
 
 	if ( strstr(recv_buf,"221") == NULL ) { //no found
 		printf("Err rec! check %s:%d\n",__FILE__,__LINE__);
-		bzero( err_str, BUFSIZE);
+		bzero( err_str, EMAIL);
 		strcat(err_str, recv_buf);
 		strcat(err_str, "\r\nErr code: 70\r\n");
 
