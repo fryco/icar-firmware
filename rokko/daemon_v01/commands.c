@@ -430,6 +430,89 @@ int rec_cmd_errlog( struct rokko_data *rokko, struct rokko_command * cmd,\
 	return 0 ;
 }
 
+int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
+				unsigned char *rec_buf, unsigned char *snd_buf )
+{//case GSM_CMD_GPS: //0x47, 'G' GPS information
+
+	unsigned short crc16, data_len;
+	unsigned int degree, minute, second;
+	//DE 3C 47 00 10 51 8B 49 CF 05 E4 32 2E 01 A4 BB 12 01 8F C5 00 AD 94
+	//Head SEQ PCB Len(2B)
+	//51 8B 49 CF 	==> UTC
+	//05			==> satellite 
+	//E4 32 2E 01	==> Latitude
+	//A4 BB 12 01	==> Longitude
+	//8F			==> Speed
+	//C5 00			==> status
+		
+	if ( rokko->login_cnt ) {
+
+		//show the record detail
+		data_len = ((rec_buf[3])<<8) | rec_buf[4];
+
+		rokko->gps.time = (rec_buf[5]<<24)|(rec_buf[6]<<16)|(rec_buf[7]<<8)|rec_buf[8];	
+		rokko->gps.sat_cnt = rec_buf[9];
+		rokko->gps.lat = *(unsigned int *)&rec_buf[10];
+		rokko->gps.lon = *(unsigned int *)&rec_buf[14];
+		rokko->gps.speed = *(unsigned int *)&rec_buf[18];
+		rokko->gps.status= (rec_buf[19]<<8) | rec_buf[20];
+
+		if ( foreground ) {
+			degree = (rokko->gps.lat)/(60*30000);
+			minute = ((rokko->gps.lat) - degree*60*30000)/30000;
+			second = ((rokko->gps.lat) - degree*60*30000 - minute*30000)/3;
+			fprintf(stderr, "GPS data len:%d, LAT:%d'%d.%d\" ",data_len,degree,minute,second);
+
+			degree = (rokko->gps.lon)/(60*30000);
+			minute = ((rokko->gps.lon) - degree*60*30000)/30000;
+			second = ((rokko->gps.lon) - degree*60*30000 - minute*30000)/3;
+			fprintf(stderr, "LON: %d'%d.%d\"  ",degree,minute,second);
+			
+			fprintf(stderr, "Speed: %d, Sat: %d\r\n",rokko->gps.speed,rokko->gps.sat_cnt);
+		}
+		
+		bzero( snd_buf, BUFSIZE);
+
+		//send respond
+		crc16++;
+		snd_buf[0] = GSM_HEAD ;
+		snd_buf[1] = cmd->seq ;
+		snd_buf[2] = cmd->pcb | 0x80 ;
+		snd_buf[3] = 0 ;//len high
+		snd_buf[4] = 1 ;//len low
+		snd_buf[5] = 0 ;//return status:0：成功
+		
+		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
+
+		//Calc CRC16
+		crc16 = 0xFFFF & (crc16tablefast(snd_buf , data_len+5));
+
+		snd_buf[data_len+5] = (crc16)>>8 ;
+		snd_buf[data_len+6] = (crc16)&0xFF ;
+/*
+		if ( foreground ) {
+			fprintf(stderr, "CMD: %c ok, reply: ",cmd->pcb);
+			for ( crc16 = 0 ; crc16 < data_len+7 ; crc16++ ) {
+				fprintf(stderr, "%02X ",snd_buf[crc16]);
+			}
+			fprintf(stderr, "to %s\n",rokko->sn_long);
+		}
+*/	
+		check_sndbuf( snd_buf );
+		write(rokko->client_socket,snd_buf,data_len+7);
+		//save transmit count
+		rokko->tx_cnt += data_len+7 ;
+		
+		return 0 ;
+
+	}//end of rokko->login_cnt
+	else { //need upload sn first
+		fprintf(stderr, "SN: %s No login! %s:%d\r\n",rokko->sn_long,__FILE__, __LINE__);
+		failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
+			
+		return 1 ;
+	}
+}
 
 //0: ok, 1: disconnect immediately
 unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cmd,\
@@ -672,69 +755,145 @@ int rec_cmd_record( struct rokko_data *rokko, struct rokko_command * cmd,\
 	pid_t cloud_pid;
 	unsigned char post_buf[BUFSIZE];
 	unsigned char rec_idx;
-	unsigned short rec_dat, crc16, data_len;
-	unsigned int rec_time;
+	unsigned short crc16, data_len;
+	unsigned int rec_dat, rec_time;
 
 	//DE 05 52 00 08 51 1F 36 63 00 0A D0 1A EE 2B
 	//Head SEQ PCB Len(2B)
 	//51 1F 36 63 ==> UTC
 	//00 0A D0 ==> record val
 	//1A       ==> record item index
-	
-	if ( foreground ) {
-		fprintf(stderr, "CMD is Record vehicle parameters ...\n");
-	}
-	
+		
 	if ( rokko->login_cnt ) {
 
-			//show the record detail
-			data_len = ((rec_buf[3])<<8) | rec_buf[4];
+		//show the record detail
+		data_len = ((rec_buf[3])<<8) | rec_buf[4];
 
-			if ( foreground ) {
-				fprintf(stderr, "Record len:%d\r\n",data_len);
+		if ( foreground ) {
+			fprintf(stderr, "Record len:%d, %d items:\r\n",data_len,(data_len)>>3);
+		}
 
-				for ( crc16= 0 ; crc16*8 < (data_len-4) ; crc16++ ) {
-					rec_idx = rec_buf[12+crc16*8];
-					rec_time = (rec_buf[crc16*8+5]<<24)|(rec_buf[crc16*8+6]<<16)|(rec_buf[crc16*8+7]<<8)|rec_buf[crc16*8+8];					
-					rec_dat = (rec_buf[crc16*8+9]<<16)|(rec_buf[crc16*8+10]<<8)|rec_buf[crc16*8+11];
-					fprintf(stderr, "R[%02d] Val: %X, %s\r\n",rec_idx,rec_dat,ctime((const void *)&rec_time));
-				}
-			}
-
-			bzero( snd_buf, BUFSIZE);
-
-			//send respond
-			crc16++;
-			snd_buf[0] = GSM_HEAD ;
-			snd_buf[1] = cmd->seq ;
-			snd_buf[2] = cmd->pcb | 0x80 ;
-			snd_buf[3] = 0 ;//len high
-			snd_buf[4] = 2 ;//len low
-			snd_buf[5] = 0 ;//return status:0：成功
-			snd_buf[6] = 0 ;//reserved
+		for ( crc16= 0 ; crc16*8 < (data_len) ; crc16++ ) {
+			rec_idx = rec_buf[12+crc16*8];
+			rec_time = (rec_buf[crc16*8+5]<<24)|(rec_buf[crc16*8+6]<<16)|(rec_buf[crc16*8+7]<<8)|rec_buf[crc16*8+8];					
+			rec_dat = (rec_buf[crc16*8+9]<<16)|(rec_buf[crc16*8+10]<<8)|rec_buf[crc16*8+11];
+			//fprintf(stderr, "R[%02d] Val: %X, %s\r\n",rec_idx,rec_dat,ctime((const void *)&rec_time));
 			
-			data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
-	
-			//Calc CRC16
-			crc16 = 0xFFFF & (crc16tablefast(snd_buf , data_len+5));
-	
-			snd_buf[data_len+5] = (crc16)>>8 ;
-			snd_buf[data_len+6] = (crc16)&0xFF ;
-	
-			if ( foreground ) {
-				fprintf(stderr, "CMD: %c ok, reply: ",cmd->pcb);
-				for ( crc16 = 0 ; crc16 < data_len+7 ; crc16++ ) {
-					fprintf(stderr, "%02X ",snd_buf[crc16]);
-				}
-				fprintf(stderr, "to %s\n",rokko->sn_long);
-			}
+			switch ( rec_idx ) {
 		
-			check_sndbuf( snd_buf );
-			write(rokko->client_socket,snd_buf,data_len+7);
-			//save transmit count
-			rokko->tx_cnt += data_len+7 ;
-			
-			return 0 ;
+			case REC_IDX_ADC1 :
+				rokko->adc1.time = rec_time;
+				rokko->adc1.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "ADC1 %X, %s",rokko->adc1.val,ctime((const void *)&rokko->adc1.time));
+				}
+				break;
+		
+			case REC_IDX_ADC2 :
+				rokko->adc2.time = rec_time;
+				rokko->adc2.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "ADC2 %X, %s",rokko->adc2.val,ctime((const void *)&rokko->adc2.time));
+				}
+				break;
+
+			case REC_IDX_V_TP1 :
+				rokko->v_tp1.time = rec_time;
+				rokko->v_tp1.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "v_tp1 %X, %s",rokko->v_tp1.val,ctime((const void *)&rokko->v_tp1.time));
+				}
+				break;
+
+			case REC_IDX_V_TP2 :
+				rokko->v_tp2.time = rec_time;
+				rokko->v_tp2.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "v_tp2 %X, %s",rokko->v_tp2.val,ctime((const void *)&rokko->v_tp2.time));
+				}
+				break;
+
+			case REC_IDX_V_TP3 :
+				rokko->v_tp3.time = rec_time;
+				rokko->v_tp3.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "v_tp3 %X, %s",rokko->v_tp3.val,ctime((const void *)&rokko->v_tp3.time));
+				}
+				break;
+
+			case REC_IDX_V_TP4 :
+				rokko->v_tp4.time = rec_time;
+				rokko->v_tp4.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "v_tp4 %X, %s",rokko->v_tp4.val,ctime((const void *)&rokko->v_tp4.time));
+				}
+				break;
+
+			case REC_IDX_V_TP5 :
+				rokko->v_tp5.time = rec_time;
+				rokko->v_tp5.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "v_tp5 %X, %s",rokko->v_tp5.val,ctime((const void *)&rokko->v_tp5.time));
+				}
+				break;
+
+			case REC_IDX_MCU :
+				rokko->mcu.time = rec_time;
+				rokko->mcu.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "MCU temp.: %X, %s",rokko->mcu.val,ctime((const void *)&rokko->mcu.time));
+				}
+				break;
+
+			case REC_IDX_GSM :
+				rokko->gsm.time = rec_time;
+				rokko->gsm.val  = rec_dat ;
+				if ( foreground ) {
+					fprintf(stderr, "GSM: %d, %s",rokko->gsm.val,ctime((const void *)&rokko->gsm.time));
+				}
+				break;
+
+			default:
+				fprintf(stderr,"Unknow item: %d @%d\n",rec_idx,__LINE__);
+				break;
+			}
+		}
+		fprintf(stderr,"\n");
+		
+		bzero( snd_buf, BUFSIZE);
+
+		//send respond
+		crc16++;
+		snd_buf[0] = GSM_HEAD ;
+		snd_buf[1] = cmd->seq ;
+		snd_buf[2] = cmd->pcb | 0x80 ;
+		snd_buf[3] = 0 ;//len high
+		snd_buf[4] = 2 ;//len low
+		snd_buf[5] = 0 ;//return status:0：成功
+		snd_buf[6] = 0 ;//reserved
+		
+		data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
+
+		//Calc CRC16
+		crc16 = 0xFFFF & (crc16tablefast(snd_buf , data_len+5));
+
+		snd_buf[data_len+5] = (crc16)>>8 ;
+		snd_buf[data_len+6] = (crc16)&0xFF ;
+
+		if ( foreground ) {
+			fprintf(stderr, "CMD: %c ok, reply: ",cmd->pcb);
+			for ( crc16 = 0 ; crc16 < data_len+7 ; crc16++ ) {
+				fprintf(stderr, "%02X ",snd_buf[crc16]);
+			}
+			fprintf(stderr, "to %s\n",rokko->sn_long);
+		}
+	
+		check_sndbuf( snd_buf );
+		write(rokko->client_socket,snd_buf,data_len+7);
+		//save transmit count
+		rokko->tx_cnt += data_len+7 ;
+		
+		return 0 ;
 
 	}//end of rokko->login_cnt
 	else { //need upload sn first

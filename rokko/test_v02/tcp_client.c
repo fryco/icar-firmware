@@ -11,7 +11,8 @@ unsigned int process_cnt = 0 , rokko_time ;
 unsigned long long err_cnt = 0 ;
 	
 //return 0: failure, others: buffer length
-int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned int buf_len, unsigned char seq)
+int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned int buf_len,\
+				unsigned char seq, struct gps_struct *gps)
 {
 	unsigned int OSTime ;
 	unsigned short crc16 ;
@@ -98,6 +99,51 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 		return 13;//buffer length
 		//break;
 
+	case GSM_CMD_GPS :
+		if ( debug_flag ) fprintf(stderr,"Prepare GPS data, id:%d\n",id);
+		//format: UTC+SAT(1B)+LAT(4B)+LONG(4B)+speed(1B)+status(2B)
+
+		//UTC, 4 bytes
+		buf[5] = (time(NULL)>>24)&0xFF  ;
+		buf[6] = (time(NULL)>>16)&0xFF  ;//time(NULL) high
+		buf[7] = (time(NULL)>>8)&0xFF  ;//time(NULL) low
+		buf[8] =  time(NULL)&0xFF  ;	//time(NULL) low
+
+		//SAT: fix satellite
+		buf[9] =  ((time(NULL)&0x70)>>4)+3 ;
+
+		//LAT
+		*(unsigned int *)&buf[10] = gps->lat;
+
+		//LON
+		*(unsigned int *)&buf[14] = gps->lon;
+		
+		//speed(1B)
+		buf[18]=  time(NULL)&0xBF;//random data, < 191
+
+		//status(2B)
+		//bit6~7, 定位方式: 1: 未定位，2：2D定位，3：3D定位
+		//bit5: 0, bit4: rsv
+		//bit 3: 东西经：0：东经，1：西经
+		//bit 2: 南北纬：0：南纬，1：北纬
+		//bit0~1: Track angle in degrees True, high
+		buf[19] =  0xC0 | 0x00 | 0x04 | 0x01 ;
+		
+		//Track angle in degrees True, low
+		buf[20]=  (OSTime>>8)&0xFF ;//random 
+
+		//update data length
+		buf[3]   = 0 ;//length high
+		buf[4]   = 16 ;//length low
+
+		//Calc CRC16
+		crc16 = crc16tablefast(buf , ((buf[3]<<8)|(buf[4]))+5);
+
+		buf[((buf[3]<<8)|(buf[4]))+5] = (crc16)>>8 ;
+		buf[((buf[3]<<8)|(buf[4]))+6] = (crc16)&0xFF ;
+
+		return (((buf[3]<<8)|(buf[4]))+7);//buffer length
+
 	case GSM_CMD_RECORD :
 		if ( debug_flag ) fprintf(stderr,"Prepare Record CMD, id:%d\n",id);
 		//format: UTC+Val(high 24 bits)+idx(low 8 bits)
@@ -128,18 +174,96 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 		buf[19]=  OSTime&0xFF;//random data
 		buf[20]=  REC_IDX_MCU ;
 
+		//example3: TP1 voltage
+		//simulat OSTime, 4 bytes
+		buf[21] = (OSTime>>24)&0xFF  ;//OSTime high
+		buf[22] = (OSTime>>16)&0xFF  ;//OSTime high
+		buf[23] = (OSTime>>8)&0xFF  ;//OSTime low
+		buf[24] =  OSTime&0xFF  ;//OSTime low
+
+		//val, v_tp1, /100, %100, 3.29V
+		buf[25] =  0 ;
+		buf[26]=  0x01 ;
+		buf[27]=  0x40 | (OSTime&0x0F);//random data
+		buf[28]=  REC_IDX_V_TP1 ;
+
+		//example4: TP2 voltage
+		//simulat OSTime, 4 bytes
+		buf[29] = (OSTime>>24)&0xFF  ;//OSTime high
+		buf[30] = (OSTime>>16)&0xFF  ;//OSTime high
+		buf[31] = (OSTime>>8)&0xFF  ;//OSTime low
+		buf[32] =  OSTime&0xFF  ;//OSTime low
+
+		//val, v_tp2, /100, %100, 11.80V
+		buf[33] =  0 ;
+		buf[34]=  0x04 ;
+		buf[35]=  0xA0 | (OSTime&0x0F);//random data
+		buf[36]=  REC_IDX_V_TP2 ;
+
+		//example5: TP3 voltage
+		//simulat OSTime, 4 bytes
+		buf[37] = (OSTime>>24)&0xFF  ;//OSTime high
+		buf[38] = (OSTime>>16)&0xFF  ;//OSTime high
+		buf[39] = (OSTime>>8)&0xFF  ;//OSTime low
+		buf[40] =  OSTime&0xFF  ;//OSTime low
+
+		//val, v_tp3, /100, %100, 1.78V
+		buf[41] =  0 ;
+		buf[42]=  0x00 ;
+		buf[43]=  0xB0 | (OSTime&0x0F);//random data
+		buf[44]=  REC_IDX_V_TP3 ;
+
+		//example6: TP4 voltage
+		//simulat OSTime, 4 bytes
+		buf[45] = (OSTime>>24)&0xFF  ;//OSTime high
+		buf[46] = (OSTime>>16)&0xFF  ;//OSTime high
+		buf[47] = (OSTime>>8)&0xFF  ;//OSTime low
+		buf[48] =  OSTime&0xFF  ;//OSTime low
+
+		//val, v_tp4, /100, %100, 3.87V
+		buf[49] =  0 ;
+		buf[50]=  0x01 ;
+		buf[51]=  0x70 | (OSTime&0x0F);//random data
+		buf[52]=  REC_IDX_V_TP4 ;
+
+		//example7: TP5 voltage
+		//simulat OSTime, 4 bytes
+		buf[53] = (OSTime>>24)&0xFF  ;//OSTime high
+		buf[54] = (OSTime>>16)&0xFF  ;//OSTime high
+		buf[55] = (OSTime>>8)&0xFF  ;//OSTime low
+		buf[56] =  OSTime&0xFF  ;//OSTime low
+
+		//val, v_tp5, /100, %100, 5.00V
+		buf[57] =  0 ;
+		buf[58]=  0x01 ;
+		buf[59]=  0xF0 | (OSTime&0x0F);//random data
+		buf[60]=  REC_IDX_V_TP5 ;
+
+		//example8: ADC1
+		//simulat OSTime, 4 bytes
+		buf[61] = (OSTime>>24)&0xFF  ;//OSTime high
+		buf[62] = (OSTime>>16)&0xFF  ;//OSTime high
+		buf[63] = (OSTime>>8)&0xFF  ;//OSTime low
+		buf[64] =  OSTime&0xFF  ;//OSTime low
+
+		//val, ADC1, 0x789
+		buf[65] =  0 ;
+		buf[66]=  0x07 ;
+		buf[67]=  0x89 ;
+		//buf[59]=  0xF0 | (OSTime&0x0F);//random data
+		buf[68]=  REC_IDX_ADC1 ;
+
 		//update data length
 		buf[3]   = 0 ;//length high
-		buf[4]   = 16 ;//length low
+		buf[4]   = 64 ;//length low
 
 		//Calc CRC16
 		crc16 = crc16tablefast(buf , ((buf[3]<<8)|(buf[4]))+5);
 
-		buf[21] = (crc16)>>8 ;
-		buf[22] = (crc16)&0xFF ;
+		buf[((buf[3]<<8)|(buf[4]))+5] = (crc16)>>8 ;
+		buf[((buf[3]<<8)|(buf[4]))+6] = (crc16)&0xFF ;
 
-		return 23;//buffer length
-		//break;
+		return (((buf[3]<<8)|(buf[4]))+7);//buffer length
 
 	default:
 		fprintf(stderr,"Unknow CMD! @%d\n",__LINE__);
@@ -253,12 +377,14 @@ int	main(int argc, char	*argv[])
 
 int single_connect( unsigned int simu_id ) {
 				
-	unsigned char seq=0;
+	unsigned char var_u8 , seq=0;
 	int	client_sockfd, len=0;
-	unsigned int var_int, run_cnt=0 ;
+	unsigned int run_cnt=0;
+	unsigned int lat_ori=0, lon_ori=0, lat_offset=0, lon_offset=0 ;
 	struct sockaddr_in remote_addr;	//服务器端网络地址结构体
 	unsigned char buf[BUFSIZE];  //数据传送的缓冲区
 	struct timeval timeout = {3*60,0};//3 mins
+	struct gps_struct gps;
 
 	bzero(&remote_addr, sizeof(remote_addr));
 
@@ -284,14 +410,14 @@ int single_connect( unsigned int simu_id ) {
 	if ( debug_flag ) fprintf(stderr,"connected to server: %s:%d\n\n",dest,server_port);
 	
 	//prepare login cmd, use pid as SN
-	len = format_cmd(GSM_CMD_LOGIN, getpid(), buf, BUFSIZE, seq);
+	len = format_cmd(GSM_CMD_LOGIN, getpid(), buf, BUFSIZE, seq, NULL);
 	seq++; if ( seq >= 0x80 ) seq=0;
 	if ( len ) { //prepare cmd ok
 		fprintf(stderr,"ID:%05d => %d\n",getpid(),run_cnt);
 		run_cnt++;
 
 		write(client_sockfd,buf,len);
-		if ( debug_flag ) fprintf(stderr,"--> Login CMD: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
+		if ( debug_flag ) fprintf(stderr,"--> Login CMD: %02X, Send %d Bytes\n",buf[2],buf[4]+7);
 	}
 	bzero(buf, sizeof(buf));
 	len = read(client_sockfd, buf, BUFSIZE);
@@ -309,16 +435,15 @@ int single_connect( unsigned int simu_id ) {
 	//while( 1 ) sleep(1);
 
 	while ( 1 ) {//login ok
-		if ( debug_flag ) fprintf(stderr,"<-- %d Bytes:",len);
 
 		//normal return, send err log msg
 		//DE 01 45 00 06 00 00 00 08 30 00 81 79, time+reason
-		len = format_cmd(GSM_CMD_ERROR, 0, buf, BUFSIZE, seq);
+		len = format_cmd(GSM_CMD_ERROR, 0, buf, BUFSIZE, seq, NULL);
 		seq++; if ( seq >= 0x80 ) seq=0;
 		
 		if ( len ) { //prepare cmd ok		
 			write(client_sockfd,buf,len);
-			if ( debug_flag ) fprintf(stderr,"--> Err log: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
+			if ( debug_flag ) fprintf(stderr,"--> Err log: %02X, Send %d Bytes\n",buf[2],buf[4]+7);
 		}
 		bzero(buf, sizeof(buf));
 		len = read(client_sockfd, buf, BUFSIZE);
@@ -331,12 +456,12 @@ int single_connect( unsigned int simu_id ) {
 			
 		//Send Record: vehicle parameters
 		//DE 04 52 00 08 51 1F 4C 4E 00 0C 30 1A A5 1C
-		len = format_cmd(GSM_CMD_RECORD, 0, buf, BUFSIZE, seq);
+		len = format_cmd(GSM_CMD_RECORD, 0, buf, BUFSIZE, seq, NULL);
 		seq++; if ( seq >= 0x80 ) seq=0;
 
 		if ( len ) { //prepare cmd ok		
 			write(client_sockfd,buf,len);
-			if ( debug_flag ) fprintf(stderr,"--> Record: %02X, Send %d Bytes\n",buf[2],buf[4]+6);
+			if ( debug_flag ) fprintf(stderr,"--> Record: %02X, Send %d Bytes\n",buf[2],buf[4]+7);
 		}
 		bzero(buf, sizeof(buf));
 		len = read(client_sockfd, buf, BUFSIZE);
@@ -345,8 +470,41 @@ int single_connect( unsigned int simu_id ) {
 		if ( buf[5] != 0 ) { //err
 			fprintf(stderr,"Return err: %d @ %d\n",buf[5],__LINE__);
 			return 1 ;
-		}		
+		}
 		
+		//Send GPS information
+		//DE 
+		//LAT: 22 °32.7658 ==>(22*60+32.7658)*30000=40582974=0x02 0x6B 0x3F 0x3E
+		//Use PID as seed
+		//Orginal point
+		lat_ori = ((getpid())&0x3F)*60*30000;
+		lon_ori = (((getpid())>>8)&0x3F)*60*30000;
+		
+		for ( var_u8 = 0 ; var_u8 < 10 ; var_u8++ ) {//upload 10 points each time
+			gps.lat = lat_ori + lat_offset ;	lat_offset = lat_offset + 33 ;
+			gps.lon = lon_ori + lon_offset ;	lon_offset = lon_offset + 47 ;
+			len = format_cmd(GSM_CMD_GPS, getpid(), buf, BUFSIZE, seq, &gps);
+			seq++; if ( seq >= 0x80 ) seq=0;
+	
+			if ( len ) { //prepare cmd ok		
+				write(client_sockfd,buf,len);
+				if ( debug_flag ) {
+					fprintf(stderr,"--> Record: %02X, Send %d Bytes\n--> ",buf[2],buf[4]+7);
+					for ( len = 0 ; len < buf[4]+7 ; len++ ){
+						fprintf(stderr,"%02X ",buf[len]);
+					}
+					fprintf(stderr,"\n");
+				}
+			}
+			bzero(buf, sizeof(buf));
+			len = read(client_sockfd, buf, BUFSIZE);
+			//DE 04 D2 00 02 00 00 68 46
+			if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n\n",buf[2]&0x7F,len);
+			if ( buf[5] != 0 ) { //err
+				fprintf(stderr,"Return err: %d @ %d\n",buf[5],__LINE__);
+				return 1 ;
+			}
+		}
 		sleep(1);
 	}
 

@@ -244,7 +244,7 @@ int console_list_spe( struct rokko_data *rokko, struct rokko_command * cmd,\
 {//case CONSOLE_CMD_SPE : //list special active client
 
 	unsigned char log_str[EMAIL+1];
-	unsigned char *p;
+	unsigned char *p1, *p2;
 	unsigned short var_u16, crc16, data_len;
 
 	if ( conn_amount > MAXCLIENT ) { //err
@@ -266,21 +266,35 @@ int console_list_spe( struct rokko_data *rokko, struct rokko_command * cmd,\
 				snd_buf[2] = cmd->pcb | 0x80 ;
 			
 				snd_buf[5] =  ERR_RETURN_NONE; //ok
-
+				
+				//copy from rokko.hw_rev to rokko.gps
+				p1 = (unsigned char *)&rokko_all[var_u16].hw_rev;
+				//p2 = (unsigned char *)&rokko_all[var_u16].adc1 ;
+				//data_len = p2 - p1 + sizeof(rokko_all[var_u16].adc1);
+				p2 = (unsigned char *)&rokko_all[var_u16].gps ;
+				data_len = p2 - p1 + sizeof(rokko_all[var_u16].gps);
+				//fprintf(stderr, "GPS.sat val:%X\n",rokko_all[var_u16].gps.sat_cnt);
+				
+				for ( crc16 = 0 ; crc16 < data_len ; crc16++ ) {
+					snd_buf[6+crc16] = *(p1+crc16);
+				}
+				//update len
+				data_len = data_len + 2;
+				snd_buf[3] = (data_len >> 8)&0xFF; //len high
+				snd_buf[4] = (data_len)&0xFF; //len low
+				
+				/*
+				//If change rokko_data struct sequence in rokkod.h, 
+				//need double check below content is same as above!
 				//hw_rev, fw_rev
 				*(unsigned short *)&snd_buf[6] = rokko_all[var_u16].hw_rev;
 				*(unsigned short *)&snd_buf[8] = rokko_all[var_u16].fw_rev;
 				//tx rx cnt
 				*(unsigned int *)&snd_buf[10] = rokko_all[var_u16].rx_cnt;
 				*(unsigned int *)&snd_buf[14] = rokko_all[var_u16].tx_cnt;
-				
 				//con_time
 				*(unsigned int *)&snd_buf[18] = rokko_all[var_u16].con_time;
-				
-				//update len
-				data_len = 17;				
-				snd_buf[3] = (data_len >> 8)&0xFF; //len high
-				snd_buf[4] = (data_len)&0xFF; //len low
+				*/
 				
 				//Calc CRC16
 				crc16 = 0xFFFF & (crc16tablefast(snd_buf , data_len+5));

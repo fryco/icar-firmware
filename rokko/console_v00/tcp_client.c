@@ -22,7 +22,7 @@ void decode_list_all(unsigned char *buf, unsigned int buf_len)
 	
 	fprintf(stderr,"Total %d SN\n",sn_total);
 	for ( sn_cnt = 0 ; sn_cnt < sn_total ; sn_cnt++ ) {
-		fprintf(stderr, RED "%03d:" NONE " %01X%02X %02X%02X %02X%02X %02X%02X\t  ",sn_cnt+1,\
+		fprintf(stderr, RED "%03d:" NONE " %01X%02X%02X%02X%02X%02X%02X%02X\t  ",sn_cnt+1,\
 							buf[sn_cnt*8+8],buf[sn_cnt*8+9],\
 							buf[sn_cnt*8+10],buf[sn_cnt*8+11],\
 							buf[sn_cnt*8+12],buf[sn_cnt*8+13],\
@@ -36,13 +36,53 @@ void decode_list_all(unsigned char *buf, unsigned int buf_len)
 
 void decode_list_spe(unsigned char *buf, unsigned int buf_len)
 {	
-	time_t login_time;
-	
-	login_time = *(unsigned int *)&buf[18];
+	//If change rokko_data struct sequence in rokkod.h, 
+	//need to change below offset
+
+	unsigned int gps , degree, minute, second;
 	
 	fprintf(stderr,"HW rev %X, FW rev %X\n",*(unsigned short *)&buf[6],*(unsigned short *)&buf[8]);
-	fprintf(stderr,"TX %X B, RX %X B\n",*(unsigned short *)&buf[10],*(unsigned int *)&buf[14]);
-	fprintf(stderr,"Login time: %s\n",(char *)ctime(&login_time));	
+	fprintf(stderr,"TX %d B, RX %d B\n",*(unsigned int *)&buf[10],*(unsigned int *)&buf[14]);
+	fprintf(stderr,"Login time: %s\n",(char *)ctime((void*)&(*(unsigned int *)&buf[18])));	
+	
+	//Record information
+	fprintf(stderr,"ADC1: %X, %s\n",*(unsigned int *)&buf[26],(char *)ctime((void*)&(*(unsigned int *)&buf[22])));
+	fprintf(stderr,"ADC2: %X, %s\n",*(unsigned int *)&buf[34],(char *)ctime((void*)&(*(unsigned int *)&buf[30])));
+	fprintf(stderr,"ADC3: %X, %s\n",*(unsigned int *)&buf[42],(char *)ctime((void*)&(*(unsigned int *)&buf[38])));
+	fprintf(stderr,"ADC4: %X, %s\n",*(unsigned int *)&buf[50],(char *)ctime((void*)&(*(unsigned int *)&buf[46])));
+	fprintf(stderr,"ADC5: %X, %s\n",*(unsigned int *)&buf[58],(char *)ctime((void*)&(*(unsigned int *)&buf[54])));
+	
+	fprintf(stderr,"TP1: %X, %s\n",*(unsigned int *)&buf[66],(char *)ctime((void*)&(*(unsigned int *)&buf[62])));
+	fprintf(stderr,"TP2: %X, %s\n",*(unsigned int *)&buf[74],(char *)ctime((void*)&(*(unsigned int *)&buf[70])));
+	fprintf(stderr,"TP3: %X, %s\n",*(unsigned int *)&buf[82],(char *)ctime((void*)&(*(unsigned int *)&buf[78])));
+	fprintf(stderr,"TP4: %X, %s\n",*(unsigned int *)&buf[90],(char *)ctime((void*)&(*(unsigned int *)&buf[86])));
+	fprintf(stderr,"TP5: %X, %s\n",*(unsigned int *)&buf[98],(char *)ctime((void*)&(*(unsigned int *)&buf[94])));
+	fprintf(stderr,"TP6: %X, %s\n",*(unsigned int *)&buf[106],(char *)ctime((void*)&(*(unsigned int *)&buf[102])));
+	fprintf(stderr,"TP7: %X, %s\n",*(unsigned int *)&buf[114],(char *)ctime((void*)&(*(unsigned int *)&buf[110])));
+	fprintf(stderr,"TP8: %X, %s\n",*(unsigned int *)&buf[122],(char *)ctime((void*)&(*(unsigned int *)&buf[118])));
+	fprintf(stderr,"TP9: %X, %s\n",*(unsigned int *)&buf[130],(char *)ctime((void*)&(*(unsigned int *)&buf[126])));
+	fprintf(stderr,"TP10: %X, %s\n",*(unsigned int *)&buf[138],(char *)ctime((void*)&(*(unsigned int *)&buf[134])));
+	
+	fprintf(stderr,"MCU: %X, %s\n",*(unsigned int *)&buf[146],(char *)ctime((void*)&(*(unsigned int *)&buf[142])));
+	fprintf(stderr,"GSM: %d, %s\n",*(unsigned int *)&buf[154],(char *)ctime((void*)&(*(unsigned int *)&buf[150])));
+
+	//GPS:
+	fprintf(stderr,"GPS time: %s\n",(char *)ctime((void*)&(*(unsigned int *)&buf[158])));
+	gps = *(unsigned int *)&buf[162];
+	degree = gps/(60*30000);
+	minute = (gps - degree*60*30000)/30000;
+	second = (gps - degree*60*30000 - minute*30000)/3;
+	fprintf(stderr, "GPS LAT:%d'%d.%d\" ",degree,minute,second);
+
+	gps = *(unsigned int *)&buf[166];
+	degree = gps/(60*30000);
+	minute = (gps - degree*60*30000)/30000;
+	second = (gps - degree*60*30000 - minute*30000)/3;
+	fprintf(stderr, "LON: %d'%d.%d\"\r\n",degree,minute,second);
+	
+	fprintf(stderr, "Satellite: %d, Speed: %d, ",*(unsigned char *)&buf[170],*(unsigned char *)&buf[171]);
+	fprintf(stderr, "Status: %X\r\n",*(unsigned short *)&buf[172]);
+	
 	return ;
 }
 
@@ -83,8 +123,8 @@ int format_cmd( unsigned char cmd, unsigned char *serial_number, \
 		//Product HW rev, FW rev
 		buf[19] =  0xFA  ;//hw revision, 1 byte
 		buf[20] =  0xFA  ;//reverse
-		buf[21] =  0xAF  ;//FW rev. high
-		buf[22] =  0xAF  ;//FW rev. low
+		buf[21] =  0x12  ;//FW rev. high
+		buf[22] =  0x34  ;//FW rev. low
 
 		//Local IP
 		snprintf(&buf[23],10,"127.0.0.1");
