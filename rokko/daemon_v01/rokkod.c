@@ -811,6 +811,12 @@ unsigned char daemon_server(struct rokko_data *rokko, unsigned char *recv_buf, u
 						buf_index = buf_index + cmd.len ;//update index
 						break;
 
+					case GSM_CMD_GPS: //0x47,'G' upload GPS information to server
+						rec_cmd_gps( rokko,&cmd,\
+							recv_buf+buf_index, send_buf );
+						buf_index = buf_index + cmd.len ;//update index
+						break;
+
 					//DE 6A 4C 00 1D 00 04 19 DA 44 45 4D 4F 44 41 33 30 42 
 					//32 00 00 00 0D 31 30 2E 31 31 31 2E 32 36 2E 36 75 5C
 					case GSM_CMD_LOGIN: //0x4C, 'L', Login to server

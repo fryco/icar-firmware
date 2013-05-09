@@ -62,6 +62,7 @@
 //For GSM <==> Server protocol, need to same as STM32 firmware define
 #define GSM_HEAD				0xDE
 #define GSM_CMD_CONSOLE			0x43 //'C', Console command
+#define GSM_CMD_GPS				0x47 //'G', upload GPS information to server
 #define GSM_CMD_ERROR			0x45 //'E', Upload err log
 #define GSM_CMD_LOGIN			0x4C //'L', Login
 #define GSM_CMD_RECORD			0x52 //'R', record gsm/adc data
@@ -89,6 +90,20 @@
 #define ERR_RETURN_LOGIN_CNT	7	//login count too many
 #define ERR_RETURN_NO_SN		8	//No serial number
 #define ERR_UNKNOW				0xFF//Î´Öª´íÎó
+
+//record index define, need same as client main.h define
+#define REC_IDX_ADC1				10 //for ADC1
+#define REC_IDX_ADC2				20 //for ADC2
+#define REC_IDX_ADC3				30 //for ADC3
+#define REC_IDX_ADC4				40 //for ADC4
+#define REC_IDX_ADC5				50 //for ADC5
+#define REC_IDX_MCU					60 //for MCU temperature
+#define REC_IDX_V_TP1				70 //for Vol TP1
+#define REC_IDX_V_TP2				72 //for Vol TP2
+#define REC_IDX_V_TP3				74 //for Vol TP3
+#define REC_IDX_V_TP4				76 //for Vol TP4
+#define REC_IDX_V_TP5				78 //for Vol TP5
+#define REC_IDX_GSM					90 //for GSM signal
 
 //For post cloud
 //Need to define below Forum id in cloud server
