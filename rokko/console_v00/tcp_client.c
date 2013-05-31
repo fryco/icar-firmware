@@ -357,7 +357,7 @@ int	main(int argc, char	*argv[])
 	unsigned char dest_sn[]={0x01, 0x23, 0x45, 0x67, 0x89, 0x01, 0x23, 0x45};
 	//unsigned char dest_sn[]={0x00, 0x98, 0x76, 0x54, 0x32, 0x10, 0x12, 0x34};
 	unsigned char input_sn[PRODUCT_SN_LEN*2], var_u8;
-	unsigned short var_short, len;
+	unsigned short var_short, len, sn_total;
 	unsigned int usecs=10000;
 	char mail_body[EMAIL*2];
 	time_t last_time, server_time;
@@ -603,21 +603,33 @@ int	main(int argc, char	*argv[])
 					exit(1);
 				}
 
-				if ( buf[5] != 0 ) { //return err
+				sn_total = buf[6]<<8 | buf[7] ;
+			    if ( sn_total*8 > len ) {//err, not enough buf length
 					bzero(mail_body, sizeof(mail_body));
-					for ( var_short = 0 ; var_short < 8 ; var_short++ ) {
-						snprintf(&mail_body[var_short*3],4,"%02X ",buf[var_short]);
-					}
-					snprintf(&mail_body[var_short*3],sizeof(mail_body)-var_short*3,\
-							"\nCMD return err: %d at %s\r\n",\
-							buf[5], (char *)ctime(&last_time));	
+
+                    snprintf(mail_body,sizeof(mail_body),\
+                            "CMD return len:%d, Client: %d at %s\r\n",\
+                            len,sn_total,(char *)ctime(&last_time));
 					send_notice( mail_body );
 					fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
-					//exit(1);
 				}
 				else {
-					fprintf(stderr,"Rec : %d @ %d\n",len,__LINE__);
-					decode_list_all(buf, len);
+					if ( buf[5] != 0 ) { //return err
+						bzero(mail_body, sizeof(mail_body));
+						for ( var_short = 0 ; var_short < 8 ; var_short++ ) {
+							snprintf(&mail_body[var_short*3],4,"%02X ",buf[var_short]);
+						}
+						snprintf(&mail_body[var_short*3],sizeof(mail_body)-var_short*3,\
+								"\nCMD return len:%d, err: %d at %s\r\n",\
+								len,buf[5], (char *)ctime(&last_time));	
+						send_notice( mail_body );
+						fprintf(stderr,"%s @ %d Exit!\n",mail_body,__LINE__);
+						//exit(1);
+					}
+					else {
+						fprintf(stderr,"Rec : %d @ %d\n",len,__LINE__);
+						decode_list_all(buf, len);
+					}
 				}
 			}
 			else {
