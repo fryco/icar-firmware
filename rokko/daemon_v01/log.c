@@ -31,7 +31,7 @@ unsigned char log_init( char* path )
 
 	if(!(d = opendir(logdir))){
 		//try to create dir
-		if ( mkdir(logdir, 0600) ) { //failure
+		if ( mkdir(logdir, 0666) ) { //failure
 			perror("Open dir error!");
 			fprintf(stderr, "dir:%s %s:%d\n",logdir,__FILE__,__LINE__);
 			return -1;
