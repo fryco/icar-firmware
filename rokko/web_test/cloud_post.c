@@ -10,17 +10,22 @@ int foreground = 1;
 int cloud_tcpclient_create(cloud_tcpclient *pclient,const char *host, int port){
 
 	struct hostent *he;
+	char **pptr;
 
 	if(pclient == NULL) return 1;
 	memset(pclient,0,sizeof(cloud_tcpclient));
 
 	if((he = gethostbyname(host))==NULL){
+		fprintf(stderr,"gethostbyname error for host:%s\n", host);
 		return 2;
 	}
 
-	pclient->remote_port = port;
-	strcpy(pclient->remote_ip,(unsigned char * )inet_ntoa( *((struct in_addr *)he->h_addr) ));
+	// show all the alias name
+	for(pptr = he->h_aliases; *pptr != NULL; pptr++) {
+		fprintf(stderr, "Alias:%s\n",*pptr);
+	}
 
+	pclient->remote_port = port;
 	pclient->_addr.sin_family = AF_INET;
 	pclient->_addr.sin_port = htons(pclient->remote_port);
 	pclient->_addr.sin_addr = *((struct in_addr *)he->h_addr);
@@ -106,12 +111,14 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 	sprintf(host,"HOST: %s:%d\r\n",remote_host,pclient->remote_port);
 	sprintf(content_len,"Content-Length: %d\r\n\r\n",strlen(request));
 
-	len = strlen(post)+strlen(host)+strlen(header2)+strlen(content_len)+strlen(request);
+	len = strlen(post)+strlen(host)+strlen(header2)+strlen(content_len)+strlen(request)+2;
 	lpbuf = (char*)malloc(len);
 	if(lpbuf==NULL){
 		return -1;
 	}
-
+	//fprintf(stderr,"Apply %d buf ok.\n",len);
+	bzero( lpbuf, len);
+	
 	strcpy(lpbuf,post);
 	strcat(lpbuf,host);
 	strcat(lpbuf,header2);
@@ -157,14 +164,14 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 	}
 	ptmp += 4;/*跳过\r\n*/
 
-	len = strlen(ptmp);
+	len = strlen(ptmp)+2;
 	*response=(char*)malloc(len);
 	if(*response == NULL){
 		if(lpbuf) free(lpbuf);
 		return -1;
 	}
 	memset(*response,0,len);
-	memcpy(*response,ptmp,len-1);
+	memcpy(*response,ptmp,len);
 
 	/*从头域找到内容长度,如果没有找到则不处理*/
 	ptmp = (char*)strstr(lpbuf,"Content-Length:");
@@ -188,7 +195,7 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 int cloud_post( char *remote_host, char *request, int port )
 {  
 	cloud_tcpclient client;
-
+	int ret;
 	char *response = NULL;	
 
 	cloud_tcpclient_create(&client,remote_host,port);
@@ -198,12 +205,13 @@ int cloud_post( char *remote_host, char *request, int port )
 		return 1;
 	}
 
+	ret = strncmp(response,"1000",4);
 	if ( foreground ) {
-		fprintf(stderr,"\nReturn: %s\n",response);
+		fprintf(stderr,"\nReturn: %s\t%d\n",response,ret);
 	}
-
+	
 	free(response);
-	return 0;
+	return ret;
 }
 
 //http://yun.test.33xuexi.com/service/equipment/?sn=1111&password=123456&..
@@ -211,7 +219,9 @@ int cloud_post( char *remote_host, char *request, int port )
 int main(int argc, char *argv[]) {
 	
 	unsigned char post_buf[BUFSIZE], host_info[BUFSIZE], logtime[EMAIL];
+	unsigned int i;
 	struct timeval log_tv;
+	unsigned int usecs=100000;
 
 	bzero( post_buf, sizeof(post_buf));bzero( host_info, sizeof(host_info));
 
@@ -219,9 +229,18 @@ int main(int argc, char *argv[]) {
 	gettimeofday(&log_tv,NULL);
 	strftime(logtime,EMAIL,"%Y-%m-%d %T",(const void *)localtime(&log_tv.tv_sec));
 
-	snprintf(post_buf,BUFSIZE,"?sn=1111&password=123456");
-
-	//post to cloud
-	cloud_post( CLOUD_HOST, post_buf, 80 );
-	exit( 0 );
+	//模拟终端序列号：9977553311 (10位固定前续) + xxxxx (5位随机数)
+	for ( i = 740 ; i < 100000 ; i++ ) {
+		snprintf(post_buf,BUFSIZE,"sn=9977553311%05u&password=123456\r\n",i);
+		//snprintf(post_buf,BUFSIZE,"sn=259&password=123456");
+		//post to cloud
+		if ( cloud_post( CLOUD_HOST, post_buf, 80 ) != 0 ) {//error
+			fprintf(stderr,"%s\nErr, exit.\n",post_buf);
+			//exit( 0 );
+			usleep(usecs*3);
+		}
+		usleep(usecs);
 	}
+
+	exit( 0 );
+}
