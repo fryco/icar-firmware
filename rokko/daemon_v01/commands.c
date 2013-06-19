@@ -435,7 +435,8 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 {//case GSM_CMD_GPS: //0x47, 'G' GPS information
 
 	unsigned short crc16, data_len;
-	unsigned int degree, minute, second;
+	unsigned int lat_degree, lat_minute, lat_second;
+	unsigned int lon_degree, lon_minute, lon_second;
 	//DE 3C 47 00 10 51 8B 49 CF 05 E4 32 2E 01 A4 BB 12 01 8F C5 00 AD 94
 	//Head SEQ PCB Len(2B)
 	//51 8B 49 CF 	==> UTC
@@ -458,19 +459,39 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 		rokko->gps.status= (rec_buf[19]<<8) | rec_buf[20];
 
 		if ( foreground ) {
-			degree = (rokko->gps.lat)/(60*30000);
-			minute = ((rokko->gps.lat) - degree*60*30000)/30000;
-			second = ((rokko->gps.lat) - degree*60*30000 - minute*30000)/3;
-			fprintf(stderr, "GPS data len:%d, LAT:%d'%d.%d\" ",data_len,degree,minute,second);
+			lat_degree = (rokko->gps.lat)/(60*30000);
+			lat_minute = ((rokko->gps.lat) - lat_degree*60*30000)/30000;
+			lat_second = ((rokko->gps.lat) - lat_degree*60*30000 - lat_minute*30000)/3;
+			fprintf(stderr, "%d: GPS data len:%d, LAT:%d'%d.%d\" ",rokko->gps.time,data_len,lat_degree,lat_minute,lat_second);
 
-			degree = (rokko->gps.lon)/(60*30000);
-			minute = ((rokko->gps.lon) - degree*60*30000)/30000;
-			second = ((rokko->gps.lon) - degree*60*30000 - minute*30000)/3;
-			fprintf(stderr, "LON: %d'%d.%d\"  ",degree,minute,second);
+			lon_degree = (rokko->gps.lon)/(60*30000);
+			lon_minute = ((rokko->gps.lon) - lon_degree*60*30000)/30000;
+			lon_second = ((rokko->gps.lon) - lon_degree*60*30000 - lon_minute*30000)/3;
+			fprintf(stderr, "LON: %d'%d.%d\"  ",lon_degree,lon_minute,lon_second);
 			
 			fprintf(stderr, "Speed: %d, Sat: %d\r\n",rokko->gps.speed,rokko->gps.sat_cnt);
 		}
 		
+		//Create new process (non-block) for cloud post
+		if (fork() == 0) { //In child process
+			unsigned char post_buf[BUFSIZE];
+
+			//sn=997755331158990&Longitude=22&Latitude=44&voltage=11.5
+			snprintf(post_buf,BUFSIZE,"sn=997755331160687&Longitude=%d%d.%d&Latitude=%d%d.%d&voltage=11.3",\
+										lon_degree,lon_minute,lon_second,\
+										lat_degree,lat_minute,lat_second);
+
+			fprintf(stderr,"Post: %s\nErr, check %s:%d\n",post_buf,__FILE__,__LINE__);
+			//post to cloud
+			if ( cloud_post( CLOUD_HOST, post_buf, 80 ) != 0 ) {//error
+				fprintf(stderr,"Post: %s\nErr, check %s:%d\n",post_buf,__FILE__,__LINE__);
+				//exit( 0 );
+			}
+
+			//cloud_post( log_host, &post_buf, 86 );
+			exit( 0 );
+		}
+
 		bzero( snd_buf, BUFSIZE);
 
 		//send respond

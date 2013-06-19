@@ -504,6 +504,7 @@ int single_connect( unsigned int simu_id ) {
 				fprintf(stderr,"Return err: %d @ %d\n",buf[5],__LINE__);
 				return 1 ;
 			}
+			sleep(1);
 		}
 		sleep(1);
 	}

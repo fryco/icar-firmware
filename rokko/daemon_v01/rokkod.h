@@ -32,7 +32,7 @@ struct gps_struct { //don't change sequence
 	//bit0~1: Track angle in degrees True, high
 };
 
-struct rokko_db {
+struct db_struct {
 	//database
 	MYSQL mysql;
 	unsigned char * db_host;
