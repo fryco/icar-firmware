@@ -15,6 +15,7 @@ int cloud_tcpclient_create(cloud_tcpclient *pclient,const char *host, int port){
 	if(pclient == NULL) return 1;
 	memset(pclient,0,sizeof(cloud_tcpclient));
 
+/*
 	if((he = gethostbyname(host))==NULL){
 		fprintf(stderr,"gethostbyname error for host:%s\n", host);
 		return 2;
@@ -24,11 +25,12 @@ int cloud_tcpclient_create(cloud_tcpclient *pclient,const char *host, int port){
 	for(pptr = he->h_aliases; *pptr != NULL; pptr++) {
 		fprintf(stderr, "Alias:%s\n",*pptr);
 	}
-
+*/
 	pclient->remote_port = port;
 	pclient->_addr.sin_family = AF_INET;
 	pclient->_addr.sin_port = htons(pclient->remote_port);
-	pclient->_addr.sin_addr = *((struct in_addr *)he->h_addr);
+	//pclient->_addr.sin_addr = *((struct in_addr *)he->h_addr);
+	pclient->_addr.sin_addr.s_addr = inet_addr( "42.121.6.226" );
 
 	if((pclient->socket = socket(AF_INET,SOCK_STREAM,0))==-1){
 		return 3;
@@ -86,6 +88,7 @@ int cloud_tcpclient_send(cloud_tcpclient *pclient,char *buff,int size){
 	while(sent < size){
 		tmpres = send(pclient->socket,buff+sent,size-sent,0);
 		if(tmpres == -1){
+			fprintf(stderr,"Send buf failure! return: %d @ %d\n",tmpres,__LINE__);
 			return -1;
 		}
 		sent += tmpres;
@@ -114,9 +117,9 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 	len = strlen(post)+strlen(host)+strlen(header2)+strlen(content_len)+strlen(request)+2;
 	lpbuf = (char*)malloc(len);
 	if(lpbuf==NULL){
+		fprintf(stderr,"Apply %d buf @ %d Failure!\n",len,__LINE__);
 		return -1;
 	}
-	//fprintf(stderr,"Apply %d buf ok.\n",len);
 	bzero( lpbuf, len);
 	
 	strcpy(lpbuf,post);
@@ -130,6 +133,7 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 	}
 
 	if(cloud_tcpclient_send(pclient,lpbuf,len)<0){
+		fprintf(stderr,"Send %d buf @ %d Failure!\n",len,__LINE__);
 		return -1;
 	}
 	fprintf(stderr,"Send req:\n%s\n",lpbuf);
@@ -141,6 +145,7 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 	/*it's time to recv from server*/
 	if(cloud_tcpclient_recv(pclient,&lpbuf,0) <= 0){
 		if(lpbuf) free(lpbuf);
+		fprintf(stderr,"Rec buf @ %d Failure!\n",__LINE__);
 		return -2;
 	}
 
@@ -160,6 +165,7 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 	ptmp = (char*)strstr(lpbuf,"\r\n\r\n");
 	if(ptmp == NULL){
 		free(lpbuf);
+		fprintf(stderr,"Free buf @ %d Failure!\n",len,__LINE__);
 		return -3;
 	}
 	ptmp += 4;/*跳过\r\n*/
@@ -221,7 +227,7 @@ int main(int argc, char *argv[]) {
 	unsigned char post_buf[BUFSIZE], host_info[BUFSIZE], logtime[EMAIL];
 	unsigned int i;
 	struct timeval log_tv;
-	unsigned int usecs=100000;
+	unsigned int usecs=50000;
 
 	bzero( post_buf, sizeof(post_buf));bzero( host_info, sizeof(host_info));
 
@@ -230,14 +236,23 @@ int main(int argc, char *argv[]) {
 	strftime(logtime,EMAIL,"%Y-%m-%d %T",(const void *)localtime(&log_tv.tv_sec));
 
 	//模拟终端序列号：9977553311 (10位固定前续) + xxxxx (5位随机数)
-	for ( i = 740 ; i < 100000 ; i++ ) {
+	//470 ==> 10726
+	//10726 ==> 15722
+	//15722 ==> 20718
+	//20718 ==> 25714
+	//25714 ==> 30710
+	//30710 ==> 35706
+	//40702 ==> 45698
+	//45698 ==> 50694
+	//50694 ==> 55690
+	for ( i = 55691 ; i < 100000 ; i++ ) {
 		snprintf(post_buf,BUFSIZE,"sn=9977553311%05u&password=123456\r\n",i);
 		//snprintf(post_buf,BUFSIZE,"sn=259&password=123456");
 		//post to cloud
 		if ( cloud_post( CLOUD_HOST, post_buf, 80 ) != 0 ) {//error
 			fprintf(stderr,"%s\nErr, exit.\n",post_buf);
 			//exit( 0 );
-			usleep(usecs*3);
+			usleep(usecs*60);
 		}
 		usleep(usecs);
 	}

@@ -116,6 +116,13 @@
 //'42' ==> Upgrade firmware / Update parameter
 //'43' ==> Server
 
-#define	CLOUD_HOST				"cn0086.info"
+//#define	CLOUD_HOST				"cn0086.info"
+#define	CLOUD_HOST				"yun.test.33xuexi.com"
+
+//For database
+#define	DB_HOST					"localhost"
+#define	DB_NAME					"rokko_v00"
+#define	DB_USER					"root"
+#define	DB_PWD					"cn0086"
 
 #endif /* _CONFIG_H */

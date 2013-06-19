@@ -25,6 +25,7 @@
 static unsigned int mail_timer, db_timer;
 unsigned int  listen_port=23, daemon_time;//record daemon run time
 unsigned char foreground=0;
+struct db_struct rokko_db;
 
 static int sock_server = -1;
 static struct sockaddr_in server_addr;
@@ -118,7 +119,6 @@ int main(int argc, char *argv[])
 	}
 
 	/* Main program, create log file first */
-
 	snprintf(msg,sizeof(msg),"==> Start rokko daemon, PID: %d, port: %d\n",getpid(),listen_port);
 	log_save(msg, FORCE_SAVE_FILE );
 	
@@ -137,12 +137,17 @@ int main(int argc, char *argv[])
 	maxsock = sock_server;
 	//unsigned int idle_timer = time(NULL) ;
 
-	unsigned char up_buf[EMAIL];
-	while ( 0 ) {
-		i++;
-		ticks2time(i, up_buf, sizeof(up_buf));
-		fprintf(stderr, "i=%u\t %s",i,up_buf); 
-		sleep(1);
+	//initial database, connect mysql
+	rokko_db.db_host = DB_HOST ;
+	rokko_db.db_name = DB_NAME ;
+	rokko_db.db_user = DB_USER ;
+	rokko_db.db_pwd =  DB_PWD ;
+	
+	if(db_connect(&rokko_db))	{//failure
+		fprintf(stderr,  "Database no ready, exit.\n");
+		fprintf(stderr,  "Check: 1, Have installed mysql?\n");
+		fprintf(stderr,  "       2, host, user, password, database are correct?\n");
+		exit(1);
 	}
 
 	loop_timer = time(NULL) ;

@@ -106,7 +106,7 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 	sprintf(host,"HOST: %s:%d\r\n",remote_host,pclient->remote_port);
 	sprintf(content_len,"Content-Length: %d\r\n\r\n",strlen(request));
 
-	len = strlen(post)+strlen(host)+strlen(header2)+strlen(content_len)+strlen(request)+1;
+	len = strlen(post)+strlen(host)+strlen(header2)+strlen(content_len)+strlen(request)+2;
 	lpbuf = (char*)malloc(len);
 	if(lpbuf==NULL){
 		return -1;
@@ -125,7 +125,7 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 	if(cloud_tcpclient_send(pclient,lpbuf,len)<0){
 		return -1;
 	}
-	//fprintf(stderr,"Send req:\n%s\n",lpbuf);
+	fprintf(stderr,"Send req:\n%s\n",lpbuf);
 
 	/*释放内存*/
 	if(lpbuf != NULL) free(lpbuf);
@@ -137,7 +137,7 @@ int http_post(cloud_tcpclient *pclient,const char *remote_host, char *page,char 
 		return -2;
 	}
 
-	//fprintf(stderr,"Rec respond:\n%s\n",lpbuf);
+	fprintf(stderr,"Rec respond:\n%s\n",lpbuf);
 
 	/*响应代码,|HTTP/1.0 200 OK|
 	 *从第10个字符开始,第3位
@@ -191,17 +191,17 @@ int cloud_post( char *remote_host, char *request, int port )
 
 	char *response = NULL;
 
-	return 0; //for test only
+	//return 0; //for test only
 	
 	cloud_tcpclient_create(&client,remote_host,port);
 
-	if(http_post(&client,remote_host,"/cn0086_bbs/mach_post.php",request,&response)){
+	if(http_post(&client,remote_host,"service/state/?",request,&response)){
 		fprintf(stderr,"Error! check %s:%d\n",__FILE__, __LINE__);
 		return 1;
 	}
 
 	if ( foreground ) {
-		;//fprintf(stderr,"Cloud Res: %s\n",response);
+		fprintf(stderr,"Cloud Res: %s\n",response);
 	}
 
 	free(response);
