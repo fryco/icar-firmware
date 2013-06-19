@@ -1,10 +1,10 @@
 /**
   ******************************************************************************
   * SVN revision information:
-  * @file    $URL: https://icar-firmware.googlecode.com/svn/rokko/daemon_v01/cloud_post.h $ 
-  * @version $Rev: 355 $
-  * @author  $Author: cn0086.info@gmail.com $
-  * @date    $Date: 2013-04-10 18:43:02 +0800 (Wed, 10 Apr 2013) $
+  * @file    $URL$ 
+  * @version $Rev$
+  * @author  $Author$
+  * @date    $Date$
   * @brief   This file is for cloud_post
   ******************************************************************************
   */ 

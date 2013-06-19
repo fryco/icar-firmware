@@ -1,5 +1,5 @@
-//$URL: https://icar-firmware.googlecode.com/svn/rokko/daemon_v01/cloud_post.c $ 
-//$Rev: 355 $, $Date: 2013-04-10 18:43:02 +0800 (Wed, 10 Apr 2013) $
+//$URL$ 
+//$Rev$, $Date$
 
 #include "config.h"
 #include "cloud_post.h"

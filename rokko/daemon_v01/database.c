@@ -1,5 +1,5 @@
-//$URL: https://icar-firmware.googlecode.com/svn/rokko/daemon_v01/console.c $ 
-//$Rev: 364 $, $Date: 2013-05-09 19:20:16 +0800 (Thu, 09 May 2013) $
+//$URL$ 
+//$Rev$, $Date$
 
 #include "config.h"
 #include "rokkod.h"
