@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
 	rokko_db.db_user = DB_USER ;
 	rokko_db.db_pwd =  DB_PWD ;
 	
-	if(db_connect(&rokko_db))	{//failure
+	if ( db_check(&rokko_db) ) {//no ready
 		fprintf(stderr,  "Database no ready, exit.\n");
 		fprintf(stderr,  "Check: 1, Have installed mysql?\n");
 		fprintf(stderr,  "       2, host, user, password, database are correct?\n");
@@ -511,7 +511,10 @@ void handler(int s)
 	if(pidfile[0]) {
 		unlink(pidfile);
 	}
-
+	
+	//Close mysql
+	mysql_close(&rokko_db.mysql);
+	
 	log_save("==> Exit.\n", FORCE_SAVE_FILE );
 	
 	exit(0);

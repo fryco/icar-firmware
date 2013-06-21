@@ -8,6 +8,7 @@
 #include "rokkod.h"
 
 extern unsigned int foreground;
+extern struct db_struct rokko_db;
 
 //Forum id:
 //'36' ==> Machine
@@ -434,6 +435,9 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 				unsigned char *rec_buf, unsigned char *snd_buf )
 {//case GSM_CMD_GPS: //0x47, 'G' GPS information
 
+	char sql_buf[BUFSIZE];
+	MYSQL_RES *res_ptr;
+	
 	unsigned short crc16, data_len;
 	unsigned int lat_degree, lat_minute, lat_second;
 	unsigned int lon_degree, lon_minute, lon_second;
@@ -441,8 +445,8 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 	//Head SEQ PCB Len(2B)
 	//51 8B 49 CF 	==> UTC
 	//05			==> satellite 
-	//E4 32 2E 01	==> Latitude
-	//A4 BB 12 01	==> Longitude
+	//E4 32 2E 01	==> Latitude  Î³¶È
+	//A4 BB 12 01	==> Longitude ¾­¶È
 	//8F			==> Speed
 	//C5 00			==> status
 		
@@ -472,12 +476,70 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 			fprintf(stderr, "Speed: %d, Sat: %d\r\n",rokko->gps.speed,rokko->gps.sat_cnt);
 		}
 		
+		//Insert to database: rokko_gps
+		snprintf(sql_buf,BUFSIZE,"insert into rokko_gps values ( '',\
+									'%s',\
+									'%d',\
+									'%u',\
+									'N',\
+									'%u',\
+									'E',\
+									'%d',\
+									'%d');",\
+									rokko->sn_long,\
+									time(NULL),\
+									rokko->gps.lat,\
+									rokko->gps.lon,\
+									rokko->gps.speed,\
+									rokko->gps.status\
+									);
+
+		//prevent error: 2014
+		res_ptr=mysql_store_result(&(rokko_db.mysql));
+		mysql_free_result(res_ptr);
+
+		if ( mysql_query(&(rokko_db.mysql),sql_buf)) {//error
+			fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
+							mysql_errno(&(rokko_db.mysql)),mysql_error(&(rokko_db.mysql)));
+			fprintf(stderr, "mysql.thread_id : %d\n",rokko_db.mysql.thread_id);
+			//return 1;
+		}
+
+		//Insert to database: rokko_gps2
+		snprintf(sql_buf,BUFSIZE,"insert into rokko_gps2 values ( '',\
+									'%s',\
+									'%d',\
+									'%d%d.%d',\
+									'N',\
+									'%d%d.%d',\
+									'E',\
+									'%d',\
+									'%d');",\
+									rokko->sn_long,\
+									time(NULL),\
+									lat_degree,lat_minute,lat_second,\
+									lon_degree,lon_minute,lon_second,\
+									rokko->gps.speed,\
+									rokko->gps.status\
+									);
+
+		//prevent error: 2014
+		res_ptr=mysql_store_result(&(rokko_db.mysql));
+		mysql_free_result(res_ptr);
+
+		if ( mysql_query(&(rokko_db.mysql),sql_buf)) {//error
+			fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
+							mysql_errno(&(rokko_db.mysql)),mysql_error(&(rokko_db.mysql)));
+			fprintf(stderr, "mysql.thread_id : %d\n",rokko_db.mysql.thread_id);
+			//return 1;
+		}
+
 		//Create new process (non-block) for cloud post
 		if (fork() == 0) { //In child process
 			unsigned char post_buf[BUFSIZE];
 
 			//sn=997755331158990&Longitude=22&Latitude=44&voltage=11.5
-			snprintf(post_buf,BUFSIZE,"sn=997755331160687&Longitude=%d%d.%d&Latitude=%d%d.%d&voltage=11.3",\
+			snprintf(post_buf,BUFSIZE,"sn=997755331160687&longitude=%d%d.%d&latitude=%d%d.%d&voltage=11.3",\
 										lon_degree,lon_minute,lon_second,\
 										lat_degree,lat_minute,lat_second);
 
