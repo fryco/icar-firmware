@@ -509,9 +509,9 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 		snprintf(sql_buf,BUFSIZE,"insert into rokko_gps2 values ( '',\
 									'%s',\
 									'%d',\
-									'%d%d.%d',\
+									'%02d%02d.%04d',\
 									'N',\
-									'%d%d.%d',\
+									'%03d%02d.%04d',\
 									'E',\
 									'%d',\
 									'%d');",\
