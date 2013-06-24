@@ -523,6 +523,7 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 									rokko->gps.status\
 									);
 
+fprintf(stderr,"%s\n",sql_buf);
 		//prevent error: 2014
 		res_ptr=mysql_store_result(&(rokko_db.mysql));
 		mysql_free_result(res_ptr);
