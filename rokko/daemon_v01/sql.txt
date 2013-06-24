@@ -1,0 +1,20 @@
+SHOW DATABASES;
+
+use rokko_v00;
+
+SHOW TABLE STATUS;
+
+create table rokko_gps4( `gps_id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,`IMEI` varchar(20) NOT NULL COMMENT 'Product serial numble', `updated` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',`latitude` decimal(8,4) NOT NULL,`S_N` enum('S', 'N') NOT NULL COMMENT 'South or North',`longitude` decimal(10,4) NOT NULL,`E_W` enum('E', 'W') NOT NULL COMMENT 'East or West',`speed` tinyint unsigned NOT NULL COMMENT 'Max. 255km/h',`status` smallint unsigned NOT NULL COMMENT 'High 4 bits for SAT number, low 10 bits for angle') ENGINE=MyISAM DEFAULT CHARSET=gbk
+
+SELECT * FROM `rokko_gps4` LIMIT 0, 3;
+
+SELECT FROM_UNIXTIME(updated), `IMEI` , `latitude`, `longitude`, `speed` FROM `rokko_gps2`
+WHERE IMEI=997755331011836
+ORDER BY updated DESC
+LIMIT 0 , 3;
+
+insert into rokko_gps4 values ( '', '997755331011836','1371986678','6000.0011','N','04600.0015','E','182','50432');
+
+SELECT COUNT(*) FROM `rokko_gps`;
+
+DROP DATABASE ...
