@@ -487,7 +487,7 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 									'%d',\
 									'%d');",\
 									rokko->sn_long,\
-									time(NULL),\
+									(unsigned int)time(NULL),\
 									rokko->gps.lat,\
 									rokko->gps.lon,\
 									rokko->gps.speed,\
@@ -501,7 +501,7 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 		if ( mysql_query(&(rokko_db.mysql),sql_buf)) {//error
 			fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
 							mysql_errno(&(rokko_db.mysql)),mysql_error(&(rokko_db.mysql)));
-			fprintf(stderr, "mysql.thread_id : %d\n",rokko_db.mysql.thread_id);
+			fprintf(stderr, "mysql.thread_id : %lu\n",rokko_db.mysql.thread_id);
 			//return 1;
 		}
 
@@ -516,7 +516,7 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 									'%d',\
 									'%d');",\
 									rokko->sn_long,\
-									time(NULL),\
+									(unsigned int)time(NULL),\
 									lat_degree,lat_minute,lat_second,\
 									lon_degree,lon_minute,lon_second,\
 									rokko->gps.speed,\
@@ -531,7 +531,7 @@ fprintf(stderr,"%s\n",sql_buf);
 		if ( mysql_query(&(rokko_db.mysql),sql_buf)) {//error
 			fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
 							mysql_errno(&(rokko_db.mysql)),mysql_error(&(rokko_db.mysql)));
-			fprintf(stderr, "mysql.thread_id : %d\n",rokko_db.mysql.thread_id);
+			fprintf(stderr, "mysql.thread_id : %lu\n",rokko_db.mysql.thread_id);
 			//return 1;
 		}
 
