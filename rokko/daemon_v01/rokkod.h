@@ -91,7 +91,6 @@ struct rokko_data { //as minimum as possible
 	struct sockaddr_in client_addr;
 	int client_socket ;
 
-	
 	unsigned int idle_timer;//close socket if time > 2*CMD_TIMEOUT
 	//unsigned char active_time; //close socket if timeout
 	unsigned char cmd_err_cnt;//command error count
