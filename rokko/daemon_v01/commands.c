@@ -523,7 +523,6 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 									rokko->gps.status\
 									);
 
-fprintf(stderr,"%s\n",sql_buf);
 		//prevent error: 2014
 		res_ptr=mysql_store_result(&(rokko_db.mysql));
 		mysql_free_result(res_ptr);
@@ -1027,7 +1026,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 	}
 
 	//check firmware size
-	if ( fw_size > MAX_FW_SIZE-1 ) {//must < 60KB
+	if ( fw_size > MAX_FW_SIZE-1 ) {//must < define
 		fprintf(stderr,"Error, firmware size: %d Bytes> 60KB\r\n",fw_size);
 		close(fd);  
 		return 30;  
@@ -1039,7 +1038,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 	else{
 		blk_cnt = (fw_size >> 10);
 	}
-	//printf("Block count: %d\r\n",blk_cnt);
+	//printf("Block count: %d @ %d\r\n",blk_cnt,__LINE__);
 
 
 	lseek( fd, -20L, SEEK_END );
@@ -1127,16 +1126,21 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 			else {//others : block seq
 				fprintf(stderr, "Ask Block %d, FW rev: %d  \t",\
 						rec_buf[5],rec_buf[6]<<8 | rec_buf[7]);
+
+				if ( (rec_buf[5] > blk_cnt) | \
+					(fw_rev != (rec_buf[6]<<8 | rec_buf[7])) ) {//error
 	
-				if ( rec_buf[5] > blk_cnt ) {//error
-	
+					fprintf(stderr, "Req BLK: %d or FW rev %d err. %s:%d",\
+							rec_buf[5],rec_buf[6]<<8 | rec_buf[7],\
+							__FILE__,__LINE__);
+					
 					snd_buf[0] = GSM_HEAD ;
 					snd_buf[1] = cmd->seq ;
 					snd_buf[2] = cmd->pcb | 0x80 ;
 		
 					snd_buf[3] =  00;//len high
 					snd_buf[4] =  1;//len low
-					snd_buf[5] =  4;//status: no this block
+					snd_buf[5] =  4;//status: no this block or FW rev err
 					
 				}
 				else {
@@ -1225,7 +1229,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 			rokko->tx_cnt += data_len+7 ;
 		}
 		else { //( no need upgrade )
-			fprintf(stderr, "The client FW:%d is latest. %d\n",rokko->fw_rev,__LINE__);
+			fprintf(stderr, "The client FW:%d is latest. %s:%d\n",rokko->fw_rev,__FILE__,__LINE__);
 			failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_FW_LATEST );
 		}
 	}
