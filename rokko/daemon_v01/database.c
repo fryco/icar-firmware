@@ -66,7 +66,7 @@ int db_connect(struct db_struct *rokko_db)
 	mysql_query( &(rokko_db->mysql) , "SET NAMES 'utf8'");
 
 	if ( foreground ) {
-		fprintf(stderr, "Connecte to mysql ok, Mysql thread_id %d\n",rokko_db->mysql.thread_id);
+		fprintf(stderr, "Connecte to mysql ok, Mysql thread_id %lu\n",rokko_db->mysql.thread_id);
 	}
 
 	return 0 ;
