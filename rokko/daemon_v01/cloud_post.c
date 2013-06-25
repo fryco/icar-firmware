@@ -191,7 +191,7 @@ int cloud_post( char *remote_host, char *request, int port )
 
 	char *response = NULL;
 
-	//return 0; //for test only
+	return 0; //for test only
 	
 	cloud_tcpclient_create(&client,remote_host,port);
 
