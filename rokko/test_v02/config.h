@@ -29,27 +29,31 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define PRODUCT_SN_LEN		8	//IMEI: 123456789012345 ==> 0x01 0x23 0x45 ... 0x45
+#define PRODUCT_SN_LEN				8	//IMEI: 123456789012345 ==> 0x01 0x23 0x45 ... 0x45
 
-#define	EMAIL				128
-#define BUFSIZE 			256
+#define	EMAIL						128
+#define BUFSIZE 					2048	//2KB
 
-#define CMD_CNT				0
-
-#define GSM_HEAD				0xDE
-#define GSM_CMD_ERROR			0x45 //'E', upload error log to server
+#define GSM_HEAD					0xDE
+#define GSM_CMD_ERROR				0x45 //'E', upload error log to server
 //Out: DE 01 45 00 06 00 00 00 08 30 00 81 79
 //In : DE 01 C5 00 02 00 04 08 4D
-#define GSM_CMD_GPS				0x47 //'G', upload GPS information to server
+#define GSM_CMD_GPS					0x47 //'G', upload GPS information to server
 //Out: DE 3C 47 00 10 51 8B 49 CF 05 E4 32 2E 01 A4 BB 12 01 8F C5 00 AD 94
 //In : DE 4B C7 00 01 00 08 38
 
-#define GSM_CMD_LOGIN			0x4C //'L', Login
+#define GSM_CMD_LOGIN				0x4C //'L', Login
 //Out: DE 00 4C 00 1B 00 00 00 00 09 97 75 53 31 10 18 75 00 00 12 34 56 78 31 32 37 2E 30 2E 30 2E 31 9B 65
 //In : DE 00 CC 00 11 00 51 D3 CC E4 06 6B FF 48 56 48 67 49 87 10 12 37 D4 49 to 997755331101875
-#define GSM_CMD_RECORD			0x52 //'R', Record vehicle parameters
+#define GSM_CMD_RECORD				0x52 //'R', Record vehicle parameters
 //Out: DE 04 52 00 08 51 1F 4C 4E 00 0C 30 1A A5 1C
 //In : DE 04 D2 00 02 00 00 68 46
+#define GSM_CMD_UPGRADE				0x55 //'U', Upgrade firmware
+//Out: DE 02 55 00 03 05 00 DA E1 99 ; buf[5]=0 mean buf[6] is hw rev, others: block seq
+//In : DE 02 D5 00 0A 00 00 00 6E 00 01 1F 40 33 CF 0D 08
+//		buf[6]=0 表示后面跟的数据是FW版本号(2B)、FW长度(4B)、FW CRC16结果
+
+#define GSM_CMD_ASK_BLK				0xFE //this CMD just for simulator
 
 //record index define
 #define REC_IDX_ADC1				10 //for ADC1
