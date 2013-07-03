@@ -22,7 +22,7 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 	bzero(buf, buf_len);
 	
 	buf[0]   = GSM_HEAD ;
-	buf[1]   = seq ;//Client => server, seq: 0~7F
+	buf[1]   = seq&0x7F ;//Client => server, seq: 0~7F
 	buf[2]   = cmd ;//command
 	buf[3]   = 0 ;//length high
 	buf[4]   = 0 ;//length low
@@ -48,10 +48,10 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 		}
 
 		//Product HW rev, FW rev
-		buf[19] =  0x12  ;//hw revision, 1 byte
-		buf[20] =  0x34  ;//reverse
-		buf[21] =  0x56  ;//FW rev. high
-		buf[22] =  0x78  ;//FW rev. low
+		buf[19] =  0x00  ;//hw revision, 1 byte
+		buf[20] =  0x00  ;//reverse
+		buf[21] =  0x00  ;//FW rev. high
+		buf[22] =  0x0F  ;//FW rev. low
 
 		//Local IP
 		snprintf(&buf[23],10,"127.0.0.1");
@@ -182,7 +182,7 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 		buf[24] =  OSTime&0xFF  ;//OSTime low
 
 		//val, v_tp1, /100, %100, 3.29V
-		buf[25] =  0 ;
+		buf[25]=  0 ;
 		buf[26]=  0x01 ;
 		buf[27]=  0x40 | (OSTime&0x0F);//random data
 		buf[28]=  REC_IDX_V_TP1 ;
@@ -256,6 +256,54 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 		//update data length
 		buf[3]   = 0 ;//length high
 		buf[4]   = 64 ;//length low
+
+		//Calc CRC16
+		crc16 = crc16tablefast(buf , ((buf[3]<<8)|(buf[4]))+5);
+
+		buf[((buf[3]<<8)|(buf[4]))+5] = (crc16)>>8 ;
+		buf[((buf[3]<<8)|(buf[4]))+6] = (crc16)&0xFF ;
+
+		return (((buf[3]<<8)|(buf[4]))+7);//buffer length
+
+	case GSM_CMD_UPGRADE :
+		if ( debug_flag ) fprintf(stderr,"Prepare firmware upgrade CMD, id:%d\n",id);
+		//format: 00 + hw_rev + fw_rev (2Bytes)
+		//format: 01 or 02, 03 ... meaning block index
+
+		//Default CMD: send current hardware and firmware revision
+		//DE 02 55 00 04 00 00 00 5E
+		//buf[3] = 0;//length high
+		//buf[4] = 4;//length low
+		
+		buf[5] = 0x00 ;//00: mean buf[6] is hw rev, others: block seq
+		buf[6] = 0x00 ;//hardware revision
+		buf[7] = 0x00 ;//fw rev. high
+		buf[8] = 0x0F ;//fw rev. low, note: server has this info when receive login CMD
+
+		//update data length
+		buf[3]   = 0 ;//length high
+		buf[4]   = 4 ;//length low
+
+		//Calc CRC16
+		crc16 = crc16tablefast(buf , ((buf[3]<<8)|(buf[4]))+5);
+
+		buf[((buf[3]<<8)|(buf[4]))+5] = (crc16)>>8 ;
+		buf[((buf[3]<<8)|(buf[4]))+6] = (crc16)&0xFF ;
+
+		return (((buf[3]<<8)|(buf[4]))+7);//buffer length
+
+	case GSM_CMD_ASK_BLK :
+		if ( debug_flag ) fprintf(stderr,"Ask firmware blk: %d, rev: %d\n",seq,id);
+		//format: xx + fw_rev (2Bytes); xx: blk idx, from 1 to last blk
+		
+		buf[2] = GSM_CMD_UPGRADE ;//command
+		buf[5] = seq ;// block index
+		buf[6] = (id >> 8)&0xFF ;//fw rev. high
+		buf[7] = id&0xFF ;//fw rev. low, note: server will check when ask blk
+
+		//update data length
+		buf[3]   = 0 ;//length high
+		buf[4]   = 3 ;//length low
 
 		//Calc CRC16
 		crc16 = crc16tablefast(buf , ((buf[3]<<8)|(buf[4]))+5);
@@ -341,7 +389,7 @@ int	main(int argc, char	*argv[])
 
 	fprintf(stderr,"Max. client: %d\n",max_client);
 	fprintf(stderr,"Server %s:%d\n",dest,server_port);
-	//printf("Parent: %d\n",getpid());
+
 	signal(SIGCHLD, child_exit);
 
 	while ( 1 ) {
@@ -377,9 +425,9 @@ int	main(int argc, char	*argv[])
 
 int single_connect( unsigned int simu_id ) {
 				
-	unsigned char var_u8 , seq=0;
+	unsigned char var_u8 , seq=0 , blk_cnt, blk_idx;
 	int	client_sockfd, len=0;
-	unsigned int run_cnt=0;
+	unsigned int run_cnt=0 , fw_size, fw_rev=0;
 	unsigned int lat_ori=0, lon_ori=0, lat_offset=0, lon_offset=0 ;
 	struct sockaddr_in remote_addr;	//服务器端网络地址结构体
 	unsigned char buf[BUFSIZE];  //数据传送的缓冲区
@@ -438,9 +486,95 @@ int single_connect( unsigned int simu_id ) {
 		return 1 ;
 	}		
 
-	//while( 1 ) sleep(1);
+	while ( 1 ) {//For firmware upgrade verification
 
-	while ( 1 ) {//login ok
+		//normal return, send err log msg
+		//DE 01 45 00 06 00 00 00 08 30 00 81 79, time+reason
+		len = format_cmd(GSM_CMD_ERROR, 0, buf, BUFSIZE, seq, NULL);
+		seq++; if ( seq >= 0x80 ) seq=0;
+		
+		if ( len ) { //prepare cmd ok		
+			write(client_sockfd,buf,len);
+			if ( debug_flag ) fprintf(stderr,"--> Err log: %02X, Send %d Bytes\n",buf[2],buf[4]+7);
+		}
+		bzero(buf, sizeof(buf));
+		len = read(client_sockfd, buf, BUFSIZE);
+		//DE 01 C5 00 02 00 04 08 4D
+		if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n",buf[2]&0x7F,len);
+		if ( buf[5] != 0 ) { //err
+			fprintf(stderr,"Return err: %d @ %d\n",buf[5],__LINE__);
+			return 1 ;
+		}		
+
+		//Send firmware upgrade CMD
+		len = format_cmd(GSM_CMD_UPGRADE, 0, buf, BUFSIZE, seq, NULL);
+		seq++; if ( seq >= 0x80 ) seq=0;
+
+		if ( len ) { //prepare cmd ok
+			write(client_sockfd,buf,len);
+			if ( debug_flag ) {
+				fprintf(stderr,"--> Upgrade: %02X, Send %d Bytes: ",buf[2],buf[4]+7);
+				for ( var_u8 = 0 ; var_u8 < len ; var_u8++ ) {
+					fprintf(stderr,"%02X ",buf[var_u8]);
+				}
+				fprintf(stderr,"\n");
+			}
+		}
+		bzero(buf, sizeof(buf));
+		len = read(client_sockfd, buf, BUFSIZE);
+
+		//DE 04 D2 00 02 00 00 68 46
+		if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n\n",buf[2]&0x7F,len);
+		if ( buf[5] != 0 ) { //err
+			fprintf(stderr,"Upgrade CMD failure, return : %d @ %d\n",buf[5],__LINE__);
+			return 1 ;
+		}
+
+		//In : DE 02 D5 00 0A 00 00 00 6E 00 01 1F 40 33 CF 0D 08
+		//buf[6]=0 表示后面跟的数据是FW版本号(2B)、FW长度(4B)、FW CRC16结果
+		if ( buf[6] == 0 ) { //ok
+			fw_rev  = buf[7]<<8 | buf[8];
+			fw_size = buf[9]<<24 | buf[10]<<16 | buf[11]<<8 | buf[12] ;
+			fprintf(stderr,"Upgrade CMD ok, new FW rev: %d, FW size: %d\n",\
+					fw_rev,fw_size );
+
+			if((fw_size%1024) > 0 ){
+				blk_cnt = (fw_size >> 10) + 1;
+			}
+			else{
+				blk_cnt = (fw_size >> 10);
+			}
+
+			for ( blk_idx = 1 ; blk_idx <= blk_cnt ; blk_idx++ ) {
+				//Send ask block CMD
+				len = format_cmd(GSM_CMD_ASK_BLK, fw_rev, buf, BUFSIZE, blk_idx, NULL);
+				if ( len ) { //prepare cmd ok
+					write(client_sockfd,buf,len);
+					if ( debug_flag ) {
+						fprintf(stderr,"--> Upgrade: %02X, Send %d Bytes: ",buf[2],buf[4]+7);
+						for ( var_u8 = 0 ; var_u8 < len ; var_u8++ ) {
+							fprintf(stderr,"%02X ",buf[var_u8]);
+						}
+						fprintf(stderr,"\n");
+					}
+				}
+				bzero(buf, sizeof(buf));
+				sleep(1);//wait server transmit data
+				len = read(client_sockfd, buf, BUFSIZE);
+		
+				//DE 04 D2 00 02 00 00 68 46
+				if ( debug_flag ) fprintf(stderr,"<-- %c, len: %d \n\n",buf[2]&0x7F,len);
+				if ( buf[5] != 0 ) { //err
+					fprintf(stderr,"Upgrade CMD failure, return : %d @ %d\n",buf[5],__LINE__);
+					return 1 ;
+				}
+				fprintf(stderr,"Rec BLK: %d len: %d ok.\n",buf[6],((buf[3]<<8)|buf[4])-6);
+				sleep(1);
+			}
+		}
+	}
+	
+	while ( 1 ) {//For upload GPS information
 
 		//normal return, send err log msg
 		//DE 01 45 00 06 00 00 00 08 30 00 81 79, time+reason
@@ -483,12 +617,12 @@ int single_connect( unsigned int simu_id ) {
 		//LAT: 22 °32.7658 ==>(22*60+32.7658)*30000=40582974=0x02 0x6B 0x3F 0x3E
 		//Use PID as seed
 		//Orginal point
-		lat_ori = ((getpid())&0x3F)*60*30000;
-		lon_ori = (((getpid())>>8)&0x3F)*60*30000;
+		lat_ori = (24*60+((getpid())&0x3F))*30000;
+		lon_ori = (114*60+((getpid())&0x3F))*30000;
 		
 		for ( var_u8 = 0 ; var_u8 < 10 ; var_u8++ ) {//upload 10 points each time
-			gps.lat = lat_ori + lat_offset ;	lat_offset = lat_offset + 33 ;
-			gps.lon = lon_ori + lon_offset ;	lon_offset = lon_offset + 47 ;
+			gps.lat = lat_ori + lat_offset ;	lat_offset = lat_offset + 33*((getpid())&0x3F) ;
+			gps.lon = lon_ori + lon_offset ;	lon_offset = lon_offset + 47*((getpid())&0x7F) ;
 			len = format_cmd(GSM_CMD_GPS, getpid(), buf, BUFSIZE, seq, &gps);
 			seq++; if ( seq >= 0x80 ) seq=0;
 	
