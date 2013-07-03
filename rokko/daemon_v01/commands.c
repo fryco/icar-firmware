@@ -714,6 +714,14 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 		}
 	}
 	else {	//check product SN from DB
+		if ( foreground ) {
+			fprintf(stderr, "RAW data: ");
+			for ( crc16 = 0 ; crc16 < cmd->len+7 ; crc16++) {
+				fprintf(stderr, "%02X ",*(rec_buf+crc16));
+			}
+			fprintf(stderr, "\n");
+		}
+				
 		convert_sn(rokko, &rec_buf[9], 8);
 
 		//HW/FW revision
@@ -725,15 +733,15 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 		unsigned char up_buf[EMAIL];
 
 		ticks2time(ostime, up_buf, sizeof(up_buf));
-		//fprintf(stderr, "%s Up: %s",rokko->sn_long,up_buf); 
-/*
+		fprintf(stderr, "%s Up: %s",rokko->sn_long,up_buf); 
+
 		if ( foreground ) {
 			fprintf(stderr, "SN: %s\t",rokko->sn_long);
 			fprintf(stderr, "rokko->sn_long: %s\tHW:%d\tFW:%d\r\n",\
 							rokko->sn_long,rokko->hw_rev,rokko->fw_rev);
 			fprintf(stderr, "%s",up_buf);
 		}
-*/				
+				
 		if ( 1 ) {//if check DB ok, TBD
 			//send successful respond 
 			rokko->login_cnt++;

@@ -417,7 +417,13 @@ int single_connect( unsigned int simu_id ) {
 		run_cnt++;
 
 		write(client_sockfd,buf,len);
-		if ( debug_flag ) fprintf(stderr,"--> Login CMD: %02X, Send %d Bytes\n",buf[2],buf[4]+7);
+		if ( debug_flag ) {		
+			fprintf(stderr,"--> Login CMD: %02X, Send %d Bytes\n",buf[2],buf[4]+7);
+			for ( len = 0 ; len < buf[4]+7 ; len++ ){
+				fprintf(stderr,"%02X ",buf[len]);
+			}
+			fprintf(stderr,"\n");
+		}
 	}
 	bzero(buf, sizeof(buf));
 	len = read(client_sockfd, buf, BUFSIZE);
