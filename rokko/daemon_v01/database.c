@@ -9,7 +9,7 @@ extern unsigned int foreground;
 //Connect to MYSQ
 //return: 0 success
 //        1 failure
-int db_connect(struct db_struct *rokko_db)
+int db_connect(struct server_struct *rokko_srv)
 {
 	int err;
 	char create_db[EMAIL];
@@ -18,7 +18,7 @@ int db_connect(struct db_struct *rokko_db)
 		fprintf(stderr, "Initializing mysql ... \n");
 	}
 
-	if ( !mysql_init(&(rokko_db->mysql)) )
+	if ( !mysql_init(&(rokko_srv->db.mysql)) )
 	{
 		if ( foreground ) {
 			fprintf(stderr, "Initializing mysql failure, return\n");
@@ -26,69 +26,69 @@ int db_connect(struct db_struct *rokko_db)
 		return 1;
 	}
 	
-	if (!mysql_real_connect(&(rokko_db->mysql),\
-							rokko_db->db_host,\
-							rokko_db->db_user,\
-							rokko_db->db_pwd,\
-							rokko_db->db_name,\
+	if (!mysql_real_connect(&(rokko_srv->db.mysql),\
+							rokko_srv->db.host,\
+							rokko_srv->db.user,\
+							rokko_srv->db.pwd,\
+							rokko_srv->db.name,\
 							0,NULL,0))	{
-		err = mysql_errno(&(rokko_db->mysql)) ;
-		//fprintf(stderr, "Mysql thread_id %d... \n",rokko_db->mysql.thread_id);
+		err = mysql_errno(&(rokko_srv->db.mysql)) ;
+		//fprintf(stderr, "Mysql thread_id %d... \n",rokko_srv->db.mysql.thread_id);
 		if ( err == 1049 ) { //Unknown database, create it
-			if (!mysql_real_connect(&(rokko_db->mysql),
-							rokko_db->db_host,\
-							rokko_db->db_user,\
-							rokko_db->db_pwd,\
+			if (!mysql_real_connect(&(rokko_srv->db.mysql),
+							rokko_srv->db.host,\
+							rokko_srv->db.user,\
+							rokko_srv->db.pwd,\
 							"mysql",0,NULL,0)) {
 			//connect with default database:mysql still failure
 				return 1 ;
 			}
 
 			bzero( create_db, sizeof(create_db));
-			snprintf(create_db,EMAIL,"create database %s;",rokko_db->db_name);
+			snprintf(create_db,EMAIL,"create database %s;",rokko_srv->db.name);
 			//fprintf(stderr, "%s %s:%d\n",create_db,__FILE__,__LINE__);
 			if ( foreground ) {
 				fprintf(stderr, "%s\n",create_db);
 			}
-			mysql_query(&(rokko_db->mysql),create_db);
+			mysql_query(&(rokko_srv->db.mysql),create_db);
 
 			bzero( create_db, sizeof(create_db));
-			snprintf(create_db,EMAIL,"use %s;",rokko_db->db_name);
-			mysql_query(&(rokko_db->mysql),create_db);
+			snprintf(create_db,EMAIL,"use %s;",rokko_srv->db.name);
+			mysql_query(&(rokko_srv->db.mysql),create_db);
 		}
 		else { //others error
-			fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(rokko_db->mysql)));
+			fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(rokko_srv->db.mysql)));
 			return 1;
 		}
 	}
 
 	//本次连接使用的默认字符集为utf8
-	mysql_query( &(rokko_db->mysql) , "SET NAMES 'utf8'");
+	mysql_query( &(rokko_srv->db.mysql) , "SET NAMES 'utf8'");
 
 	if ( foreground ) {
-		fprintf(stderr, "Connecte to mysql ok, Mysql thread_id %lu\n",rokko_db->mysql.thread_id);
+		fprintf(stderr, "Connecte to mysql ok, Mysql thread_id %lu\n",rokko_srv->db.mysql.thread_id);
 	}
 
 	return 0 ;
 }
 
-int db_check(struct db_struct *rokko_db)
+int db_check(struct server_struct *rokko_srv)
 {
 	int err;
 	MYSQL_RES *res_ptr;
 
 	//connect to mysql
-	if(db_connect(rokko_db)){ //failure
+	if(db_connect(rokko_srv)){ //failure
 		return 1;
 	}
 
 	//check table rokko_product
-	if ( mysql_query(&(rokko_db->mysql),"SELECT * FROM `rokko_product` LIMIT 0 , 30;") ) {
+	if ( mysql_query(&(rokko_srv->db.mysql),"SELECT * FROM `rokko_product` LIMIT 0 , 30;") ) {
 	//error, maybe no this table, create it
-		err = mysql_errno(&(rokko_db->mysql)) ;
-		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(rokko_db->mysql)));
+		err = mysql_errno(&(rokko_srv->db.mysql)) ;
+		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(rokko_srv->db.mysql)));
 		if ( err == 1146 ) { //Table doesn't exist
-			mysql_query(&(rokko_db->mysql),\
+			mysql_query(&(rokko_srv->db.mysql),\
 						"create table rokko_product( `p_id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,\
 						`produce_date` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
 						`IMEI` varchar(20) NOT NULL COMMENT 'Product serial numble',\
@@ -103,7 +103,7 @@ int db_check(struct db_struct *rokko_db)
 					) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
 			
 			//insert test data
-			mysql_query(&(rokko_db->mysql),\
+			mysql_query(&(rokko_srv->db.mysql),\
 			"insert into `rokko_product` VALUES ('','1321609867',\
 											'99775533110000',\
 											'',\
@@ -118,21 +118,21 @@ int db_check(struct db_struct *rokko_db)
 		}
 		else { //unknow error
 			fprintf(stderr, "select table error, check %s:%d\n",__FILE__, __LINE__);
-			mysql_close(&(rokko_db->mysql));
+			mysql_close(&(rokko_srv->db.mysql));
 			return 1 ;
 		}
 	}
 
 	//check table rokko_gps
 	//prevent error: 2014
-	res_ptr=mysql_store_result(&(rokko_db->mysql));
+	res_ptr=mysql_store_result(&(rokko_srv->db.mysql));
 	mysql_free_result(res_ptr);
-	if ( mysql_query(&(rokko_db->mysql),"SELECT * FROM `rokko_gps` LIMIT 0 , 30;") ) {
+	if ( mysql_query(&(rokko_srv->db.mysql),"SELECT * FROM `rokko_gps` LIMIT 0 , 30;") ) {
 	//error, maybe no this table, create it
-		err = mysql_errno(&(rokko_db->mysql)) ;
-		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(rokko_db->mysql)));
+		err = mysql_errno(&(rokko_srv->db.mysql)) ;
+		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(rokko_srv->db.mysql)));
 		if ( err == 1146 ) { //Table doesn't exist
-			mysql_query(&(rokko_db->mysql),\
+			mysql_query(&(rokko_srv->db.mysql),\
 			"create table rokko_gps( `gps_id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,\
 						`IMEI` varchar(20) NOT NULL COMMENT 'Product serial numble', \
 						`updated` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
@@ -145,7 +145,7 @@ int db_check(struct db_struct *rokko_db)
                    ) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
 
 			//insert test data
-			mysql_query(&(rokko_db->mysql),\
+			mysql_query(&(rokko_srv->db.mysql),\
 			"insert into `rokko_gps` VALUES ('','99775533110000',\
 											'1321609887',\
 											X'E4322E01',\
@@ -157,21 +157,21 @@ int db_check(struct db_struct *rokko_db)
 		}
 		else { //unknow error
 			fprintf(stderr, "select table error, check %s:%d\n",__FILE__, __LINE__);
-			mysql_close(&(rokko_db->mysql));
+			mysql_close(&(rokko_srv->db.mysql));
 			return 1 ;
 		}
 	}
 
 	//check table rokko_gps2
 	//prevent error: 2014
-	res_ptr=mysql_store_result(&(rokko_db->mysql));
+	res_ptr=mysql_store_result(&(rokko_srv->db.mysql));
 	mysql_free_result(res_ptr);
-	if ( mysql_query(&(rokko_db->mysql),"SELECT * FROM `rokko_gps2` LIMIT 0 , 30;") ) {
+	if ( mysql_query(&(rokko_srv->db.mysql),"SELECT * FROM `rokko_gps2` LIMIT 0 , 30;") ) {
 	//error, maybe no this table, create it
-		err = mysql_errno(&(rokko_db->mysql)) ;
-		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(rokko_db->mysql)));
+		err = mysql_errno(&(rokko_srv->db.mysql)) ;
+		fprintf(stderr, "Error: %d, meaning:%s\r\n", err,mysql_error(&(rokko_srv->db.mysql)));
 		if ( err == 1146 ) { //Table doesn't exist
-			mysql_query(&(rokko_db->mysql),\
+			mysql_query(&(rokko_srv->db.mysql),\
 			"create table rokko_gps2( `gps_id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,\
 						`IMEI` varchar(20) NOT NULL COMMENT 'Product serial numble', \
 						`updated` int unsigned NOT NULL COMMENT 'FROM_UNIXTIME(date)',\
@@ -184,7 +184,7 @@ int db_check(struct db_struct *rokko_db)
                    ) ENGINE=MyISAM DEFAULT CHARSET=gbk;");
 
 			//insert test data
-			mysql_query(&(rokko_db->mysql),\
+			mysql_query(&(rokko_srv->db.mysql),\
 			"insert into `rokko_gps2` VALUES ('','99775533110000',\
 											'1321609887',\
 											'2232.3837',\
@@ -196,12 +196,12 @@ int db_check(struct db_struct *rokko_db)
 		}
 		else { //unknow error
 			fprintf(stderr, "select table error, check %s:%d\n",__FILE__, __LINE__);
-			mysql_close(&(rokko_db->mysql));
+			mysql_close(&(rokko_srv->db.mysql));
 			return 1 ;
 		}
 	}
 
-	//mysql_close(&(rokko_db->mysql));
+	//mysql_close(&(rokko_srv->db.mysql));
 
 	return 0 ;
 }
