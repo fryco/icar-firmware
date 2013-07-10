@@ -35,10 +35,21 @@ struct gps_struct { //don't change sequence
 struct db_struct {
 	//database
 	MYSQL mysql;
-	unsigned char * db_host;
-	unsigned char * db_name;
-	unsigned char * db_user;
-	unsigned char * db_pwd;
+	unsigned char * host;
+	unsigned char * name;
+	unsigned char * user;
+	unsigned char * pwd;
+};
+
+struct fw_struct {
+	unsigned short rev;		//2 Bytes, server latest firmware
+	unsigned short crc16;	//firmware crc16 result
+	unsigned int length;	//firmware length
+};
+
+struct server_struct {
+	struct db_struct db;
+	struct fw_struct latest_fw[MAX_HW_TYPE];
 };
 
 struct rokko_command {

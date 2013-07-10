@@ -25,7 +25,7 @@
 static unsigned int mail_timer, db_timer;
 unsigned int  listen_port=23, daemon_time;//record daemon run time
 unsigned char foreground=0;
-struct db_struct rokko_db;
+struct server_struct rokko_srv;
 
 static int sock_server = -1;
 static struct sockaddr_in server_addr;
@@ -138,12 +138,12 @@ int main(int argc, char *argv[])
 	//unsigned int idle_timer = time(NULL) ;
 
 	//initial database, connect mysql
-	rokko_db.db_host = DB_HOST ;
-	rokko_db.db_name = DB_NAME ;
-	rokko_db.db_user = DB_USER ;
-	rokko_db.db_pwd =  DB_PWD ;
+	rokko_srv.db.host = DB_HOST ;
+	rokko_srv.db.name = DB_NAME ;
+	rokko_srv.db.user = DB_USER ;
+	rokko_srv.db.pwd =  DB_PWD ;
 	
-	if ( db_check(&rokko_db) ) {//no ready
+	if ( db_check(&rokko_srv.db) ) {//no ready
 		fprintf(stderr,  "Database no ready, exit.\n");
 		fprintf(stderr,  "Check: 1, Have installed mysql?\n");
 		fprintf(stderr,  "       2, host, user, password, database are correct?\n");
@@ -513,7 +513,7 @@ void handler(int s)
 	}
 	
 	//Close mysql
-	mysql_close(&rokko_db.mysql);
+	mysql_close(&rokko_srv.db.mysql);
 	
 	log_save("==> Exit.\n", FORCE_SAVE_FILE );
 	

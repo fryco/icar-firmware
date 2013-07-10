@@ -8,7 +8,7 @@
 #include "rokkod.h"
 
 extern unsigned int foreground;
-extern struct db_struct rokko_db;
+extern struct server_struct rokko_srv;
 
 //Forum id:
 //'36' ==> Machine
@@ -495,13 +495,13 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 									);
 
 		//prevent error: 2014
-		res_ptr=mysql_store_result(&(rokko_db.mysql));
+		res_ptr=mysql_store_result(&(rokko_srv.db.mysql));
 		mysql_free_result(res_ptr);
 
-		if ( mysql_query(&(rokko_db.mysql),sql_buf)) {//error
+		if ( mysql_query(&(rokko_srv.db.mysql),sql_buf)) {//error
 			fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
-							mysql_errno(&(rokko_db.mysql)),mysql_error(&(rokko_db.mysql)));
-			fprintf(stderr, "mysql.thread_id : %lu\n",rokko_db.mysql.thread_id);
+							mysql_errno(&(rokko_srv.db.mysql)),mysql_error(&(rokko_srv.db.mysql)));
+			fprintf(stderr, "mysql.thread_id : %lu\n",rokko_srv.db.mysql.thread_id);
 			//return 1;
 		}
 
@@ -524,13 +524,13 @@ int rec_cmd_gps( struct rokko_data *rokko, struct rokko_command * cmd,\
 									);
 
 		//prevent error: 2014
-		res_ptr=mysql_store_result(&(rokko_db.mysql));
+		res_ptr=mysql_store_result(&(rokko_srv.db.mysql));
 		mysql_free_result(res_ptr);
 
-		if ( mysql_query(&(rokko_db.mysql),sql_buf)) {//error
+		if ( mysql_query(&(rokko_srv.db.mysql),sql_buf)) {//error
 			fprintf(stderr, "mysql_query error: %d, meaning:%s\r\n",\
-							mysql_errno(&(rokko_db.mysql)),mysql_error(&(rokko_db.mysql)));
-			fprintf(stderr, "mysql.thread_id : %lu\n",rokko_db.mysql.thread_id);
+							mysql_errno(&(rokko_srv.db.mysql)),mysql_error(&(rokko_srv.db.mysql)));
+			fprintf(stderr, "mysql.thread_id : %lu\n",rokko_srv.db.mysql.thread_id);
 			//return 1;
 		}
 
