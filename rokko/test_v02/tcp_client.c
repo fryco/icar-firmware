@@ -49,7 +49,7 @@ int format_cmd( unsigned char cmd, unsigned int id, unsigned char *buf, unsigned
 
 		//Product HW rev, FW rev
 		buf[19] =  0x00  ;//hw revision, 1 byte
-		buf[20] =  0x00  ;//reverse
+		buf[20] =  0x00  ;//reserve
 		buf[21] =  0x00  ;//FW rev. high
 		buf[22] =  0x0F  ;//FW rev. low
 
@@ -484,7 +484,14 @@ int single_connect( unsigned int simu_id ) {
 	if ( buf[5] != 0 ) { //login err
 		fprintf(stderr,"Login err: %d @ %d\n",buf[5],__LINE__);
 		return 1 ;
-	}		
+	}
+	
+	if ( buf[4] ==  25 ) { //have new firmware
+		fprintf(stderr,"New fw: %d, len:%d Bytes\n",(buf[22]<<8)|buf[23],\
+				(buf[24]<<24)|(buf[25]<<16)|(buf[26]<<8)|(buf[27]));
+	}
+
+sleep(10);
 
 	while ( 1 ) {//For firmware upgrade verification
 
