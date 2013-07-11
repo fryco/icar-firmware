@@ -30,7 +30,7 @@ struct server_struct rokko_srv;
 static int sock_server = -1;
 static struct sockaddr_in server_addr;
 	
-static char pidfile[EMAIL+1], host_name[EMAIL+1];
+static char pidfile[EMAIL], host_name[EMAIL];
 
 int main(int argc, char *argv[])
 {
@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
 	
 	struct timeval tv, run_tv;
 	time_t ticks=time(NULL), loop_timer;
-	char msg[BUFSIZE+1];
+	char msg[BUFSIZE];
 		
 	struct sockaddr_in client_addr;
 /*
@@ -53,15 +53,15 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "CRC result is: %X\r\n",crc16tablefast(crc_src,6));
 */
 
-	//fprintf(stderr, "rokko size: %d", sizeof(rokko[0]));
-	bzero( rokko, sizeof(rokko));
+	fprintf(stderr, "rokko size: %d\n", sizeof(rokko_srv));
+	bzero( rokko, sizeof(rokko)); //bzero( rokko_srv, sizeof(rokko_srv));
 	bzero( pidfile, sizeof(pidfile)); bzero( msg, sizeof(msg));
 	
 	daemon_time = time(NULL);//for report daemon running time
 	
 	/* Scan arguments. */
 	scan_args(argc, argv);
- 
+ 	
  	if(!pidfile[0])
  	{
 		snprintf(pidfile,EMAIL,"/var/run/rokkod_%d",listen_port);
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
 
 					//post to cloud
 					if (fork() == 0) { //In child process
-						unsigned char post_buf[BUFSIZE+1], host_info[BUFSIZE+1], logtime[EMAIL+1];
+						unsigned char post_buf[BUFSIZE], host_info[BUFSIZE], logtime[EMAIL];
 						struct timeval log_tv;
 		
 						bzero( post_buf, sizeof(post_buf));bzero( host_info, sizeof(host_info));
@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
 
 					//post to cloud
 					if (fork() == 0) { //In child process
-						unsigned char post_buf[BUFSIZE+1], host_info[BUFSIZE+1], logtime[EMAIL+1];
+						unsigned char post_buf[BUFSIZE], host_info[BUFSIZE], logtime[EMAIL];
 						struct timeval log_tv;
 			
 						bzero( post_buf, sizeof(post_buf));bzero( host_info, sizeof(host_info));
@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
 
 						//post to cloud
 						if (fork() == 0) { //In child process
-							unsigned char post_buf[BUFSIZE+1], host_info[BUFSIZE+1], logtime[EMAIL+1];
+							unsigned char post_buf[BUFSIZE], host_info[BUFSIZE], logtime[EMAIL];
 							struct timeval log_tv;
 				
 							bzero( post_buf, sizeof(post_buf));bzero( host_info, sizeof(host_info));
@@ -397,7 +397,7 @@ int main(int argc, char *argv[])
 */
 				//post to cloud
 				if (fork() == 0) { //In child process
-					unsigned char post_buf[BUFSIZE+1], host_info[BUFSIZE+1], logtime[EMAIL+1];
+					unsigned char post_buf[BUFSIZE], host_info[BUFSIZE], logtime[EMAIL];
 					struct timeval log_tv;
 				
 					bzero( post_buf, sizeof(post_buf));bzero( host_info, sizeof(host_info));
@@ -564,7 +564,7 @@ void print_version(void)
 // 定时检查服务器并发邮件
 void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 {
-	char mail_subject[BUFSIZE+1], mail_body[BUFSIZE*10], client_buf[EMAIL+1], err;
+	char mail_subject[BUFSIZE], mail_body[BUFSIZE*10], client_buf[EMAIL], err;
 	unsigned int updays, uphours, upminutes, seconds, up_time;
 	unsigned int var_u32, con_cnt = 0;
 	unsigned char save_record = 0 ;
@@ -654,7 +654,7 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 		
 	//post to cloud
 	if (fork() == 0) { //In child process
-		unsigned char post_buf[BUFSIZE*20], logtime[EMAIL+1];
+		unsigned char post_buf[BUFSIZE*20], logtime[EMAIL];
 		struct timeval log_tv;
 
 		bzero( post_buf, sizeof(post_buf));	bzero(logtime, sizeof(logtime));
@@ -679,7 +679,7 @@ void period_check( struct rokko_data *rokko, unsigned int conn_amount )
 			fprintf(stderr, "==> Period send mail, port: %d\n",listen_port);
 		}
 		
-		char err_buf[BUFSIZE+1];
+		char err_buf[BUFSIZE];
 		bzero( err_buf, sizeof(err_buf));
 	
 		err = smtp_send("smtp.139.com", 25, NOTICER_ADDR, mail_subject, mail_body, err_buf);
@@ -748,7 +748,7 @@ unsigned char daemon_server(struct rokko_data *rokko, unsigned char *recv_buf, u
 							struct rokko_data *rokko_all, unsigned int conn_amount)
 {
 	unsigned char var_u8;
-	unsigned char send_buf[BUFSIZE+1];
+	unsigned char send_buf[BUFSIZE];
 	unsigned short buf_index, var_u16 ;
 	struct rokko_command cmd ;
 	time_t ticks=time(NULL);

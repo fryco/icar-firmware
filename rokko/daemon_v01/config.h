@@ -75,6 +75,7 @@
 #define CONSOLE_CMD_LIST_SPE		0x6C //'l', List special
 
 //For firmware upgrade
+#define FW_CHK_PERIOD				7200//check new firmware each 2 hours
 #define MAX_HW_TYPE					2	//2 type of hardware
 #define FW_PATH_PREFIX				"./fw/stm32_v"
 //#define MAX_FW_SIZE				61450 //60*1024+10
