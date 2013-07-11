@@ -50,6 +50,128 @@ static void conv_rev( unsigned char *p , unsigned int *fw_rev)
 	}
 }
 
+//search latest firmwre in each dir, save fw info to structure
+int check_latest_firmware( void )
+{
+	unsigned char hw_type, len;
+	char fw_dir[EMAIL];
+	DIR *d; 
+	struct dirent *file;
+	int fd;
+	unsigned int i , fpos, fw_size, fw_rev;
+	unsigned short crc16;
+	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
+	unsigned char blk_cnt;
+
+	//update each latest_fw struct
+	for ( hw_type = 0 ; hw_type < MAX_HW_TYPE ; hw_type++ ) {
+		bzero(fw_dir, EMAIL);
+		snprintf(fw_dir,EMAIL,"%s%02d",FW_PATH_PREFIX,hw_type);
+
+		if(!(d = opendir(fw_dir))){//open dir failure
+			fprintf(stderr, "Open dir %s failure! %s:%d\n",fw_dir,__FILE__,__LINE__);
+		}
+		else { //open dir ok
+			while((file = readdir(d)) != NULL) {
+			
+				//skip ".", ".." and hidden file
+				if(strncmp(file->d_name, ".", 1) == 0) continue;
+
+				snprintf(fw_dir,EMAIL,"%s%02d",FW_PATH_PREFIX,hw_type);
+				len = strlen(fw_dir);
+				snprintf(&fw_dir[len],EMAIL-len,"/%s",file->d_name);
+
+				//Get the firmware file info
+				fd = open(fw_dir, O_RDONLY, 0700);  
+				if (fd != -1)  { //open file ok
+					fw_size = lseek(fd, 0, SEEK_END);  
+					if (fw_size != -1)//read size ok
+					{
+						//check firmware size
+						if ( fw_size < MIN_FW_SIZE || fw_size > MAX_FW_SIZE-1) {
+							fprintf(stderr,"ERR! %s size: %d Bytes! %s:%d\r\n",\
+									fw_dir,fw_size,__FILE__,__LINE__);
+							close(fd); 
+						}
+						else { //calc block count
+							if((fw_size%1024) > 0 ){
+								blk_cnt = (fw_size >> 10) + 1;
+							}
+							else{
+								blk_cnt = (fw_size >> 10);
+							}
+
+							lseek( fd, -20L, SEEK_END );
+							fpos = read(fd, rev_info, 20);
+						
+							//replace zero with 0x20
+							for ( i = 0 ; i < fpos ; i++ ) {
+								if ( rev_info[i] == 0 ) {
+									rev_info[i] = 0x20 ;
+								}
+							}
+						
+							rev_pos = strstr(rev_info,"$Rev: ");
+							if ( rev_pos != NULL ) { //found rev info
+								fw_rev = 0 ;
+								conv_rev( rev_pos, &fw_rev);
+
+								if ( foreground ) {
+								    fprintf(stderr,"%s size is:%d Rev:%d Blk:%d\n",\
+								    		fw_dir,fw_size,fw_rev,blk_cnt);
+								}
+								
+								//update to server_struct
+								rokko_srv.fw_chk_time = time(NULL);
+								if ( rokko_srv.latest_fw[hw_type].rev < fw_rev ) {
+									rokko_srv.latest_fw[hw_type].rev = fw_rev;
+									rokko_srv.latest_fw[hw_type].length = fw_size;
+									rokko_srv.latest_fw[hw_type].blk_cnt = blk_cnt;
+									snprintf(rokko_srv.latest_fw[hw_type].filename,EMAIL,"%s",fw_dir);
+
+									//generate FW CRC:
+									lseek( fd, 0, SEEK_SET );
+									bzero( rev_info, sizeof(rev_info));
+									fpos = read(fd, rev_info, MAX_FW_SIZE);
+									//Calc CRC16
+									crc16 = 0xFFFF & (crc16tablefast(rev_info , fw_size));
+									rokko_srv.latest_fw[hw_type].crc16 = crc16 ;
+								}
+								close(fd);
+							}
+							else { //no found
+								fprintf(stderr,"Can't find revision info! %s:%d\n",__FILE__,__LINE__);
+								close(fd);
+							}
+						}
+					}
+					else {//read size err
+						fprintf(stderr,"lseek failed!\n%s\n", strerror(errno));  
+						close(fd);						
+					}
+				}  
+				else {//open file err
+					fprintf(stderr,"open file %s failed!\n%s\n", fw_dir,strerror(errno));  
+				}
+			}
+			closedir(d);
+		}
+		fprintf(stderr, "\n");
+	}
+
+	//show latest firmware info
+	if ( foreground ) {
+		for ( hw_type = 0 ; hw_type < MAX_HW_TYPE ; hw_type++ ) {
+			if ( rokko_srv.latest_fw[hw_type].length ) {//exist
+			    fprintf(stderr,"HW v%02d latest firmware info:\n%s\nSize: %d Bytes, Rev:%d Blk:%d CRC:0x%4X\n",\
+						hw_type, rokko_srv.latest_fw[hw_type].filename,\
+						rokko_srv.latest_fw[hw_type].length,rokko_srv.latest_fw[hw_type].rev,\
+						rokko_srv.latest_fw[hw_type].blk_cnt,rokko_srv.latest_fw[hw_type].crc16);
+			}
+		}
+	}
+}
+
 //return 0: ok, others: err
 int convert_sn(struct rokko_data *rokko, unsigned char *sn_buf, unsigned char buf_len)
 {
@@ -200,7 +322,7 @@ int rec_cmd_console( struct rokko_data *rokko, struct rokko_command * cmd,\
 
 	//Console special mark: HW rev
 	//buf[19] =  0xFA  ;//hw revision, 1 byte
-	//buf[20] =  0xFA  ;//reverse
+	//buf[20] =  0xFA  ;//reserve
 
 	if ( rokko->login_cnt && rokko->hw_rev == 0xFAFA ) {
 		{ //ok
@@ -602,7 +724,7 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 				unsigned char *rec_buf, unsigned char *snd_buf )
 {//case GSM_CMD_LOGIN: //0x4C, 'L', Login to server
 
-	unsigned short crc16 ;
+	unsigned short crc16, data_len ;
 	unsigned int ostime;
 	pid_t cloud_pid;
 	unsigned char post_buf[BUFSIZE];
@@ -721,14 +843,32 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			}
 			fprintf(stderr, "\n");
 		}
-				
-		convert_sn(rokko, &rec_buf[9], 8);
 
+		convert_sn(rokko, &rec_buf[9], 8);
+		ostime = rec_buf[5] << 24 | rec_buf[6] << 16 | rec_buf[7] << 8 | rec_buf[8];
+		
 		//HW/FW revision
-		rokko->hw_rev = rec_buf[19]<<8|rec_buf[20];//HW rev
+		//rokko->hw_rev = rec_buf[19]<<8|rec_buf[20];//err, hw_rev is char, only rec_buf[19]
+		rokko->hw_rev = rec_buf[19];//HW rev, rec_buf[20] is reserve
 		rokko->fw_rev = rec_buf[21]<<8|rec_buf[22];//FW rev
 
-		ostime = rec_buf[5] << 24 | rec_buf[6] << 16 | rec_buf[7] << 8 | rec_buf[8];
+		if ( rokko->hw_rev > MAX_HW_TYPE ) { //err
+
+			rokko->login_cnt = 0;
+
+			bzero( snd_buf, BUFSIZE);
+			snprintf(snd_buf,BUFSIZE,"SN: %s from %s ERR, no this HW rev:%d! %s:%d\n",rokko->sn_long,\
+						(char *)inet_ntoa(rokko->client_addr.sin_addr),rokko->hw_rev,__FILE__, __LINE__);
+			log_err(snd_buf);
+			
+			if ( foreground ) {
+				fprintf(stderr, "%s", snd_buf);
+			}
+
+			failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_HW_ERR );
+			
+			return 1 ;
+		}
 
 		unsigned char up_buf[EMAIL];
 
@@ -742,16 +882,20 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			fprintf(stderr, "%s",up_buf);
 		}
 				
-		if ( 1 ) {//if check DB ok, TBD
+		if ( 1 ) {//if check DB ok, TBD, don't block in here
 			//send successful respond 
 			rokko->login_cnt++;
 
+			//Check new firmware each period
+			if ((time(NULL)) - rokko_srv.fw_chk_time > FW_CHK_PERIOD) {
+				check_latest_firmware( );
+			}
+			
 			bzero( snd_buf, BUFSIZE);
 			snd_buf[0] = GSM_HEAD ;
 			snd_buf[1] = cmd->seq ;
 			snd_buf[2] = cmd->pcb | 0x80 ;
-			snd_buf[3] =  00;//len high
-			snd_buf[4] =  17;//len low
+
 			snd_buf[5] =  00;//return status:0£º³É¹¦
 			snd_buf[6] =  (time(NULL) >> 24)&0xFF;//time high
 			snd_buf[7] =  (time(NULL) >> 16)&0xFF;//time high
@@ -774,24 +918,47 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			snd_buf[20] = 0x12 ;
 			snd_buf[21] = 0x37 ;
 		
+			if ( rokko_srv.latest_fw[rokko->hw_rev].rev > rokko->fw_rev ) {
+				//This rev HW has new firmware, add fw info
+				snd_buf[3] =  00;//len high
+				snd_buf[4] =  25;//len low
+
+				snd_buf[22] =  (rokko_srv.latest_fw[rokko->hw_rev].rev >> 8)&0xFF;//Rev high
+				snd_buf[23] =  (rokko_srv.latest_fw[rokko->hw_rev].rev)&0xFF;//Rev low
+
+				snd_buf[24] =  (rokko_srv.latest_fw[rokko->hw_rev].length >> 24)&0xFF;//Size high
+				snd_buf[25] =  (rokko_srv.latest_fw[rokko->hw_rev].length >> 16)&0xFF;//Size high
+				snd_buf[26] =  (rokko_srv.latest_fw[rokko->hw_rev].length >> 8 )&0xFF;//Size low
+				snd_buf[27] =  (rokko_srv.latest_fw[rokko->hw_rev].length)&0xFF;//Size low
+				
+				snd_buf[28] = (rokko_srv.latest_fw[rokko->hw_rev].crc16)>>8 ;
+				snd_buf[29] = (rokko_srv.latest_fw[rokko->hw_rev].crc16)&0xFF ;				
+			}
+			else {//no new fw for this HW
+				snd_buf[3] =  00;//len high
+				snd_buf[4] =  17;//len low
+			}
+
+			data_len = ((snd_buf[3])<<8) | snd_buf[4] ;
+	
 			//Calc CRC16
-			crc16 = crc16tablefast(snd_buf , ((snd_buf[3]<<8)|(snd_buf[4]))+5);
-			
-			snd_buf[22] = (crc16)>>8 ;
-			snd_buf[23] = (crc16)&0xFF ;
+			crc16 = 0xFFFF & (crc16tablefast(snd_buf , data_len+5));
+	
+			snd_buf[data_len+5] = (crc16)>>8 ;
+			snd_buf[data_len+6] = (crc16)&0xFF ;
 
 			if ( foreground ) {
 				fprintf(stderr, "CMD: %c(0x%02X), reply: ",cmd->pcb,cmd->pcb);
-				for ( crc16 = 0 ; crc16 < ((snd_buf[3]<<8)|(snd_buf[4]))+7 ; crc16++ ) {
+				for ( crc16 = 0 ; crc16 < (data_len+7) ; crc16++ ) {
 					fprintf(stderr, "%02X ",snd_buf[crc16]);
 				}
 				fprintf(stderr, "to %s\n",rokko->sn_long);
 			}
 
 			check_sndbuf( snd_buf );
-			write(rokko->client_socket,snd_buf,((snd_buf[3]<<8)|(snd_buf[4]))+7);
+			write(rokko->client_socket,snd_buf,(data_len+7));
 			//save transmit count
-			rokko->tx_cnt += ((snd_buf[3]<<8)|(snd_buf[4]))+7 ;
+			rokko->tx_cnt += (data_len+7) ;
 	
 			//save to log file
 			bzero( snd_buf, BUFSIZE);
@@ -803,8 +970,6 @@ unsigned char rec_cmd_login( struct rokko_data *rokko, struct rokko_command * cm
 			cloud_pid = fork();
 			if (cloud_pid == 0) { //In child process
 
-
-				
 /*				
 				bzero( post_buf, BUFSIZE);		
 				snprintf(post_buf,BUFSIZE,"ip=%s&fid=40&subject=%s, HW:%d FW:%d from %s&message=uptime(H:M:S): %d:%02d:%02d\r\n\
@@ -1122,7 +1287,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 
 				//generate FW CRC:
 				lseek( fd, 0, SEEK_SET );
-				bzero( rev_info, BUFSIZE);
+				bzero( rev_info, sizeof(rev_info));
 				fpos = read(fd, rev_info, MAX_FW_SIZE);
 	
 				//Calc CRC16

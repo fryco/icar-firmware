@@ -42,13 +42,16 @@ struct db_struct {
 };
 
 struct fw_struct {
+	char filename[EMAIL];
 	unsigned short rev;		//2 Bytes, server latest firmware
 	unsigned short crc16;	//firmware crc16 result
 	unsigned int length;	//firmware length
+	unsigned char blk_cnt;
 };
 
 struct server_struct {
 	struct db_struct db;
+	unsigned int fw_chk_time;//check fw each FW_CHK_PERIOD
 	struct fw_struct latest_fw[MAX_HW_TYPE];
 };
 
@@ -73,7 +76,7 @@ struct rokko_send_queue {
 struct rokko_data { //as minimum as possible
 	//Don't change below sequence, need align 4 Bytes
 	//Check console_list_spe( ) in console.c
-	unsigned short hw_rev; //2 Bytes
+	unsigned short hw_rev; //only use 1 bytes, for align use short
 	unsigned short fw_rev; //2 Bytes
 	unsigned int rx_cnt;//receive total bytes, 4 Bytes
 	unsigned int tx_cnt;//transmit total bytes, 4 Bytes
@@ -108,7 +111,7 @@ struct rokko_data { //as minimum as possible
 	
 	unsigned char sn_short[PRODUCT_SN_LEN];//product serial number, IMEI(15),1234=>0x12 0x34
 	unsigned char sn_long[16];//product serial number, IMEI(15),1234=>0x31 0x32 0x33 0x34
-	unsigned char login_cnt;//login count, preven always login //1 Bytes
+	unsigned char login_cnt;//login count, prevent always login //1 Bytes
 	
 	//int  err_code;
 	//char err_msg[BUFSIZE+1];
