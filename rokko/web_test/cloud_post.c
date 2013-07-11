@@ -261,7 +261,7 @@ int main(int argc, char *argv[]) {
 		lon_minute = (lon - lon_degree*60*30000)/30000;
 		lon_second = (lon - lon_degree*60*30000 - lon_minute*30000)/3;
 
-		snprintf(post_buf,BUFSIZE,"sn=997755331160687&longitude=%03d%02d.%04d&latitude=%02d%02d.%04d&voltage=10.8",\
+		snprintf(post_buf,BUFSIZE,"sn=997755331160687&longitude=%03d%02d.%04d&latitude=%02d%02d.%04d&voltage=12.4",\
 									lon_degree,lon_minute,lon_second,\
 									lat_degree,lat_minute,lat_second);
 
