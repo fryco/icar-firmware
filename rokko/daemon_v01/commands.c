@@ -61,7 +61,6 @@ int check_latest_firmware( void )
 	unsigned int i , fpos, fw_size, fw_rev;
 	unsigned short crc16;
 	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
-	unsigned char blk_cnt;
 
 	//update each latest_fw struct
 	for ( hw_type = 0 ; hw_type < MAX_HW_TYPE ; hw_type++ ) {
@@ -93,13 +92,7 @@ int check_latest_firmware( void )
 									fw_dir,fw_size,__FILE__,__LINE__);
 							close(fd); 
 						}
-						else { //calc block count
-							if((fw_size%1024) > 0 ){
-								blk_cnt = (fw_size >> 10) + 1;
-							}
-							else{
-								blk_cnt = (fw_size >> 10);
-							}
+						else { //Find the firmware rev info
 
 							lseek( fd, -20L, SEEK_END );
 							fpos = read(fd, rev_info, 20);
@@ -117,8 +110,8 @@ int check_latest_firmware( void )
 								conv_rev( rev_pos, &fw_rev);
 
 								if ( foreground ) {
-								    fprintf(stderr,"%s size is:%d Rev:%d Blk:%d\n",\
-								    		fw_dir,fw_size,fw_rev,blk_cnt);
+								    fprintf(stderr,"%s size is:%d Rev:%d\n",\
+								    		fw_dir,fw_size,fw_rev);
 								}
 								
 								//update to server_struct
@@ -126,7 +119,6 @@ int check_latest_firmware( void )
 								if ( rokko_srv.latest_fw[hw_type].rev < fw_rev ) {
 									rokko_srv.latest_fw[hw_type].rev = fw_rev;
 									rokko_srv.latest_fw[hw_type].length = fw_size;
-									rokko_srv.latest_fw[hw_type].blk_cnt = blk_cnt;
 									snprintf(rokko_srv.latest_fw[hw_type].filename,EMAIL,"%s",fw_dir);
 
 									//generate FW CRC:
@@ -163,10 +155,10 @@ int check_latest_firmware( void )
 	if ( foreground ) {
 		for ( hw_type = 0 ; hw_type < MAX_HW_TYPE ; hw_type++ ) {
 			if ( rokko_srv.latest_fw[hw_type].length ) {//exist
-			    fprintf(stderr,"HW v%02d latest firmware info:\n%s\nSize: %d Bytes, Rev:%d Blk:%d CRC:0x%4X\n",\
+			    fprintf(stderr,"HW v%02d latest firmware info:\n%s\nSize: %d Bytes, Rev:%d CRC:0x%4X\n",\
 						hw_type, rokko_srv.latest_fw[hw_type].filename,\
 						rokko_srv.latest_fw[hw_type].length,rokko_srv.latest_fw[hw_type].rev,\
-						rokko_srv.latest_fw[hw_type].blk_cnt,rokko_srv.latest_fw[hw_type].crc16);
+						rokko_srv.latest_fw[hw_type].crc16);
 			}
 		}
 	}
@@ -1166,9 +1158,8 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 {//case GSM_CMD_UPGRADE://0x55, 'U', Upgrade firmware
 
 	int fd;
-	unsigned int i , fpos, fw_size, fw_rev;
-	unsigned char *filename="./fw/stm32_v00/20130103.bin";
-	unsigned char rev_info[MAX_FW_SIZE], *rev_pos;
+	unsigned int i , fpos;
+
 	pid_t cloud_pid;
 	unsigned char post_buf[BUFSIZE];
 	unsigned char blk_cnt;
@@ -1176,76 +1167,8 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 
 	fprintf(stderr, "CMD is Upgrade fw...\n");
 
-	//Get the firmware file info
-	fd = open(filename, O_RDONLY, 0700);  
-	if (fd == -1)  {  
-		fprintf(stderr,"open file %s failed!\n%s\n", filename,strerror(errno));  
-		return 10;  
-	}  
-
-	fw_size = lseek(fd, 0, SEEK_END);  
-	if (fw_size == -1)  
-	{  
-		fprintf(stderr,"lseek failed!\n%s\n", strerror(errno));  
-		close(fd);  
-		return 20;  
-	}  
-
-	//check firmware size
-	if ( fw_size < MIN_FW_SIZE ) {//must > 40KB
-		fprintf(stderr,"Error, firmware size: %d Bytes < 40KB\r\n",fw_size);
-		close(fd);  
-		return 30;  
-	}
-
-	//check firmware size
-	if ( fw_size > MAX_FW_SIZE-1 ) {//must < define
-		fprintf(stderr,"Error, firmware size: %d Bytes> 60KB\r\n",fw_size);
-		close(fd);  
-		return 30;  
-	}
-
-	if((fw_size%1024) > 0 ){
-		blk_cnt = (fw_size >> 10) + 1;
-	}
-	else{
-		blk_cnt = (fw_size >> 10);
-	}
-	//printf("Block count: %d @ %d\r\n",blk_cnt,__LINE__);
-
-
-	lseek( fd, -20L, SEEK_END );
-	fpos = read(fd, rev_info, 20);
-	if (fpos == -1)  
-	{  
-		fprintf(stderr,"File read failed!\n%s\n", strerror(errno));  
-		close(fd);  
-		return 40;  
-	}  
-
-	//replace zero with 0x20
-	for ( i = 0 ; i < fpos ; i++ ) {
-		if ( rev_info[i] == 0 ) {
-			rev_info[i] = 0x20 ;
-		}
-	}
-
-	rev_pos = strstr(rev_info,"$Rev: ");
-	if ( rev_pos == NULL ) { //no found
-		fprintf(stderr,"Can't find revision info!\n");
-		close(fd);  
-		return 4;  
-	}
-
-	fw_rev = 0 ;
-	conv_rev( rev_pos, &fw_rev);
-	if ( foreground ) {
-	    fprintf(stderr,"File: %s size is:%d Rev:%d\n", filename,fw_size,fw_rev);
-	}
-
-	if ( rokko->login_cnt ) {
-		if ( rokko->fw_rev <  fw_rev ){//need upgrade
-			fprintf(stderr, "SN: %s\t",rokko->sn_long);
+	if ( (rokko->login_cnt) && (rokko->hw_rev < MAX_HW_TYPE)) {
+		if ( rokko->fw_rev < rokko_srv.latest_fw[rokko->hw_rev].rev ){//need upgrade
 			fprintf(stderr, "rokko->sn_long: %s\r\n",rokko->sn_long);
 	
 			//if buf[5] > 0xF0, error report from STM32 for upgrade flash
@@ -1277,35 +1200,32 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 				//00 表示后面跟的数据是FW版本号(2B)、FW长度(4B)、FW CRC16结果
 				snd_buf[6] =  00 ;
 	
-				snd_buf[7] =  (fw_rev >> 8)&0xFF;//Rev high
-				snd_buf[8] =  (fw_rev)&0xFF;//Rev low
+				snd_buf[7] =  (rokko_srv.latest_fw[rokko->hw_rev].rev >> 8)&0xFF;//Rev high
+				snd_buf[8] =  (rokko_srv.latest_fw[rokko->hw_rev].rev)&0xFF;//Rev low
 
-				snd_buf[9] =  (fw_size >> 24)&0xFF;//Size high
-				snd_buf[10]=  (fw_size >> 16)&0xFF;//Size high
-				snd_buf[11]=  (fw_size >> 8 )&0xFF;//Size low
-				snd_buf[12]=  (fw_size)&0xFF;//Size low
-
-				//generate FW CRC:
-				lseek( fd, 0, SEEK_SET );
-				bzero( rev_info, sizeof(rev_info));
-				fpos = read(fd, rev_info, MAX_FW_SIZE);
-	
-				//Calc CRC16
-				crc16 = 0xFFFF & (crc16tablefast(rev_info , fw_size));
+				snd_buf[9] =  (rokko_srv.latest_fw[rokko->hw_rev].length >> 24)&0xFF;//Size high
+				snd_buf[10] =  (rokko_srv.latest_fw[rokko->hw_rev].length >> 16)&0xFF;//Size high
+				snd_buf[11] =  (rokko_srv.latest_fw[rokko->hw_rev].length >> 8 )&0xFF;//Size low
+				snd_buf[12] =  (rokko_srv.latest_fw[rokko->hw_rev].length)&0xFF;//Size low
 				
-				snd_buf[13] = (crc16)>>8 ;
-				snd_buf[14] = (crc16)&0xFF ;
+				snd_buf[13] = (rokko_srv.latest_fw[rokko->hw_rev].crc16)>>8 ;
+				snd_buf[14] = (rokko_srv.latest_fw[rokko->hw_rev].crc16)&0xFF ;	
 			}//
 			else {//others : block seq
 				fprintf(stderr, "Ask Block %d, FW rev: %d  \t",\
 						rec_buf[5],rec_buf[6]<<8 | rec_buf[7]);
 
-				if ( (rec_buf[5] > blk_cnt) | \
-					(fw_rev != (rec_buf[6]<<8 | rec_buf[7])) ) {//error
+				if(((rokko_srv.latest_fw[rokko->hw_rev].length)%1024) > 0 ){
+					blk_cnt = ((rokko_srv.latest_fw[rokko->hw_rev].length) >> 10) + 1;
+				}
+				else{
+					blk_cnt = ((rokko_srv.latest_fw[rokko->hw_rev].length) >> 10);
+				}
+
+				if ( (rec_buf[5] > blk_cnt) ) {//error
 	
-					fprintf(stderr, "Req BLK: %d or FW rev %d err. %s:%d",\
-							rec_buf[5],rec_buf[6]<<8 | rec_buf[7],\
-							__FILE__,__LINE__);
+					fprintf(stderr, "Req BLK: %d err! Max. Blk is: %d. %s:%d",\
+							rec_buf[5],blk_cnt,__FILE__,__LINE__);
 					
 					snd_buf[0] = GSM_HEAD ;
 					snd_buf[1] = cmd->seq ;
@@ -1313,8 +1233,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 		
 					snd_buf[3] =  00;//len high
 					snd_buf[4] =  1;//len low
-					snd_buf[5] =  4;//status: no this block or FW rev err
-					
+					snd_buf[5] =  ERR_RETURN_NO_BLK;//No this block
 				}
 				else {
 					//send respond : Block data
@@ -1327,9 +1246,25 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 					snd_buf[5] =  00;//status
 					snd_buf[6] =  rec_buf[5];//block seq
 		
-					snd_buf[7] =  (fw_rev >> 8)&0xFF;//Rev high
-					snd_buf[8] =  (fw_rev)&0xFF;//Rev low
+					snd_buf[7] =  ((rokko_srv.latest_fw[rokko->hw_rev].rev) >> 8)&0xFF;//Rev high
+					snd_buf[8] =  (rokko_srv.latest_fw[rokko->hw_rev].rev)&0xFF;//Rev low
 		
+					fd = open(rokko_srv.latest_fw[rokko->hw_rev].filename, O_RDONLY, 0700);  
+					if (fd == -1)  {  
+						fprintf(stderr,"open file %s failed!\n%s\n", \
+							rokko_srv.latest_fw[rokko->hw_rev].filename,strerror(errno));  
+
+						snd_buf[0] = GSM_HEAD ;
+						snd_buf[1] = cmd->seq ;
+						snd_buf[2] = cmd->pcb | 0x80 ;
+			
+						snd_buf[3] =  00;//len high
+						snd_buf[4] =  1;//len low
+						snd_buf[5] =  ERR_RETURN_FILE_FAILURE;//Open file err
+
+						return 10;  
+					}  
+
 					//Block data, Max data len is 1K!!!
 					//read fw according to block seq
 					lseek( fd, (rec_buf[5]-1)*1024, SEEK_SET );
@@ -1400,6 +1335,7 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 			write(rokko->client_socket,snd_buf,data_len+7);
 			//save transmit count
 			rokko->tx_cnt += data_len+7 ;
+			close(fd);
 		}
 		else { //( no need upgrade )
 			fprintf(stderr, "The client FW:%d is latest. %s:%d\n",rokko->fw_rev,__FILE__,__LINE__);
@@ -1411,7 +1347,6 @@ int rec_cmd_upgrade( struct rokko_data *rokko, struct rokko_command * cmd,\
 		failure_cmd( rokko, snd_buf, cmd, ERR_RETURN_NO_LOGIN );
 	}
 
-	close(fd);
 	return 0 ;
 }
 

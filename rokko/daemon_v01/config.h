@@ -92,6 +92,8 @@
 #define ERR_RETURN_CONSOLE_CMD		6	//执行console命令时出错
 #define ERR_RETURN_LOGIN_CNT		7	//login count too many
 #define ERR_RETURN_NO_SN			8	//No serial number
+#define ERR_RETURN_NO_BLK			9	//Require block err, no this blk
+#define ERR_RETURN_FILE_FAILURE		10	//Open firmware file err
 #define ERR_UNKNOW					0xFF//未知错误
 
 //record index define, need same as client main.h define

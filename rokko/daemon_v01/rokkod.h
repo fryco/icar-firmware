@@ -46,7 +46,6 @@ struct fw_struct {
 	unsigned short rev;		//2 Bytes, server latest firmware
 	unsigned short crc16;	//firmware crc16 result
 	unsigned int length;	//firmware length
-	unsigned char blk_cnt;
 };
 
 struct server_struct {
